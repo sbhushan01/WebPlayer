@@ -511,9 +511,11 @@ function injectCustomPlayer(video, launchBtn) {
             const deltaY    = e.clientY - lastY;
             lastY = e.clientY;
 
-            if (e.clientX > videoMidX) {
+           if (e.clientX > videoMidX) {
                 try {
-                    video.volume = Math.max(0, Math.min(1, video.volume - deltaY * 0.005));
+                    // FIX: Round to 2 decimal places to fix floating point math bugs
+                    const newVol = video.volume - deltaY * 0.005;
+                    video.volume = Number(Math.max(0, Math.min(1, newVol)).toFixed(2));
                     showFeedback(`🔊 ${Math.round(video.volume * 100)}%`, true);
                 } catch (_) {}
             } else {
@@ -586,9 +588,7 @@ function injectCustomPlayer(video, launchBtn) {
                     try {
                         if (video.paused) { video.play();  showFeedback("▶ Play");  }
                         else              { video.pause(); showFeedback("⏸ Pause"); }
-                    } catch (err) {
-                        console.warn("[WebPlayer] play/pause:", err);
-                    }
+                    } catch (err) {}
                 }
                 lastTapTime = 0; // reset so triple-tap does not re-trigger
             } else {
