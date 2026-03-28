@@ -66,35 +66,36 @@ function addPlayerButton(videoElement) {
 // Safe forward-seek helper — guards NaN and Infinity durations.
 // ─────────────────────────────────────────────────────────────────────────────
 function safeSeekForward(video, seconds) {
-    const target = video.currentTime + seconds;
-    video.currentTime = Number.isFinite(video.duration)
-        ? Math.min(video.duration, target)
-        : target;
+    try {
+        const target = video.currentTime + seconds;
+        video.currentTime = Number.isFinite(video.duration)
+            ? Math.min(video.duration, target)
+            : target;
+    } catch (e) {
+        console.warn("[WebPlayer] Seek error:", e);
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Main player injection
 // ─────────────────────────────────────────────────────────────────────────────
 function injectCustomPlayer(video, launchBtn) {
-    if (!video) return;
+    if (!video || !video.parentElement) return;
     if (video.dataset.customPlayerActive) return;
 
     video.dataset.customPlayerActive = "true";
     video.controls = false;
     document.body.classList.add("webplayer-active");
 
-    // ── BUG FIX 1: THE GHOST VIDEO KILL-SWITCH ────────────────────────────────
-    // Physically prevent the video element from receiving events. This stops
-    // Chrome's hardcoded Shadow DOM double-tap bug from crashing the renderer.
-    // The user interacts safely with our gestureZone overlay instead.
-    video.dataset.originalPointerEvents = video.style.pointerEvents || "";
-    video.style.setProperty("pointer-events", "none", "important");
-    // ──────────────────────────────────────────────────────────────────────────
+    // ── THE GHOST VIDEO KILL-SWITCH ───────────────────────────────────────────
+    if (video.style) {
+        video.dataset.originalPointerEvents = video.style.pointerEvents || "";
+        video.style.setProperty("pointer-events", "none", "important");
+    }
 
     // ── Dedicated fullscreen shell ────────────────────────────────────────────
     const wpShell = document.createElement("div");
     wpShell.className = "wp-fs-shell";
-    // Force touch-action none directly on the shell to block native zoom
     wpShell.style.touchAction = "none"; 
     video.parentElement.insertBefore(wpShell, video);
     wpShell.appendChild(video);
@@ -147,89 +148,4 @@ function injectCustomPlayer(video, launchBtn) {
     gestureZone.style.touchAction = "none"; 
     gestureZone.style.userSelect = "none";
 
-    // ── BUG FIX 2: GLOBAL CAPTURE EVENT SHIELD ────────────────────────────────
-    // Intercept double-taps at the absolute highest level (window) before the 
-    // host website's scripts (like YouTube) can detect them and crash our layout.
-    const globalEventShield = (e) => {
-        if (wpShell.contains(e.target) || gestureZone.contains(e.target)) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-        }
-    };
-    window.addEventListener("dblclick", globalEventShield, true);
-    // ──────────────────────────────────────────────────────────────────────────
-
-    // ── rAF position tracker ─────────────────────────────────────────────────
-    let isTracking = true;
-    let rafId      = null;
-
-    function trackVideoPosition() {
-        if (!isTracking) return;
-
-        const targetContainer = document.fullscreenElement || document.body;
-        if (uiWrapper.parentNode !== targetContainer) {
-            targetContainer.appendChild(gestureZone);
-            targetContainer.appendChild(spinner);
-            targetContainer.appendChild(uiWrapper);
-            targetContainer.appendChild(feedbackOverlay);
-        }
-
-        const rect = video.getBoundingClientRect();
-
-        gestureZone.style.left   = `${rect.left}px`;
-        gestureZone.style.top    = `${rect.top}px`;
-        gestureZone.style.width  = `${rect.width}px`;
-        gestureZone.style.height = `${rect.height}px`;
-
-        spinner.style.left = `${rect.left + rect.width  / 2}px`;
-        spinner.style.top  = `${rect.top  + rect.height / 2}px`;
-
-        let uiX = rect.left + rect.width / 2;
-        let uiY = rect.bottom - uiWrapper.offsetHeight - 20;
-        uiX = Math.max(uiWrapper.offsetWidth / 2 + 10,
-                       Math.min(uiX, window.innerWidth - uiWrapper.offsetWidth / 2 - 10));
-        uiY = Math.max(10, Math.min(uiY, window.innerHeight - uiWrapper.offsetHeight - 10));
-        uiWrapper.style.left = `${uiX}px`;
-        uiWrapper.style.top  = `${uiY}px`;
-
-        let feedX = rect.left + rect.width / 2;
-        let feedY = rect.top + rect.height * 0.15;
-        feedX = Math.max(feedbackOverlay.offsetWidth / 2 + 10,
-                         Math.min(feedX, window.innerWidth - feedbackOverlay.offsetWidth / 2 - 10));
-        feedY = Math.max(10, Math.min(feedY, window.innerHeight - feedbackOverlay.offsetHeight - 10));
-        feedbackOverlay.style.left = `${feedX}px`;
-        feedbackOverlay.style.top  = `${feedY}px`;
-
-        rafId = requestAnimationFrame(trackVideoPosition);
-    }
-    trackVideoPosition();
-
-    // ── Auto-hide controls ────────────────────────────────────────────────────
-    const AUTO_HIDE_MS = 3000;
-    let hideTimer = null;
-
-    function showControls() {
-        uiWrapper.classList.add("wp-controls-visible");
-        clearTimeout(hideTimer);
-        hideTimer = setTimeout(() => {
-            uiWrapper.classList.remove("wp-controls-visible");
-        }, AUTO_HIDE_MS);
-    }
-
-    gestureZone.addEventListener("pointermove", showControls, { passive: true });
-    uiWrapper.addEventListener("pointermove", showControls, { passive: true });
-    gestureZone.addEventListener("pointerdown", showControls, { passive: true });
-
-    showControls();
-
-    // ── Feedback pill ─────────────────────────────────────────────────────────
-    let feedbackTimer = null;
-    function showFeedback(text, keepAlive = false) {
-        feedbackOverlay.innerText     = text;
-        feedbackOverlay.style.opacity = "1";
-        if (!keepAlive) {
-            clearTimeout(feedbackTimer);
-            feedbackTimer = setTimeout(() => {
-                feedbackOverlay.style.opacity = "0";
-            },
+    //
