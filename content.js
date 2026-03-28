@@ -138,6 +138,9 @@ function injectCustomPlayer(video, launchBtn) {
     // Gesture zone (intercepts touches over the video area)
     const gestureZone = document.createElement("div");
     gestureZone.className = "webplayer-gesture-zone";
+    // FIX: Prevent native zoom on double tap
+    gestureZone.style.touchAction = "none"; 
+    gestureZone.style.userSelect = "none";
 
     // ── rAF position tracker ─────────────────────────────────────────────────
     let isTracking = true;
