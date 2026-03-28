@@ -4,26 +4,51 @@ document.addEventListener("DOMContentLoaded", async () => {
     const bufferEl   = document.getElementById("buffering-indicator");
     const skipBadge  = document.getElementById("skip-badge");
 
-    // FIX 6: Null checks
     if (!player || !container) {
         console.error("Critical player elements missing.");
         return; 
     }
 
-    // ── FIX FOR DOUBLE TAP BLACK SCREEN ──────────────────────────
-    // Intercept native double click to prevent the video element 
-    // from breaking out of our custom container.
-    player.addEventListener('dblclick', (e) => {
+    // ── FIX: AGGRESSIVE DOUBLE-TAP INTERCEPTOR (Capture Phase) ─────────────
+    // Chromium native <video controls> have a bug where double-tapping 
+    // while inside a custom fullscreen container crashes the renderer and 
+    // causes a black screen. We MUST intercept the tap in the CAPTURE phase 
+    // so the native video shadow DOM never receives it.
+    let lastPointerDownTime = 0;
+    let isDoubleTapping = false;
+
+    container.addEventListener('pointerdown', (e) => {
+        const now = Date.now();
+        if (now - lastPointerDownTime < 300) {
+            isDoubleTapping = true;
+            e.preventDefault();
+            e.stopPropagation(); // CRITICAL: Stop event from reaching <video>
+
+            if (document.fullscreenElement) {
+                document.exitFullscreen().catch(() => {});
+            } else {
+                (container.requestFullscreen?.() ?? player.requestFullscreen?.());
+            }
+            lastPointerDownTime = 0;
+        } else {
+            isDoubleTapping = false;
+            lastPointerDownTime = now;
+        }
+    }, true); // true = Capture phase
+
+    container.addEventListener('pointerup', (e) => {
+        if (isDoubleTapping) {
+            e.preventDefault();
+            e.stopPropagation();
+            isDoubleTapping = false;
+        }
+    }, true);
+
+    container.addEventListener('dblclick', (e) => {
         e.preventDefault();
         e.stopPropagation();
-
-        if (document.fullscreenElement) {
-            document.exitFullscreen().catch(() => {});
-        } else {
-            (container?.requestFullscreen?.() ?? player.requestFullscreen?.());
-        }
-    });
-    // ─────────────────────────────────────────────────────────────
+    }, true);
+    // ───────────────────────────────────────────────────────────────────────
 
     const urlParams  = new URLSearchParams(window.location.search);
     const videoSrc   = urlParams.get("src");
@@ -36,7 +61,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         return;
     }
 
-    // ── Global Engine Tracking (FIX 1: Memory Leaks) ─────────────
     let currentHls = null;
     let currentDash = null;
 
@@ -46,11 +70,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     window.addEventListener("beforeunload", () => {
-        destroyEngines(); // FIX 7: Cleanup on unload
+        destroyEngines();
         if (audioContext && audioContext.state !== 'closed') audioContext.close();
     });
 
-    // ── Error helper & DRM Check (FIX 8 & 15) ────────────────────
     function showError(msg) {
         const errorBox = document.getElementById("error-box");
         if (errorBox) {
@@ -71,7 +94,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     }
 
-    // ── Buffering indicator (FIX 11: Stalled detection) ──────────
     function setBuffering(on) { bufferEl?.classList.toggle("is-buffering", on); }
     player.addEventListener("waiting",  () => setBuffering(true));
     player.addEventListener("playing",  () => setBuffering(false));
@@ -79,12 +101,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     player.addEventListener("loadeddata", () => setBuffering(false));
     player.addEventListener("stalled", () => setBuffering(true)); 
 
-    // Polling fallback for missed events
     setInterval(() => {
         if (player.readyState < 3 && !player.paused) setBuffering(true);
     }, 500);
 
-    // ── Script loader with Promise Cache (FIX 2: Race Condition) ──
     const loadedScripts = {};
     function loadScript(path) {
         if (!loadedScripts[path]) {
@@ -99,7 +119,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         return loadedScripts[path];
     }
 
-    // ── Source attachment ─────────────────────────────────────────
     async function attachSource(src) {
         destroyEngines();
         await checkDRM();
@@ -155,7 +174,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     await attachSource(videoSrc);
 
-    // ── Native video error & Retry (FIX 10) ────────────────────────
     let retryCount = 0;
     player.addEventListener("error", () => {
         setBuffering(false);
@@ -177,7 +195,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         showError(isCORS ? "Network or CORS error. The host may be blocking external players." : (msgs[code] || "Could not load video."));
     });
 
-    // ── API Skip Segment Fetch (FIX 3 & 9) ─────────────────────────
     async function fetchSegments(url) {
         try {
             const videoId = new URLSearchParams(url.split('?')[1]).get("v");
@@ -212,7 +229,6 @@ document.addEventListener("DOMContentLoaded", async () => {
                 player.currentTime = end;
                 flashSkipBadge(seg.category || seg.type || "Segment");
                 
-                // Fix soft-lock: Wait for native seeked event
                 player.addEventListener("seeked", () => {
                     isSkipping = false;
                 }, { once: true });
@@ -221,7 +237,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     });
 
-    // ── Equalizer (FIX 4: AudioContext resume) ─────────────────────
     const DEFAULT_LOW_GAIN  = 4;
     const DEFAULT_HIGH_GAIN = 2;
     let savedEq = { lowGain: DEFAULT_LOW_GAIN, highGain: DEFAULT_HIGH_GAIN };
@@ -285,7 +300,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     }
 
-    // ── Speed control & Keyboard Shortcuts ─────────────────────────
     const speedSelect = document.getElementById("speed-select");
     if (speedSelect) {
         speedSelect.addEventListener("change", () => {
