@@ -3,12 +3,21 @@
   "name": "WebPlayer",
   "version": "1.2.1",
   "description": "Intercepts video streams and launches them in a custom, feature-rich web player.",
+  
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "webplayer@yourname.com",
+      "strict_min_version": "121.0"
+    }
+  },
+
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
+
   "permissions": [
     "storage",
     "declarativeNetRequest",
@@ -17,9 +26,11 @@
     "tabs"
   ],
   "host_permissions": ["<all_urls>"],
+  
   "background": {
     "service_worker": "background.js"
   },
+  
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
@@ -28,6 +39,7 @@
       "all_frames": true
     }
   ],
+  
   "web_accessible_resources": [
     {
       "resources": [
