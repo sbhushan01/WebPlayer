@@ -6,16 +6,20 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (!player || !container) {
         console.error("Critical player elements missing.");
-        return; 
+        return;
     }
 
-    // ── FIX: AGGRESSIVE DOUBLE-TAP INTERCEPTOR (Capture Phase) ─────────────
+    // ── DOUBLE-TAP INTERCEPTOR (Capture Phase) ──────────────────────────────
+    // Left third  → seek −10s
+    // Right third → seek +10s
+    // Center      → toggle fullscreen
+    // This runs in capture phase to intercept before the <video> element sees it.
     let lastPointerDownTime = 0;
     let isDoubleTapping = false;
 
     container.addEventListener('pointerdown', (e) => {
-        // FIX: Ignore multi-touch secondary fingers so they don't trigger a double-tap
-        if (!e.isPrimary) return; 
+        // Ignore multi-touch secondary fingers
+        if (!e.isPrimary) return;
 
         const now = Date.now();
         if (now - lastPointerDownTime < 300) {
@@ -23,11 +27,30 @@ document.addEventListener("DOMContentLoaded", async () => {
             e.preventDefault();
             e.stopPropagation(); // CRITICAL: Stop event from reaching <video>
 
-            if (document.fullscreenElement) {
-                document.exitFullscreen().catch(() => {});
+            // Divide container into left / center / right zones
+            const rect      = container.getBoundingClientRect();
+            const relativeX = e.clientX - rect.left;
+            const leftZone  = rect.width * 0.33;
+            const rightZone = rect.width * 0.66;
+
+            if (relativeX < leftZone) {
+                // Left third → seek back 10s
+                player.currentTime = Math.max(0, player.currentTime - 10);
+            } else if (relativeX > rightZone) {
+                // Right third → seek forward 10s
+                player.currentTime = Math.min(
+                    Number.isFinite(player.duration) ? player.duration : Infinity,
+                    player.currentTime + 10
+                );
             } else {
-                (container.requestFullscreen?.() ?? player.requestFullscreen?.());
+                // Center third → toggle fullscreen
+                if (document.fullscreenElement) {
+                    document.exitFullscreen().catch(() => {});
+                } else {
+                    (container.requestFullscreen?.() ?? player.requestFullscreen?.());
+                }
             }
+
             lastPointerDownTime = 0;
         } else {
             isDoubleTapping = false;
@@ -49,9 +72,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     }, true);
     // ───────────────────────────────────────────────────────────────────────
 
-    const urlParams  = new URLSearchParams(window.location.search);
-    const videoSrc   = urlParams.get("src");
-    const pageTitle  = urlParams.get("title");
+    const urlParams = new URLSearchParams(window.location.search);
+    const videoSrc  = urlParams.get("src");
+    const pageTitle = urlParams.get("title");
 
     if (pageTitle) document.title = pageTitle;
 
@@ -60,12 +83,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         return;
     }
 
-    let currentHls = null;
+    let currentHls  = null;
     let currentDash = null;
 
     function destroyEngines() {
-        if (currentHls) { currentHls.destroy(); currentHls = null; }
-        if (currentDash) { currentDash.reset(); currentDash = null; }
+        if (currentHls)  { currentHls.destroy(); currentHls   = null; }
+        if (currentDash) { currentDash.reset();  currentDash  = null; }
     }
 
     window.addEventListener("beforeunload", () => {
@@ -76,7 +99,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     function showError(msg) {
         const errorBox = document.getElementById("error-box");
         if (errorBox) {
-            errorBox.textContent = `⚠️ ${msg}`;
+            errorBox.textContent   = `⚠️ ${msg}`;
             errorBox.style.display = "block";
         }
     }
@@ -94,23 +117,24 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     function setBuffering(on) { bufferEl?.classList.toggle("is-buffering", on); }
-    player.addEventListener("waiting",  () => setBuffering(true));
-    player.addEventListener("playing",  () => setBuffering(false));
-    player.addEventListener("canplay",  () => setBuffering(false));
+    player.addEventListener("waiting",    () => setBuffering(true));
+    player.addEventListener("playing",    () => setBuffering(false));
+    player.addEventListener("canplay",    () => setBuffering(false));
     player.addEventListener("loadeddata", () => setBuffering(false));
-    player.addEventListener("stalled", () => setBuffering(true)); 
+    player.addEventListener("stalled",    () => setBuffering(true));
 
     setInterval(() => {
         if (player.readyState < 3 && !player.paused) setBuffering(true);
     }, 500);
 
+    // Promise cache — prevents race conditions on rapid source switching
     const loadedScripts = {};
     function loadScript(path) {
         if (!loadedScripts[path]) {
             loadedScripts[path] = new Promise((resolve, reject) => {
-                const s  = document.createElement("script");
-                s.src    = chrome.runtime.getURL(path);
-                s.onload = resolve;
+                const s   = document.createElement("script");
+                s.src     = chrome.runtime.getURL(path);
+                s.onload  = resolve;
                 s.onerror = () => { delete loadedScripts[path]; reject(new Error(`Failed to load: ${path}`)); };
                 document.head.appendChild(s);
             });
@@ -121,8 +145,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     async function attachSource(src) {
         destroyEngines();
         await checkDRM();
-        
-        const cleanSrc = src.split("?")[0].toLowerCase();
+
+        const cleanSrc     = src.split("?")[0].toLowerCase();
         player.crossOrigin = "anonymous";
         setBuffering(true);
 
@@ -134,7 +158,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     currentHls.loadSource(src);
                     currentHls.attachMedia(player);
                     currentHls.on(Hls.Events.MANIFEST_PARSED, () => player.play().catch(() => {}));
-                    
+
                     currentHls.on(Hls.Events.ERROR, (event, data) => {
                         if (data.fatal) {
                             switch (data.type) {
@@ -185,20 +209,24 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         const isCORS = code === 2 || code === 3 || code === 4;
-        const msgs = {
+        const msgs   = {
             1: "Playback aborted.",
             2: "Network error — check your connection.",
             3: "Decode error — file may be corrupt.",
             4: "Format or URL not supported."
         };
-        showError(isCORS ? "Network or CORS error. The host may be blocking external players." : (msgs[code] || "Could not load video."));
+        showError(isCORS
+            ? "Network or CORS error. The host may be blocking external players."
+            : (msgs[code] || "Could not load video.")
+        );
     });
 
-    // FIX: Safely parse URLs to prevent undefined crashes if no '?' exists
+    // ── SponsorBlock integration ─────────────────────────────────────────────
+    // Safely parse the video URL — guards against missing '?' or non-YouTube URLs
     async function fetchSegments(url) {
         try {
             const parsedUrl = new URL(url);
-            const videoId = parsedUrl.searchParams.get("v");
+            const videoId   = parsedUrl.searchParams.get("v");
             if (!videoId) return [];
             const res = await fetch(`https://sponsor.ajay.app/api/skipSegments?videoID=${videoId}`);
             return await res.json();
@@ -222,14 +250,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         const t = player.currentTime;
 
         for (const seg of skipSegments) {
-            const start = seg.segment?.[0] || seg.start;
-            const end = seg.segment?.[1] || seg.end;
-            
+            const start = seg.segment?.[0] ?? seg.start;
+            const end   = seg.segment?.[1] ?? seg.end;
+
             if (t >= start && t < end) {
-                isSkipping = true;
-                player.currentTime = end;
+                isSkipping          = true;
+                player.currentTime  = end;
                 flashSkipBadge(seg.category || seg.type || "Segment");
-                
+
                 player.addEventListener("seeked", () => {
                     isSkipping = false;
                 }, { once: true });
@@ -238,6 +266,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     });
 
+    // ── Audio Equalizer ──────────────────────────────────────────────────────
     const DEFAULT_LOW_GAIN  = 4;
     const DEFAULT_HIGH_GAIN = 2;
     let savedEq = { lowGain: DEFAULT_LOW_GAIN, highGain: DEFAULT_HIGH_GAIN };
@@ -265,14 +294,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (audioContext) return;
         try {
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            const track = audioContext.createMediaElementSource(player);
+            const track  = audioContext.createMediaElementSource(player);
 
-            lowShelf = audioContext.createBiquadFilter();
-            lowShelf.type            = "lowshelf";
-            lowShelf.frequency.value = 250;
-            lowShelf.gain.value      = savedEq.lowGain;
+            lowShelf                  = audioContext.createBiquadFilter();
+            lowShelf.type             = "lowshelf";
+            lowShelf.frequency.value  = 250;
+            lowShelf.gain.value       = savedEq.lowGain;
 
-            highShelf = audioContext.createBiquadFilter();
+            highShelf                 = audioContext.createBiquadFilter();
             highShelf.type            = "highshelf";
             highShelf.frequency.value = 4000;
             highShelf.gain.value      = savedEq.highGain;
@@ -286,7 +315,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (lowSlider) {
         lowSlider.addEventListener("input", () => {
             const val = parseFloat(lowSlider.value);
-            lowLabel.textContent = `${val} dB`;
+            lowLabel.textContent  = `${val} dB`;
             if (lowShelf) lowShelf.gain.value = val;
             chrome.storage.sync.set({ eq: { lowGain: val, highGain: parseFloat(highSlider?.value || 0) } });
         });
@@ -301,6 +330,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     }
 
+    // ── Playback speed ───────────────────────────────────────────────────────
     const speedSelect = document.getElementById("speed-select");
     if (speedSelect) {
         speedSelect.addEventListener("change", () => {
@@ -308,8 +338,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     }
 
+    // ── Keyboard shortcuts ───────────────────────────────────────────────────
     document.addEventListener("keydown", e => {
-        // FIX: Add "BUTTON" to the ignore list so Spacebar doesn't trigger UI elements twice
+        // Ignore when focus is inside an interactive element
         if (["INPUT", "SELECT", "TEXTAREA", "BUTTON"].includes(e.target.tagName)) return;
 
         switch (e.key) {
@@ -320,7 +351,10 @@ document.addEventListener("DOMContentLoaded", async () => {
                 break;
             case "ArrowRight":
                 e.preventDefault();
-                player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 10);
+                player.currentTime = Math.min(
+                    Number.isFinite(player.duration) ? player.duration : Infinity,
+                    player.currentTime + 10
+                );
                 break;
             case "ArrowLeft":
                 e.preventDefault();
