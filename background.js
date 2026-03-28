@@ -1,25 +1,30 @@
 // FIX: The CORS rule now uses a domain-based urlFilter instead of the raw
 // signed URL. Signed URLs, CDN redirects, and query-string changes would
-// cause the exact-URL filter to silently miss the request.  Extracting just
+// cause the exact-URL filter to silently miss the request. Extracting just
 // the scheme + host covers all paths on that origin.
 
 function domainFilter(rawUrl) {
     try {
         const u = new URL(rawUrl);
-        // Match everything on this origin: "https://example.com/*"
-        return `${u.protocol}//${u.hostname}/*`;
+        // FIX: Match everything on this origin: "https://example.com/*"
+        // Changed u.hostname to u.host to ensure ports (e.g. :8080) are included
+        return `${u.protocol}//${u.host}/*`;
     } catch (_) {
         // Fallback: use the raw URL (original behaviour) if parsing fails.
         return rawUrl;
     }
 }
 
+// FIX: Use a monotonic counter instead of Date.now() to avoid rule ID collisions
+let nextRuleId = 1;
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "open_player" && request.videoSrc) {
         const videoUrl  = request.videoSrc;
         const urlFilter = domainFilter(videoUrl);
-        // Use a timestamp-based ID to avoid collisions across rapid calls.
-        const ruleId    = (Date.now() % 1_000_000) + 1;
+        
+        const ruleId = nextRuleId++;
+        if (nextRuleId > 1_000_000) nextRuleId = 1;
 
         chrome.declarativeNetRequest.updateDynamicRules(
             {
@@ -76,10 +81,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         );
     }
 });
+
 // FIX 14: Auto-detect streaming manifests in network traffic
 chrome.webRequest.onHeadersReceived.addListener(
     (details) => {
-        if (details.url.includes('.m3u8') || details.url.includes('.mpd')) {
+        // FIX: Ensure tabId >= 0 to prevent background-originated requests from causing errors
+        if (details.tabId >= 0 && (details.url.includes('.m3u8') || details.url.includes('.mpd'))) {
             // Signal to content script to display an "Open in WebPlayer" badge globally
             chrome.tabs.sendMessage(details.tabId, {
                 action: "stream_detected",
