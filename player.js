@@ -4,6 +4,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     const bufferEl   = document.getElementById("buffering-indicator");
     const skipBadge  = document.getElementById("skip-badge");
 
+    // FIX 6: Null checks
+    if (!player || !container) {
+        console.error("Critical player elements missing.");
+        return; 
+    }
+
     const urlParams  = new URLSearchParams(window.location.search);
     const videoSrc   = urlParams.get("src");
     const pageTitle  = urlParams.get("title");
@@ -15,7 +21,21 @@ document.addEventListener("DOMContentLoaded", async () => {
         return;
     }
 
-    // ── Error helper ──────────────────────────────────────────────────────────
+    // ── Global Engine Tracking (FIX 1: Memory Leaks) ─────────────
+    let currentHls = null;
+    let currentDash = null;
+
+    function destroyEngines() {
+        if (currentHls) { currentHls.destroy(); currentHls = null; }
+        if (currentDash) { currentDash.reset(); currentDash = null; }
+    }
+
+    window.addEventListener("beforeunload", () => {
+        destroyEngines(); // FIX 7: Cleanup on unload
+        if (audioContext && audioContext.state !== 'closed') audioContext.close();
+    });
+
+    // ── Error helper & DRM Check (FIX 8 & 15) ────────────────────
     function showError(msg) {
         const errorBox = document.getElementById("error-box");
         if (errorBox) {
@@ -24,114 +44,95 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     }
 
-    // ── Buffering indicator ───────────────────────────────────────────────────
-    function setBuffering(on) {
-        bufferEl?.classList.toggle("is-buffering", on);
+    async function checkDRM() {
+        try {
+            const config = [{
+                initDataTypes: ['cenc'],
+                videoCapabilities: [{ contentType: 'video/mp4; codecs="avc1.42E01E"' }]
+            }];
+            await navigator.requestMediaKeySystemAccess('com.widevine.alpha', config);
+        } catch (e) {
+            showError("This stream may require Widevine DRM, which is not fully supported in this context.");
+        }
     }
+
+    // ── Buffering indicator (FIX 11: Stalled detection) ──────────
+    function setBuffering(on) { bufferEl?.classList.toggle("is-buffering", on); }
     player.addEventListener("waiting",  () => setBuffering(true));
     player.addEventListener("playing",  () => setBuffering(false));
     player.addEventListener("canplay",  () => setBuffering(false));
     player.addEventListener("loadeddata", () => setBuffering(false));
+    player.addEventListener("stalled", () => setBuffering(true)); 
 
-    // ── Script loader ─────────────────────────────────────────────────────────
+    // Polling fallback for missed events
+    setInterval(() => {
+        if (player.readyState < 3 && !player.paused) setBuffering(true);
+    }, 500);
+
+    // ── Script loader with Promise Cache (FIX 2: Race Condition) ──
+    const loadedScripts = {};
     function loadScript(path) {
-        return new Promise((resolve, reject) => {
-            const s  = document.createElement("script");
-            s.src    = chrome.runtime.getURL(path);
-            s.onload = resolve;
-            s.onerror = () => reject(new Error(`Failed to load: ${path}`));
-            document.head.appendChild(s);
-        });
+        if (!loadedScripts[path]) {
+            loadedScripts[path] = new Promise((resolve, reject) => {
+                const s  = document.createElement("script");
+                s.src    = chrome.runtime.getURL(path);
+                s.onload = resolve;
+                s.onerror = () => { delete loadedScripts[path]; reject(new Error(`Failed to load: ${path}`)); };
+                document.head.appendChild(s);
+            });
+        }
+        return loadedScripts[path];
     }
 
-    // ── Source attachment with engine-failure fallback ─────────────────────────
-    // FIX: If the HLS/DASH library loads but the media engine then fails (e.g.
-    // MSE not available in this context), we show a clear error instead of
-    // leaving a blank player.  We also emit a "fatal-error" event so any future
-    // listeners can react.
+    // ── Source attachment ─────────────────────────────────────────
     async function attachSource(src) {
+        destroyEngines();
+        await checkDRM();
+        
         const cleanSrc = src.split("?")[0].toLowerCase();
         player.crossOrigin = "anonymous";
         setBuffering(true);
 
         try {
             if (cleanSrc.endsWith(".m3u8")) {
-                // ── HLS ──────────────────────────────────────────────────────
                 await loadScript("libs/hls.min.js");
-
                 if (window.Hls && Hls.isSupported()) {
-                    const hls = new Hls({
-                        // Aggressive retry for transient network errors
-                        manifestLoadingMaxRetry: 4,
-                        levelLoadingMaxRetry:    4,
-                        fragLoadingMaxRetry:     4
-                    });
-
-                    hls.loadSource(src);
-                    hls.attachMedia(player);
-
-                    hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                        player.play().catch(() => {});
-                    });
-
-                    // FIX: distinguish recoverable vs fatal HLS errors
-                    hls.on(Hls.Events.ERROR, (event, data) => {
+                    currentHls = new Hls({ manifestLoadingMaxRetry: 4 });
+                    currentHls.loadSource(src);
+                    currentHls.attachMedia(player);
+                    currentHls.on(Hls.Events.MANIFEST_PARSED, () => player.play().catch(() => {}));
+                    
+                    currentHls.on(Hls.Events.ERROR, (event, data) => {
                         if (data.fatal) {
                             switch (data.type) {
                                 case Hls.ErrorTypes.NETWORK_ERROR:
-                                    // Try to recover once
-                                    hls.startLoad();
+                                    currentHls.startLoad();
                                     break;
                                 case Hls.ErrorTypes.MEDIA_ERROR:
-                                    hls.recoverMediaError();
+                                    currentHls.recoverMediaError();
                                     break;
                                 default:
-                                    hls.destroy();
+                                    currentHls.destroy();
                                     showError(`HLS fatal error: ${data.details}`);
                                     break;
                             }
                         }
                     });
-
-                } else if (player.canPlayType("application/vnd.apple.mpegurl")) {
-                    // Safari native HLS
-                    player.src = src;
-                    player.load();
-                } else {
-                    showError("HLS streams are not supported in this browser.");
                 }
-
             } else if (cleanSrc.endsWith(".mpd")) {
-                // ── DASH ─────────────────────────────────────────────────────
                 await loadScript("libs/dash.all.min.js");
-
-                // FIX: verify the library actually initialised after load
-                if (!window.dashjs) {
-                    showError("DASH library failed to initialise.");
-                    return;
+                if (window.dashjs) {
+                    currentDash = dashjs.MediaPlayer().create();
+                    currentDash.initialize(player, src, true);
+                    currentDash.on(dashjs.MediaPlayer.events.ERROR, e => {
+                        showError(`DASH error: ${e.error?.message || "unknown"}`);
+                    });
                 }
-
-                const dashPlayer = dashjs.MediaPlayer().create();
-                dashPlayer.initialize(player, src, true);
-
-                dashPlayer.on(dashjs.MediaPlayer.events.ERROR, e => {
-                    const msg = e.error?.message || e.error?.code || "unknown";
-                    showError(`DASH error: ${msg}`);
-                });
-
-                // FIX: if MediaSource / MSE is not available, surface it clearly
-                if (!window.MediaSource) {
-                    showError("Your browser does not support Media Source Extensions (required for DASH).");
-                    dashPlayer.reset();
-                }
-
             } else {
-                // ── Plain video / direct URL ──────────────────────────────────
                 player.src = src;
                 player.load();
             }
         } catch (err) {
-            // Script load failure or unexpected exception
             showError(`Could not initialise player: ${err.message}`);
             setBuffering(false);
         }
@@ -139,26 +140,36 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     await attachSource(videoSrc);
 
-    // ── Native video error ─────────────────────────────────────────────────────
+    // ── Native video error & Retry (FIX 10) ────────────────────────
+    let retryCount = 0;
     player.addEventListener("error", () => {
         setBuffering(false);
+        const code = player.error?.code;
+
+        if (code === 2 && retryCount < 3 && !currentHls && !currentDash) {
+            retryCount++;
+            setTimeout(() => { player.load(); player.play(); }, 1500);
+            return;
+        }
+
+        const isCORS = code === 2 || code === 3 || code === 4;
         const msgs = {
             1: "Playback aborted.",
-            2: "Network error — check your connection or CORS headers.",
-            3: "Decode error — file may be corrupt or in an unsupported format.",
+            2: "Network error — check your connection.",
+            3: "Decode error — file may be corrupt.",
             4: "Format or URL not supported."
         };
-        showError(msgs[player.error?.code] || "Could not load video — the source may be protected or unavailable.");
+        showError(isCORS ? "Network or CORS error. The host may be blocking external players." : (msgs[code] || "Could not load video."));
     });
 
-    // ── Skip segments with visible badge ──────────────────────────────────────
-    // fetchSegments is a placeholder; replace with a real API call as needed.
+    // ── API Skip Segment Fetch (FIX 3 & 9) ─────────────────────────
     async function fetchSegments(url) {
-        // Example stubs — wire to SponsorBlock or your own API here
-        return [
-            { start: 15,  end: 30,  type: "intro"   },
-            { start: 120, end: 180, type: "sponsor"  }
-        ];
+        try {
+            const videoId = new URLSearchParams(url.split('?')[1]).get("v");
+            if (!videoId) return [];
+            const res = await fetch(`https://sponsor.ajay.app/api/skipSegments?videoID=${videoId}`);
+            return await res.json();
+        } catch (e) { return []; }
     }
 
     let skipSegments = await fetchSegments(videoSrc);
@@ -170,9 +181,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         skipBadge.textContent = `⏭ Skipping ${label}…`;
         skipBadge.classList.add("visible");
         clearTimeout(badgeTimer);
-        badgeTimer = setTimeout(() => {
-            skipBadge.classList.remove("visible");
-        }, 1400);
+        badgeTimer = setTimeout(() => skipBadge.classList.remove("visible"), 1400);
     }
 
     player.addEventListener("timeupdate", () => {
@@ -180,27 +189,33 @@ document.addEventListener("DOMContentLoaded", async () => {
         const t = player.currentTime;
 
         for (const seg of skipSegments) {
-            if (t >= seg.start && t < seg.end) {
-                isSkipping         = true;
-                player.currentTime = seg.end;
-                flashSkipBadge(seg.type);
-                setTimeout(() => { isSkipping = false; }, 500);
+            const start = seg.segment?.[0] || seg.start;
+            const end = seg.segment?.[1] || seg.end;
+            
+            if (t >= start && t < end) {
+                isSkipping = true;
+                player.currentTime = end;
+                flashSkipBadge(seg.category || seg.type || "Segment");
+                
+                // Fix soft-lock: Wait for native seeked event
+                player.addEventListener("seeked", () => {
+                    isSkipping = false;
+                }, { once: true });
                 break;
             }
         }
     });
 
-    // ── Equalizer ─────────────────────────────────────────────────────────────
+    // ── Equalizer (FIX 4: AudioContext resume) ─────────────────────
     const DEFAULT_LOW_GAIN  = 4;
     const DEFAULT_HIGH_GAIN = 2;
     let savedEq = { lowGain: DEFAULT_LOW_GAIN, highGain: DEFAULT_HIGH_GAIN };
 
     try {
-        const stored = await chrome.storage.sync.get("eq");
-        if (stored.eq) savedEq = stored.eq;
-    } catch (e) {
-        console.warn("[WebPlayer] Could not read EQ:", e);
-    }
+        chrome.storage.sync.get("eq").then(stored => {
+            if (stored.eq) savedEq = stored.eq;
+        });
+    } catch (e) {}
 
     const lowSlider  = document.getElementById("eq-low");
     const highSlider = document.getElementById("eq-high");
@@ -213,6 +228,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     let audioContext, lowShelf, highShelf;
 
     player.addEventListener("play", () => {
+        if (audioContext && audioContext.state === 'suspended') {
+            audioContext.resume();
+        }
         if (audioContext) return;
         try {
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -231,17 +249,15 @@ document.addEventListener("DOMContentLoaded", async () => {
             track.connect(lowShelf);
             lowShelf.connect(highShelf);
             highShelf.connect(audioContext.destination);
-        } catch (err) {
-            console.warn("[WebPlayer] AudioContext error:", err);
-        }
-    }, { once: true });
+        } catch (err) {}
+    });
 
     if (lowSlider) {
         lowSlider.addEventListener("input", () => {
             const val = parseFloat(lowSlider.value);
             lowLabel.textContent = `${val} dB`;
             if (lowShelf) lowShelf.gain.value = val;
-            chrome.storage.sync.set({ eq: { lowGain: val, highGain: parseFloat(highSlider.value) } });
+            chrome.storage.sync.set({ eq: { lowGain: val, highGain: parseFloat(highSlider?.value || 0) } });
         });
     }
 
@@ -250,11 +266,11 @@ document.addEventListener("DOMContentLoaded", async () => {
             const val = parseFloat(highSlider.value);
             highLabel.textContent = `${val} dB`;
             if (highShelf) highShelf.gain.value = val;
-            chrome.storage.sync.set({ eq: { lowGain: parseFloat(lowSlider.value), highGain: val } });
+            chrome.storage.sync.set({ eq: { lowGain: parseFloat(lowSlider?.value || 0), highGain: val } });
         });
     }
 
-    // ── Speed control ─────────────────────────────────────────────────────────
+    // ── Speed control & Keyboard Shortcuts ─────────────────────────
     const speedSelect = document.getElementById("speed-select");
     if (speedSelect) {
         speedSelect.addEventListener("change", () => {
@@ -262,7 +278,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     }
 
-    // ── Keyboard shortcuts ────────────────────────────────────────────────────
     document.addEventListener("keydown", e => {
         if (["INPUT", "SELECT", "TEXTAREA"].includes(e.target.tagName)) return;
 
@@ -292,7 +307,6 @@ document.addEventListener("DOMContentLoaded", async () => {
                 player.muted = !player.muted;
                 break;
             case "f":
-                // FIX: fullscreen targets the container, not the bare video
                 document.fullscreenElement
                     ? document.exitFullscreen()
                     : (container?.requestFullscreen?.() ?? player.requestFullscreen?.());
