@@ -10,14 +10,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // ── FIX: AGGRESSIVE DOUBLE-TAP INTERCEPTOR (Capture Phase) ─────────────
-    // Chromium native <video controls> have a bug where double-tapping 
-    // while inside a custom fullscreen container crashes the renderer and 
-    // causes a black screen. We MUST intercept the tap in the CAPTURE phase 
-    // so the native video shadow DOM never receives it.
     let lastPointerDownTime = 0;
     let isDoubleTapping = false;
 
     container.addEventListener('pointerdown', (e) => {
+        // FIX: Ignore multi-touch secondary fingers so they don't trigger a double-tap
+        if (!e.isPrimary) return; 
+
         const now = Date.now();
         if (now - lastPointerDownTime < 300) {
             isDoubleTapping = true;
@@ -37,7 +36,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }, true); // true = Capture phase
 
     container.addEventListener('pointerup', (e) => {
-        if (isDoubleTapping) {
+        if (isDoubleTapping && e.isPrimary) {
             e.preventDefault();
             e.stopPropagation();
             isDoubleTapping = false;
@@ -195,9 +194,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         showError(isCORS ? "Network or CORS error. The host may be blocking external players." : (msgs[code] || "Could not load video."));
     });
 
+    // FIX: Safely parse URLs to prevent undefined crashes if no '?' exists
     async function fetchSegments(url) {
         try {
-            const videoId = new URLSearchParams(url.split('?')[1]).get("v");
+            const parsedUrl = new URL(url);
+            const videoId = parsedUrl.searchParams.get("v");
             if (!videoId) return [];
             const res = await fetch(`https://sponsor.ajay.app/api/skipSegments?videoID=${videoId}`);
             return await res.json();
@@ -308,7 +309,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     document.addEventListener("keydown", e => {
-        if (["INPUT", "SELECT", "TEXTAREA"].includes(e.target.tagName)) return;
+        // FIX: Add "BUTTON" to the ignore list so Spacebar doesn't trigger UI elements twice
+        if (["INPUT", "SELECT", "TEXTAREA", "BUTTON"].includes(e.target.tagName)) return;
 
         switch (e.key) {
             case " ":
