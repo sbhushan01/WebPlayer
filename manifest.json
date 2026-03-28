@@ -13,7 +13,8 @@
 
   "permissions": [
     "storage",
-    "declarativeNetRequest"
+    "declarativeNetRequest",
+    "webRequest"
   ],
 
   "host_permissions": ["<all_urls>"],
