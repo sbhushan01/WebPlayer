@@ -33,6 +33,7 @@
     width: 100vw;
     height: 100vh;
     background: #000;
+    touch-action: none;
 }
 .wp-fs-shell:fullscreen video,
 .wp-fs-shell:-webkit-full-screen video {
