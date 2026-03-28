@@ -76,3 +76,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         );
     }
 });
+// FIX 14: Auto-detect streaming manifests in network traffic
+chrome.webRequest.onHeadersReceived.addListener(
+    (details) => {
+        if (details.url.includes('.m3u8') || details.url.includes('.mpd')) {
+            // Signal to content script to display an "Open in WebPlayer" badge globally
+            chrome.tabs.sendMessage(details.tabId, {
+                action: "stream_detected",
+                url: details.url
+            }).catch(() => {});
+        }
+    },
+    { urls: ["<all_urls>"], types: ["xmlhttprequest", "media"] }
+);
