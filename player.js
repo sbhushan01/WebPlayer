@@ -10,6 +10,21 @@ document.addEventListener("DOMContentLoaded", async () => {
         return; 
     }
 
+    // ── FIX FOR DOUBLE TAP BLACK SCREEN ──────────────────────────
+    // Intercept native double click to prevent the video element 
+    // from breaking out of our custom container.
+    player.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (document.fullscreenElement) {
+            document.exitFullscreen().catch(() => {});
+        } else {
+            (container?.requestFullscreen?.() ?? player.requestFullscreen?.());
+        }
+    });
+    // ─────────────────────────────────────────────────────────────
+
     const urlParams  = new URLSearchParams(window.location.search);
     const videoSrc   = urlParams.get("src");
     const pageTitle  = urlParams.get("title");
