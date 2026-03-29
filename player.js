@@ -5,84 +5,84 @@ document.addEventListener("DOMContentLoaded", async () => {
     const skipBadge  = document.getElementById("skip-badge");
     const skipBadgeText = document.getElementById("skip-badge-text");
 
-    if (!player || !container) {
-        console.error("Critical player elements missing.");
-        return;
+    if (!player || !container) return;
+
+    // ── Media Session API (OS Level Controls) ────────────────────────────────
+    if ('mediaSession' in navigator) {
+        navigator.mediaSession.setActionHandler('play', () => player.play());
+        navigator.mediaSession.setActionHandler('pause', () => player.pause());
+        navigator.mediaSession.setActionHandler('seekbackward', (e) => player.currentTime = Math.max(0, player.currentTime - (e.seekOffset || 10)));
+        navigator.mediaSession.setActionHandler('seekforward', (e) => player.currentTime = Math.min(player.duration, player.currentTime + (e.seekOffset || 10)));
     }
 
-    // ── DOUBLE-TAP INTERCEPTOR (Capture Phase) ──────────────────────────────
-    let lastPointerDownTime = 0;
-    let isDoubleTapping     = false;
-
+    // ── DOUBLE-TAP INTERCEPTOR ─────────────────────────────────────────────
+    let lastPointerDownTime = 0, isDoubleTapping = false;
     container.addEventListener("pointerdown", (e) => {
         if (!e.isPrimary) return;
-
         const now = Date.now();
         if (now - lastPointerDownTime < 300) {
             isDoubleTapping = true;
-            e.preventDefault();
-            e.stopPropagation();
+            e.preventDefault(); e.stopPropagation();
 
-            const rect      = container.getBoundingClientRect();
+            const rect = container.getBoundingClientRect();
             const relativeX = e.clientX - rect.left;
-            const leftZone  = rect.width * 0.33;
-            const rightZone = rect.width * 0.66;
-
-            if (relativeX < leftZone) {
+            
+            if (relativeX < rect.width * 0.33) {
                 player.currentTime = Math.max(0, player.currentTime - 10);
-            } else if (relativeX > rightZone) {
-                player.currentTime = Math.min(
-                    Number.isFinite(player.duration) ? player.duration : Infinity,
-                    player.currentTime + 10
-                );
+            } else if (relativeX > rect.width * 0.66) {
+                player.currentTime = Math.min(Number.isFinite(player.duration) ? player.duration : Infinity, player.currentTime + 10);
             } else {
-                if (document.fullscreenElement) {
-                    document.exitFullscreen().catch(() => {});
-                } else {
-                    (container.requestFullscreen?.() ?? player.requestFullscreen?.());
-                }
+                document.fullscreenElement ? document.exitFullscreen().catch(()=>{}) : (container.requestFullscreen?.() ?? player.requestFullscreen?.());
             }
-
             lastPointerDownTime = 0;
         } else {
-            isDoubleTapping     = false;
-            lastPointerDownTime = now;
+            isDoubleTapping = false; lastPointerDownTime = now;
         }
     }, true);
 
     container.addEventListener("pointerup", (e) => {
-        if (isDoubleTapping && e.isPrimary) {
-            e.preventDefault();
-            e.stopPropagation();
-            isDoubleTapping = false;
-        }
+        if (isDoubleTapping && e.isPrimary) { e.preventDefault(); e.stopPropagation(); isDoubleTapping = false; }
     }, true);
+    container.addEventListener("dblclick", e => { e.preventDefault(); e.stopPropagation(); }, true);
 
-    container.addEventListener("dblclick", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-    }, true);
-    // ───────────────────────────────────────────────────────────────────────
-
+    // ── Initialization & Source Loading ────────────────────────────────────
     const urlParams = new URLSearchParams(window.location.search);
     const videoSrc  = urlParams.get("src");
     const pageTitle = urlParams.get("title");
+    if (pageTitle) { document.title = pageTitle; }
 
-    if (pageTitle) document.title = pageTitle;
+    if (!videoSrc) { showError("No video source provided."); return; }
 
-    if (!videoSrc) {
-        showError("No video source provided.");
-        return;
-    }
+    // ── Playback State Persistence ─────────────────────────────────────────
+    const cleanUrl = videoSrc.split("?")[0];
+    chrome.storage.local.get([cleanUrl]).then(res => {
+        if (res[cleanUrl]) {
+            const seekToSaved = () => {
+                player.currentTime = res[cleanUrl];
+                player.removeEventListener('loadedmetadata', seekToSaved);
+            };
+            if (player.readyState >= 1) seekToSaved();
+            else player.addEventListener('loadedmetadata', seekToSaved);
+        }
+    });
 
-    let currentHls  = null;
-    let currentDash = null;
+    let lastSave = 0;
+    player.addEventListener("timeupdate", () => {
+        const now = Date.now();
+        // Save state every 5 seconds, avoiding SponsorBlock skip jumps
+        if (now - lastSave > 5000 && !window.__isSkipping) {
+            chrome.storage.local.set({ [cleanUrl]: player.currentTime });
+            lastSave = now;
+        }
+    });
+    player.addEventListener("ended", () => chrome.storage.local.remove([cleanUrl]));
 
+    // ── Engine Setup (HLS / DASH) ──────────────────────────────────────────
+    let currentHls = null, currentDash = null;
     function destroyEngines() {
         if (currentHls)  { currentHls.destroy(); currentHls   = null; }
         if (currentDash) { currentDash.reset();  currentDash  = null; }
     }
-
     window.addEventListener("beforeunload", () => {
         destroyEngines();
         if (audioContext && audioContext.state !== "closed") audioContext.close();
@@ -90,46 +90,22 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     function showError(msg) {
         const errorBox = document.getElementById("error-box");
-        if (errorBox) {
-            errorBox.textContent   = `${msg}`;
-            errorBox.style.display = "block";
-        }
-    }
-
-    async function checkDRM() {
-        try {
-            const config = [{
-                initDataTypes: ["cenc"],
-                videoCapabilities: [{ contentType: 'video/mp4; codecs="avc1.42E01E"' }]
-            }];
-            await navigator.requestMediaKeySystemAccess("com.widevine.alpha", config);
-        } catch (e) {
-            showError("This stream may require Widevine DRM, which is not fully supported in this context.");
-        }
+        if (errorBox) { errorBox.textContent = `${msg}`; errorBox.style.display = "block"; }
     }
 
     function setBuffering(on) { bufferEl?.classList.toggle("is-buffering", on); }
-
     player.addEventListener("waiting",    () => setBuffering(true));
     player.addEventListener("playing",    () => setBuffering(false));
     player.addEventListener("canplay",    () => setBuffering(false));
     player.addEventListener("loadeddata", () => setBuffering(false));
-    player.addEventListener("stalled",    () => setBuffering(true));
     player.addEventListener("seeked",     () => setBuffering(false));
 
-    setInterval(() => {
-        if (player.readyState < 3 && !player.paused) setBuffering(true);
-    }, 500);
-
-    // Promise cache — prevents race conditions on rapid source switching
     const loadedScripts = {};
     function loadScript(path) {
         if (!loadedScripts[path]) {
             loadedScripts[path] = new Promise((resolve, reject) => {
-                const s   = document.createElement("script");
-                s.src     = chrome.runtime.getURL(path);
-                s.onload  = resolve;
-                s.onerror = () => { delete loadedScripts[path]; reject(new Error(`Failed to load: ${path}`)); };
+                const s = document.createElement("script"); s.src = chrome.runtime.getURL(path);
+                s.onload = resolve; s.onerror = () => { delete loadedScripts[path]; reject(); };
                 document.head.appendChild(s);
             });
         }
@@ -138,83 +114,43 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     async function attachSource(src) {
         destroyEngines();
-        await checkDRM();
-
-        const cleanSrc     = src.split("?")[0].toLowerCase();
         player.crossOrigin = "anonymous";
         setBuffering(true);
+        const cleanSrc = src.split("?")[0].toLowerCase();
 
         try {
             if (cleanSrc.endsWith(".m3u8")) {
                 await loadScript("libs/hls.min.js");
                 if (window.Hls && Hls.isSupported()) {
                     currentHls = new Hls({ manifestLoadingMaxRetry: 4 });
-                    currentHls.loadSource(src);
-                    currentHls.attachMedia(player);
-                    currentHls.on(Hls.Events.MANIFEST_PARSED, () => player.play().catch(() => {}));
-                    currentHls.on(Hls.Events.ERROR, (event, data) => {
-                        if (data.fatal) {
-                            switch (data.type) {
-                                case Hls.ErrorTypes.NETWORK_ERROR:
-                                    currentHls.startLoad(); break;
-                                case Hls.ErrorTypes.MEDIA_ERROR:
-                                    currentHls.recoverMediaError(); break;
-                                default:
-                                    currentHls.destroy();
-                                    showError(`HLS fatal error: ${data.details}`); break;
-                            }
-                        }
-                    });
+                    currentHls.loadSource(src); currentHls.attachMedia(player);
+                    currentHls.on(Hls.Events.MANIFEST_PARSED, () => player.play().catch(()=>{}));
                 }
             } else if (cleanSrc.endsWith(".mpd")) {
                 await loadScript("libs/dash.all.min.js");
                 if (window.dashjs) {
                     currentDash = dashjs.MediaPlayer().create();
                     currentDash.initialize(player, src, true);
-                    currentDash.on(dashjs.MediaPlayer.events.ERROR, e => {
-                        showError(`DASH error: ${e.error?.message || "unknown"}`);
-                    });
                 }
             } else {
-                player.src = src;
-                player.load();
+                player.src = src; player.load();
             }
-        } catch (err) {
-            showError(`Could not initialise player: ${err.message}`);
-            setBuffering(false);
-        }
+        } catch (err) { showError(`Init failed: ${err.message}`); setBuffering(false); }
     }
 
     await attachSource(videoSrc);
 
-    let retryCount = 0;
     player.addEventListener("error", () => {
         setBuffering(false);
         const code = player.error?.code;
-        if (code === 2 && retryCount < 3 && !currentHls && !currentDash) {
-            retryCount++;
-            setTimeout(() => { player.load(); player.play(); }, 1500);
-            return;
-        }
-        const isCORS = code === 2 || code === 3 || code === 4;
-        const msgs   = {
-            1: "Playback aborted.",
-            2: "Network error — check your connection.",
-            3: "Decode error — file may be corrupt.",
-            4: "Format or URL not supported."
-        };
-        showError(isCORS
-            ? "Network or CORS error. The host may be blocking external players."
-            : (msgs[code] || "Could not load video.")
-        );
+        showError((code === 2 || code === 3 || code === 4) ? "Network/CORS error." : "Could not load video.");
     });
 
     // ── SponsorBlock ─────────────────────────────────────────────────────────
+    window.__isSkipping = false;
     async function fetchSegments() {
         try {
-            const parsedUrl = new URL(videoSrc);
-            let videoId   = parsedUrl.searchParams.get("v") || new URLSearchParams(window.location.search).get("v");
-            
+            let videoId = new URL(videoSrc).searchParams.get("v") || new URLSearchParams(window.location.search).get("v");
             if (!videoId) return [];
             const res = await fetch(`https://sponsor.ajay.app/api/skipSegments?videoID=${videoId}`);
             return await res.json();
@@ -222,25 +158,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     let skipSegments = await fetchSegments();
-    let isSkipping   = false;
-    let badgeTimer   = null;
-    let skippedIds   = new Set();
-
-    // Skip icon SVG for the badge
+    let badgeTimer = null, skippedIds = new Set();
     const SKIP_ICON_SVG = `<svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="flex-shrink:0" aria-hidden="true"><path d="M6 18l8.5-6L6 6v12zm2-8.14L11.03 12 8 14.14V9.86zM16 6h2v12h-2z"/></svg>`;
 
     function flashSkipBadge(label) {
         if (!skipBadge) return;
-        const existingIcon = skipBadge.querySelector("svg");
-        if (!existingIcon) skipBadge.insertAdjacentHTML("afterbegin", SKIP_ICON_SVG);
+        if (!skipBadge.querySelector("svg")) skipBadge.insertAdjacentHTML("afterbegin", SKIP_ICON_SVG);
         if (skipBadgeText) skipBadgeText.textContent = `Skipping ${label}`;
         skipBadge.classList.add("visible");
-        clearTimeout(badgeTimer);
-        badgeTimer = setTimeout(() => skipBadge.classList.remove("visible"), 1400);
+        clearTimeout(badgeTimer); badgeTimer = setTimeout(() => skipBadge.classList.remove("visible"), 1400);
     }
 
     player.addEventListener("timeupdate", () => {
-        if (isSkipping || player.readyState < 2) return;
+        if (window.__isSkipping || player.readyState < 2) return;
         const t = player.currentTime;
         for (const seg of skipSegments) {
             const start = seg.segment?.[0] ?? seg.start;
@@ -248,131 +178,122 @@ document.addEventListener("DOMContentLoaded", async () => {
             const segId = seg.UUID || start;
 
             if (t >= start && t < end && !skippedIds.has(segId)) {
-                isSkipping         = true;
+                window.__isSkipping = true;
                 skippedIds.add(segId);
                 player.currentTime = end;
                 flashSkipBadge(seg.category || seg.type || "Segment");
-                player.addEventListener("seeked", () => { isSkipping = false; }, { once: true });
+                player.addEventListener("seeked", () => { window.__isSkipping = false; }, { once: true });
                 break;
             }
         }
     });
 
-    // ── Audio Equalizer ──────────────────────────────────────────────────────
-    const DEFAULT_LOW_GAIN  = 4;
-    const DEFAULT_HIGH_GAIN = 2;
-    let savedEq = { lowGain: DEFAULT_LOW_GAIN, highGain: DEFAULT_HIGH_GAIN };
-
+    // ── 10-Band EQ & Preamp (Audiophile Pipeline) ───────────────────────────
+    const FREQS = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+    const LABELS = ["31", "62", "125", "250", "500", "1K", "2K", "4K", "8K", "16K"];
+    
+    let savedEq = { preamp: 1.0, bands: new Array(10).fill(0) };
     try {
-        chrome.storage.sync.get("eq").then(stored => {
-            if (stored.eq) savedEq = stored.eq;
-        });
+        const stored = await chrome.storage.sync.get("eq");
+        if (stored.eq) savedEq = { ...savedEq, ...stored.eq };
     } catch (e) {}
 
-    const lowSlider  = document.getElementById("eq-low");
-    const highSlider = document.getElementById("eq-high");
-    const lowLabel   = document.getElementById("eq-low-label");
-    const highLabel  = document.getElementById("eq-high-label");
-
-    if (lowSlider)  { lowSlider.value  = savedEq.lowGain;  lowLabel.textContent  = `${savedEq.lowGain} dB`;  }
-    if (highSlider) { highSlider.value = savedEq.highGain; highLabel.textContent = `${savedEq.highGain} dB`; }
-
-    let audioContext, lowShelf, highShelf;
+    let audioContext, preampNode;
+    let eqNodes = [];
     let mediaNodeCreated = false;
 
-    player.addEventListener("play", () => {
-        if (audioContext && audioContext.state === "suspended") {
-            audioContext.resume();
-        }
-        if (audioContext) return;
-        try {
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            
-            if (!mediaNodeCreated) {
-                const track  = audioContext.createMediaElementSource(player);
-                mediaNodeCreated = true;
+    // Generate UI
+    const containerEl = document.getElementById("eq-bands-container");
+    const preampSlider = document.getElementById("eq-preamp");
+    const preampLabel  = document.getElementById("preamp-label");
 
-                lowShelf                  = audioContext.createBiquadFilter();
-                lowShelf.type             = "lowshelf";
-                lowShelf.frequency.value  = 250;
-                lowShelf.gain.value       = savedEq.lowGain;
+    if (preampSlider) {
+        preampSlider.value = savedEq.preamp;
+        preampLabel.textContent = `${savedEq.preamp}x`;
+        preampSlider.addEventListener("input", e => {
+            const val = parseFloat(e.target.value);
+            preampLabel.textContent = `${val.toFixed(1)}x`;
+            if (preampNode) preampNode.gain.value = val;
+            savedEq.preamp = val;
+            chrome.storage.sync.set({ eq: savedEq });
+        });
+    }
 
-                highShelf                 = audioContext.createBiquadFilter();
-                highShelf.type            = "highshelf";
-                highShelf.frequency.value = 4000;
-                highShelf.gain.value      = savedEq.highGain;
+    FREQS.forEach((f, i) => {
+        const bandDiv = document.createElement("div");
+        bandDiv.className = "eq-band";
+        const valLabel = document.createElement("span");
+        valLabel.className = "eq-val-label";
+        valLabel.textContent = `${savedEq.bands[i]} dB`;
+        
+        const slider = document.createElement("input");
+        slider.type = "range"; slider.min = "-15"; slider.max = "15"; slider.step = "1";
+        slider.value = savedEq.bands[i];
+        
+        slider.addEventListener("input", e => {
+            const val = parseFloat(e.target.value);
+            valLabel.textContent = `${val > 0 ? '+'+val : val} dB`;
+            if (eqNodes[i]) eqNodes[i].gain.value = val;
+            savedEq.bands[i] = val;
+            chrome.storage.sync.set({ eq: savedEq });
+        });
 
-                track.connect(lowShelf);
-                lowShelf.connect(highShelf);
-                highShelf.connect(audioContext.destination);
-            }
-        } catch (err) {
-            console.warn("[WebPlayer] Audio routing failed:", err);
-        }
+        const fLabel = document.createElement("span");
+        fLabel.textContent = LABELS[i];
+
+        bandDiv.appendChild(valLabel);
+        bandDiv.appendChild(slider);
+        bandDiv.appendChild(fLabel);
+        containerEl.appendChild(bandDiv);
     });
 
-    if (lowSlider) {
-        lowSlider.addEventListener("input", () => {
-            const val = parseFloat(lowSlider.value);
-            lowLabel.textContent = `${val} dB`;
-            if (lowShelf) lowShelf.gain.value = val;
-            chrome.storage.sync.set({ eq: { lowGain: val, highGain: parseFloat(highSlider?.value || 0) } });
-        });
-    }
+    player.addEventListener("play", () => {
+        if (audioContext && audioContext.state === "suspended") audioContext.resume();
+        if (audioContext) return;
+        
+        try {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            if (!mediaNodeCreated) {
+                const track = audioContext.createMediaElementSource(player);
+                mediaNodeCreated = true;
 
-    if (highSlider) {
-        highSlider.addEventListener("input", () => {
-            const val = parseFloat(highSlider.value);
-            highLabel.textContent = `${val} dB`;
-            if (highShelf) highShelf.gain.value = val;
-            chrome.storage.sync.set({ eq: { lowGain: parseFloat(lowSlider?.value || 0), highGain: val } });
-        });
-    }
+                preampNode = audioContext.createGain();
+                preampNode.gain.value = savedEq.preamp;
+                
+                let prevNode = preampNode;
+                track.connect(preampNode);
 
-    // ── Playback speed ───────────────────────────────────────────────────────
+                FREQS.forEach((f, i) => {
+                    let eq = audioContext.createBiquadFilter();
+                    eq.type = (i === 0) ? "lowshelf" : (i === FREQS.length - 1) ? "highshelf" : "peaking";
+                    eq.frequency.value = f;
+                    eq.gain.value = savedEq.bands[i];
+                    if (eq.type === "peaking") eq.Q.value = 1.41; // 1 Octave bandwidth
+                    
+                    eqNodes.push(eq);
+                    prevNode.connect(eq);
+                    prevNode = eq;
+                });
+
+                prevNode.connect(audioContext.destination);
+            }
+        } catch (err) { console.warn("[WebPlayer] Audio graph failed:", err); }
+    });
+
+    // ── Speed & Keyboard ─────────────────────────────────────────────────────
     const speedSelect = document.getElementById("speed-select");
-    if (speedSelect) {
-        speedSelect.addEventListener("change", () => {
-            player.playbackRate = parseFloat(speedSelect.value);
-        });
-    }
+    if (speedSelect) speedSelect.addEventListener("change", () => player.playbackRate = parseFloat(speedSelect.value));
 
-    // ── Keyboard shortcuts ───────────────────────────────────────────────────
     document.addEventListener("keydown", e => {
         if (["INPUT", "SELECT", "TEXTAREA", "BUTTON"].includes(e.target.tagName)) return;
         switch (e.key) {
-            case " ":
-            case "k":
-                e.preventDefault();
-                player.paused ? player.play() : player.pause();
-                break;
-            case "ArrowRight":
-                e.preventDefault();
-                player.currentTime = Math.min(
-                    Number.isFinite(player.duration) ? player.duration : Infinity,
-                    player.currentTime + 10
-                );
-                break;
-            case "ArrowLeft":
-                e.preventDefault();
-                player.currentTime = Math.max(0, player.currentTime - 10);
-                break;
-            case "ArrowUp":
-                e.preventDefault();
-                player.volume = Math.min(1, parseFloat((player.volume + 0.1).toFixed(1)));
-                break;
-            case "ArrowDown":
-                e.preventDefault();
-                player.volume = Math.max(0, parseFloat((player.volume - 0.1).toFixed(1)));
-                break;
-            case "m":
-                player.muted = !player.muted;
-                break;
-            case "f":
-                document.fullscreenElement
-                    ? document.exitFullscreen()
-                    : (container?.requestFullscreen?.() ?? player.requestFullscreen?.());
-                break;
+            case " ": case "k": e.preventDefault(); player.paused ? player.play() : player.pause(); break;
+            case "ArrowRight": e.preventDefault(); player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 10); break;
+            case "ArrowLeft":  e.preventDefault(); player.currentTime = Math.max(0, player.currentTime - 10); break;
+            case "ArrowUp":    e.preventDefault(); player.volume = Math.min(1, parseFloat((player.volume + 0.1).toFixed(1))); break;
+            case "ArrowDown":  e.preventDefault(); player.volume = Math.max(0, parseFloat((player.volume - 0.1).toFixed(1))); break;
+            case "m": player.muted = !player.muted; break;
+            case "f": document.fullscreenElement ? document.exitFullscreen() : (container?.requestFullscreen?.() ?? player.requestFullscreen?.()); break;
         }
     });
 });
