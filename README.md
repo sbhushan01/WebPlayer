@@ -1,21 +1,27 @@
 # WebPlayer Extension
 
-**WebPlayer** is a feature-rich browser extension that injects a custom, ad-free media player UI directly into web videos. It upgrades the standard web video experience with advanced streaming support, native gesture controls, and automatic sponsor skipping.
+**WebPlayer** is a feature-rich browser extension that injects a custom, ad-free media player UI directly into web videos. It upgrades the standard web video experience with advanced streaming support, native gesture controls, an audiophile-grade equalizer, and automatic sponsor skipping.
 
 **Author:** Sushant Bhushan
 
-## ✨ Features
+## ✨ Key Features
 
-* **Custom Video UI:** Replaces native YouTube/HTML5 controls with a clean, centralized interface.
-* **Advanced Stream Support:** Native integration for HLS (`.m3u8`) and DASH (`.mpd`) streams, complete with auto-retry and DRM (Widevine) detection.
-* **SponsorBlock Integration:** Automatically fetches and skips sponsor, intro, and outro segments using the SponsorBlock API.
-* **Smart Gesture Engine:** * Swipe vertically on the left side to adjust **brightness**.
-  * Swipe vertically on the right side to adjust **volume**.
-  * Double-tap left/right to **seek ±10 seconds**.
-  * Long-press to temporarily engage **2× speed**.
-* **Audio Equalizer:** Built-in Web Audio API equalizer with persistent Bass (<250 Hz) and Treble (>4 kHz) controls.
-* **Network Stream Detection:** Automatically detects media manifests in network traffic and prompts to open them in the WebPlayer.
-* **CORS Bypass:** Dynamically strips blocking headers (using Declarative Net Request) to allow cross-origin playback.
+### 🎛️ Audio & Playback Enhancements
+* **10-Band Graphic Equalizer & Preamp:** Upgraded from simple bass/treble controls to a full 10-band EQ (31Hz to 16kHz) with a Preamp/Boost slider. Settings are persistently synced across your browser.
+* **Playback State Persistence:** Automatically saves your video progress every 5 seconds. If you close a stream and return later, the player will resume exactly where you left off.
+* **SponsorBlock Integration:** Automatically fetches and seamlessly skips sponsor, intro, and outro segments using the SponsorBlock API, complete with visual skip badges.
+* **Media Session API Sync:** Full integration with your operating system's native media controls and keyboard media keys.
+* **Video Rotation:** Easily rotate video playback in 90-degree increments right from the overlay UI.
+
+### 🤌 Smart Gesture Engine
+* **Brightness & Volume:** Swipe vertically on the left side to adjust brightness, or on the right side to adjust volume.
+* **Smart Seeking:** Double-tap the left or right side of the screen to seek ±10 seconds, complete with animated ripple feedback.
+* **Quick 2× Speed:** Long-press anywhere on the video to temporarily engage 2× playback speed.
+
+### 🌐 Advanced Stream & Network Handling
+* **Native Stream Support:** Built-in integration for HLS (`.m3u8`) and DASH (`.mpd`) streams, complete with auto-retry mechanisms.
+* **Network Stream Detection:** Automatically detects media manifests in network traffic and intercepts them to open in the dedicated WebPlayer tab.
+* **CORS Bypass via DNR:** Dynamically strips blocking headers using Manifest V3's Declarative Net Request API to allow cross-origin playback without compromising browser security.
 
 ## ⌨️ Keyboard Shortcuts
 
@@ -23,7 +29,7 @@
 | :--- | :--- |
 | <kbd>Space</kbd> / <kbd>K</kbd> | Play / Pause |
 | <kbd>←</kbd> / <kbd>→</kbd> | Seek ±10 seconds |
-| <kbd>↑</kbd> / <kbd>↓</kbd> | Adjust Volume |
+| <kbd>↑</kbd> / <kbd>↓</kbd> | Adjust Volume ±10% |
 | <kbd>M</kbd> | Toggle Mute |
 | <kbd>F</kbd> | Toggle Fullscreen |
 
@@ -43,13 +49,12 @@
 
 ## 🛠 Usage
 
-1. Navigate to any webpage containing a standard `<video>` element.
-2. A button labeled **"▶ Launch WebPlayer UI"** will appear as an overlay on the video.
-3. Click the button to inject the custom shell and controls.
-4. For raw stream URLs (like `.m3u8`), the background worker will detect the stream and the player will open it in a dedicated standalone tab.
+1. **Overlay Mode:** Navigate to any webpage containing a standard `<video>` element. A button labeled **"▶ Launch WebPlayer UI"** will appear. Click it to inject the custom shell, gesture zone, and controls directly over the existing video.
+2. **Standalone Mode:** For raw stream URLs (like `.m3u8` or `.mpd`), the background worker will automatically detect the network request and launch the stream in a dedicated, full-window WebPlayer tab with the 10-band EQ panel.
 
 ## ⚙️ Recent Technical Improvements
 
-* **Memory Management:** Implemented strict cleanup routines for `hls.js` and `dash.js` engines to prevent memory leaks during source switching.
-* **Concurrency:** Added a promise cache to the script loader to prevent race conditions when initializing media engines rapidly.
-* **Mobile Optimization:** Fixed a bug where double-tap gestures triggered the browser's native zoom, locking the UI to `touch-action: none`. Fixed floating-point volume math bugs.
+* **Audiophile Pipeline:** Completely rewrote the Web Audio API implementation to utilize a cascade of `BiquadFilterNodes` for precise 10-band frequency shaping and pre-amplification.
+* **Manifest V3 Modernization:** Migrated cross-origin request handling to the `declarativeNetRequest` API, creating and cleaning up dynamic session rules to strip CORS and CSP headers efficiently.
+* **Robust Double-Tap Logic:** Improved mobile accessibility by decoupling the double-tap gesture from native browser zooming, and introduced dynamic visual ripple elements for immediate user feedback.
+* **Debounced State Management:** Implemented efficient storage write operations for playback persistence to prevent quota limits and race conditions during rapid seeking or SponsorBlock segment skipping.
