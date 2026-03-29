@@ -10,40 +10,39 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // ── DOUBLE-TAP INTERCEPTOR (Capture Phase) ──────────────────────────────
-    // Left third  → seek −10s
-    // Right third → seek +10s
-    // Center      → toggle fullscreen
-    // This runs in capture phase to intercept before the <video> element sees it.
+    // FIX: The original code unconditionally called exitFullscreen() on every
+    // double-tap while in fullscreen — so seeking never happened and the screen
+    // collapsed to black. The fix divides the container into three horizontal
+    // zones (matching the gesture engine in content.js):
+    //   Left  33% → seek −10 s
+    //   Right 33% → seek +10 s
+    //   Center    → toggle fullscreen
     let lastPointerDownTime = 0;
-    let isDoubleTapping = false;
+    let isDoubleTapping     = false;
 
-    container.addEventListener('pointerdown', (e) => {
-        // Ignore multi-touch secondary fingers
+    container.addEventListener("pointerdown", (e) => {
         if (!e.isPrimary) return;
 
         const now = Date.now();
         if (now - lastPointerDownTime < 300) {
             isDoubleTapping = true;
             e.preventDefault();
-            e.stopPropagation(); // CRITICAL: Stop event from reaching <video>
+            e.stopPropagation();
 
-            // Divide container into left / center / right zones
             const rect      = container.getBoundingClientRect();
             const relativeX = e.clientX - rect.left;
             const leftZone  = rect.width * 0.33;
             const rightZone = rect.width * 0.66;
 
             if (relativeX < leftZone) {
-                // Left third → seek back 10s
                 player.currentTime = Math.max(0, player.currentTime - 10);
             } else if (relativeX > rightZone) {
-                // Right third → seek forward 10s
                 player.currentTime = Math.min(
                     Number.isFinite(player.duration) ? player.duration : Infinity,
                     player.currentTime + 10
                 );
             } else {
-                // Center third → toggle fullscreen
+                // Centre zone → toggle fullscreen
                 if (document.fullscreenElement) {
                     document.exitFullscreen().catch(() => {});
                 } else {
@@ -53,12 +52,12 @@ document.addEventListener("DOMContentLoaded", async () => {
 
             lastPointerDownTime = 0;
         } else {
-            isDoubleTapping = false;
+            isDoubleTapping     = false;
             lastPointerDownTime = now;
         }
-    }, true); // true = Capture phase
+    }, true);
 
-    container.addEventListener('pointerup', (e) => {
+    container.addEventListener("pointerup", (e) => {
         if (isDoubleTapping && e.isPrimary) {
             e.preventDefault();
             e.stopPropagation();
@@ -66,7 +65,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     }, true);
 
-    container.addEventListener('dblclick', (e) => {
+    container.addEventListener("dblclick", (e) => {
         e.preventDefault();
         e.stopPropagation();
     }, true);
@@ -93,7 +92,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     window.addEventListener("beforeunload", () => {
         destroyEngines();
-        if (audioContext && audioContext.state !== 'closed') audioContext.close();
+        if (audioContext && audioContext.state !== "closed") audioContext.close();
     });
 
     function showError(msg) {
@@ -107,21 +106,25 @@ document.addEventListener("DOMContentLoaded", async () => {
     async function checkDRM() {
         try {
             const config = [{
-                initDataTypes: ['cenc'],
+                initDataTypes: ["cenc"],
                 videoCapabilities: [{ contentType: 'video/mp4; codecs="avc1.42E01E"' }]
             }];
-            await navigator.requestMediaKeySystemAccess('com.widevine.alpha', config);
+            await navigator.requestMediaKeySystemAccess("com.widevine.alpha", config);
         } catch (e) {
             showError("This stream may require Widevine DRM, which is not fully supported in this context.");
         }
     }
 
     function setBuffering(on) { bufferEl?.classList.toggle("is-buffering", on); }
+
     player.addEventListener("waiting",    () => setBuffering(true));
     player.addEventListener("playing",    () => setBuffering(false));
     player.addEventListener("canplay",    () => setBuffering(false));
     player.addEventListener("loadeddata", () => setBuffering(false));
     player.addEventListener("stalled",    () => setBuffering(true));
+    // FIX: "seeked" clears buffering — same fix as content.js. On YouTube/HLS
+    // "playing" may not fire after a seek, leaving the screen appearing black.
+    player.addEventListener("seeked",     () => setBuffering(false));
 
     setInterval(() => {
         if (player.readyState < 3 && !player.paused) setBuffering(true);
@@ -158,20 +161,16 @@ document.addEventListener("DOMContentLoaded", async () => {
                     currentHls.loadSource(src);
                     currentHls.attachMedia(player);
                     currentHls.on(Hls.Events.MANIFEST_PARSED, () => player.play().catch(() => {}));
-
                     currentHls.on(Hls.Events.ERROR, (event, data) => {
                         if (data.fatal) {
                             switch (data.type) {
                                 case Hls.ErrorTypes.NETWORK_ERROR:
-                                    currentHls.startLoad();
-                                    break;
+                                    currentHls.startLoad(); break;
                                 case Hls.ErrorTypes.MEDIA_ERROR:
-                                    currentHls.recoverMediaError();
-                                    break;
+                                    currentHls.recoverMediaError(); break;
                                 default:
                                     currentHls.destroy();
-                                    showError(`HLS fatal error: ${data.details}`);
-                                    break;
+                                    showError(`HLS fatal error: ${data.details}`); break;
                             }
                         }
                     });
@@ -201,13 +200,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     player.addEventListener("error", () => {
         setBuffering(false);
         const code = player.error?.code;
-
         if (code === 2 && retryCount < 3 && !currentHls && !currentDash) {
             retryCount++;
             setTimeout(() => { player.load(); player.play(); }, 1500);
             return;
         }
-
         const isCORS = code === 2 || code === 3 || code === 4;
         const msgs   = {
             1: "Playback aborted.",
@@ -221,8 +218,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         );
     });
 
-    // ── SponsorBlock integration ─────────────────────────────────────────────
-    // Safely parse the video URL — guards against missing '?' or non-YouTube URLs
+    // ── SponsorBlock ─────────────────────────────────────────────────────────
     async function fetchSegments(url) {
         try {
             const parsedUrl = new URL(url);
@@ -248,19 +244,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     player.addEventListener("timeupdate", () => {
         if (isSkipping || player.readyState < 2) return;
         const t = player.currentTime;
-
         for (const seg of skipSegments) {
             const start = seg.segment?.[0] ?? seg.start;
             const end   = seg.segment?.[1] ?? seg.end;
-
             if (t >= start && t < end) {
-                isSkipping          = true;
-                player.currentTime  = end;
+                isSkipping         = true;
+                player.currentTime = end;
                 flashSkipBadge(seg.category || seg.type || "Segment");
-
-                player.addEventListener("seeked", () => {
-                    isSkipping = false;
-                }, { once: true });
+                player.addEventListener("seeked", () => { isSkipping = false; }, { once: true });
                 break;
             }
         }
@@ -288,7 +279,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     let audioContext, lowShelf, highShelf;
 
     player.addEventListener("play", () => {
-        if (audioContext && audioContext.state === 'suspended') {
+        if (audioContext && audioContext.state === "suspended") {
             audioContext.resume();
         }
         if (audioContext) return;
@@ -315,7 +306,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (lowSlider) {
         lowSlider.addEventListener("input", () => {
             const val = parseFloat(lowSlider.value);
-            lowLabel.textContent  = `${val} dB`;
+            lowLabel.textContent = `${val} dB`;
             if (lowShelf) lowShelf.gain.value = val;
             chrome.storage.sync.set({ eq: { lowGain: val, highGain: parseFloat(highSlider?.value || 0) } });
         });
@@ -340,9 +331,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // ── Keyboard shortcuts ───────────────────────────────────────────────────
     document.addEventListener("keydown", e => {
-        // Ignore when focus is inside an interactive element
         if (["INPUT", "SELECT", "TEXTAREA", "BUTTON"].includes(e.target.tagName)) return;
-
         switch (e.key) {
             case " ":
             case "k":
