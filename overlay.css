@@ -97,12 +97,62 @@
 .wp-time-block span       { color: #aaa; }
 .wp-time-block span.wp-time-sep { color: #555; }
 
+/* ─── Progress bar (desktop default) ────────────────────────────────────── */
+/*
+ * FIX: Without -webkit-appearance:none the browser (especially Android Chrome)
+ * renders its own oversized material thumb that ignores the track height and
+ * cannot be resized. Resetting appearance gives us full control.
+ */
 #wp-progress {
     flex: 1;
     cursor: pointer;
     accent-color: #4a9eff;
     height: 5px;
     border-radius: 3px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: rgba(255, 255, 255, 0.20);
+    outline: none;
+}
+
+/* Track — WebKit / Blink */
+#wp-progress::-webkit-slider-runnable-track {
+    height: 5px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.20);
+}
+
+/* Track — Firefox */
+#wp-progress::-moz-range-track {
+    height: 5px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.20);
+}
+
+/* Thumb — WebKit / Blink (desktop) */
+#wp-progress::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #4a9eff;
+    cursor: pointer;
+    margin-top: -5.5px; /* vertically centres thumb on the 5px track */
+    transition: transform 0.1s ease;
+}
+#wp-progress::-webkit-slider-thumb:active {
+    transform: scale(1.3);
+}
+
+/* Thumb — Firefox (desktop) */
+#wp-progress::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #4a9eff;
+    border: none;
+    cursor: pointer;
 }
 
 /* ─── Centre row ─────────────────────────────────────────────────────────── */
@@ -253,5 +303,28 @@
         max-width: 100%;
         border-radius: 14px 14px 0 0;
         padding: 10px 14px 14px;
+    }
+
+    /* FIX: Shrink the progress bar track and thumb on touch/mobile.
+     * Android Chrome renders a huge default thumb unless -webkit-appearance
+     * is reset and the pseudo-element size is explicitly overridden here.
+     */
+    #wp-progress {
+        height: 3px;
+    }
+    #wp-progress::-webkit-slider-runnable-track {
+        height: 3px;
+    }
+    #wp-progress::-moz-range-track {
+        height: 3px;
+    }
+    #wp-progress::-webkit-slider-thumb {
+        width: 14px;
+        height: 14px;
+        margin-top: -5.5px;
+    }
+    #wp-progress::-moz-range-thumb {
+        width: 14px;
+        height: 14px;
     }
 }
