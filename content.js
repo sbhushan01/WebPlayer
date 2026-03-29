@@ -90,6 +90,14 @@
 
         const wpShell = document.createElement("div");
         wpShell.style.position = "relative";
+        wpShell.style.width = "100%";
+        wpShell.style.height = "100%";
+        wpShell.style.display = "flex"; // Prevents inline gap collapsing
+
+        // Force the video to fill the new shell
+        video.style.width = "100%";
+        video.style.height = "100%";
+
         video.parentElement.insertBefore(wpShell, video);
         wpShell.appendChild(video);
 
@@ -178,6 +186,11 @@
             wpShell.remove();
             video.dataset.customPlayerActive = "";
             video.controls = (video.dataset.originalControls === "true");
+            
+            // Restore original video dimensions
+            video.style.width = "";
+            video.style.height = "";
+            
             root.classList.remove("webplayer-active");
             addPlayerButton(video);
         };
