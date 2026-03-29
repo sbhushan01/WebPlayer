@@ -1,4 +1,10 @@
 (() => {
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Guard against duplicate injection.
+    // ─────────────────────────────────────────────────────────────────────────────
+    if (window.__webPlayerInjected) return;
+    window.__webPlayerInjected = true;
+
     if (!document.getElementById("wp-global-style")) {
         const globalStyles = document.createElement("style");
         globalStyles.id = "wp-global-style";
@@ -18,41 +24,95 @@
         (document.head || document.documentElement).appendChild(globalStyles);
     }
 
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Button registry — maps each video element to its launch button so we can
+    // reposition and clean up without leaking DOM nodes.
+    // ─────────────────────────────────────────────────────────────────────────────
+    const buttonRegistry = new WeakMap(); // video → { btn, rafId, cleanup }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // findVideos — accepts any video that has non-zero painted dimensions.
+    // Called on boot, on every MutationObserver tick, and every 2 s for 60 s
+    // (catches lazy-loaded / SPA-navigated videos).
+    // ─────────────────────────────────────────────────────────────────────────────
     function findVideos() {
         try {
-            [...document.querySelectorAll("video")]
-                .filter(v => {
-                    if (v.offsetParent !== null) return true;
-                    const r = v.getBoundingClientRect();
-                    return r.width > 0 && r.height > 0;
-                })
-                .forEach(video => {
-                    if (!video.dataset.hasCustomPlayerButton) {
-                        addPlayerButton(video);
-                        video.dataset.hasCustomPlayerButton = "true";
-                    }
-                });
+            document.querySelectorAll("video").forEach(video => {
+                // Skip if already registered
+                if (buttonRegistry.has(video)) return;
+
+                // Accept video if it has any painted area — drop the offsetParent
+                // check because YouTube sets overflow:hidden on ancestors which
+                // makes offsetParent null even on perfectly visible videos.
+                const r = video.getBoundingClientRect();
+                if (r.width <= 0 || r.height <= 0) return;
+
+                addPlayerButton(video);
+            });
         } catch (err) {
             console.warn("[WebPlayer] findVideos error:", err);
         }
     }
 
-    function addPlayerButton(videoElement) {
-        if (!videoElement || !videoElement.parentElement) return;
+    // ─────────────────────────────────────────────────────────────────────────────
+    // addPlayerButton
+    //
+    // FIX: Button is now appended to document.body with position:fixed and tracked
+    // via rAF. The old approach (position:absolute inside videoElement.parentElement)
+    // was silently clipped by overflow:hidden on ancestor containers (e.g. YouTube's
+    // .html5-video-container), making the button invisible on most real-world sites.
+    // ─────────────────────────────────────────────────────────────────────────────
+    function addPlayerButton(video) {
         const btn = document.createElement("button");
         btn.innerText = "▶ Launch WebPlayer UI";
         btn.className = "custom-player-overlay-btn";
+
+        // Append to body so no ancestor overflow:hidden can clip it
+        document.body.appendChild(btn);
+
+        // Position the button over the top-left of the video using fixed coords
+        function positionBtn() {
+            try {
+                const r = video.getBoundingClientRect();
+
+                // If the video has been removed or collapsed, hide the button
+                if (r.width <= 0 || r.height <= 0 || !document.contains(video)) {
+                    btn.style.display = "none";
+                    return;
+                }
+
+                btn.style.display = "";
+                // position:fixed — coordinates are relative to the viewport
+                btn.style.left    = `${r.left   + 10}px`;
+                btn.style.top     = `${r.top    + 10}px`;
+            } catch (_) {}
+        }
+
+        // rAF loop keeps the button on top of the video through scrolls,
+        // layout shifts, and fullscreen transitions
+        let rafId = requestAnimationFrame(function loop() {
+            positionBtn();
+            rafId = requestAnimationFrame(loop);
+        });
+
+        function cleanup() {
+            cancelAnimationFrame(rafId);
+            btn.remove();
+            buttonRegistry.delete(video);
+        }
+
         btn.addEventListener("click", e => {
             e.preventDefault();
-            btn.style.display = "none";
-            injectCustomPlayer(videoElement, btn);
+            cleanup(); // remove button before injecting player
+            injectCustomPlayer(video);
         });
-        if (getComputedStyle(videoElement.parentElement).position === "static") {
-            videoElement.parentElement.style.position = "relative";
-        }
-        videoElement.parentElement.appendChild(btn);
+
+        buttonRegistry.set(video, { btn, cleanup });
     }
 
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Safe forward-seek helper
+    // ─────────────────────────────────────────────────────────────────────────────
     function safeSeekForward(video, seconds) {
         try {
             const target = video.currentTime + seconds;
@@ -64,7 +124,10 @@
         }
     }
 
-    function injectCustomPlayer(video, launchBtn) {
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Main player injection
+    // ─────────────────────────────────────────────────────────────────────────────
+    function injectCustomPlayer(video) {
         if (!video || !video.parentElement) return;
         if (video.dataset.customPlayerActive) return;
 
@@ -92,7 +155,8 @@
                     <span class="wp-time-sep"> / </span>
                     <span id="wp-time-dur">--:--</span>
                 </div>
-                <input type="range" id="wp-progress" min="0" max="100" step="0.1" value="0" aria-label="Seek">
+                <input type="range" id="wp-progress" min="0" max="100" step="0.1" value="0"
+                       aria-label="Seek">
                 <span id="wp-time-rem" style="color:#666;min-width:44px;text-align:right"></span>
             </div>
             <div class="wp-center-row">
@@ -124,8 +188,6 @@
         gestureZone.style.touchAction = "none";
         gestureZone.style.userSelect  = "none";
 
-        // Block browser-level double-tap-to-zoom / double-tap-to-exit-fullscreen.
-        // pointer events alone cannot stop this on all browsers/devices.
         const globalEventShield = (e) => {
             if (wpShell?.contains(e.target) || gestureZone?.contains(e.target)) {
                 e.preventDefault();
@@ -157,14 +219,6 @@
 
                 const rect = video.getBoundingClientRect();
 
-                // FIX (root cause of black-screen bug):
-                // In fullscreen, video.getBoundingClientRect() can lag by one rAF
-                // frame. That brief gap between the rect and the actual viewport
-                // lets taps fall through to the browser, which on some browsers
-                // triggers a native double-tap-to-exit-fullscreen and makes the
-                // screen appear black. Pinning to window.innerWidth/Height
-                // guarantees the gesture zone covers 100% of the viewport at all
-                // times, leaving no gap for taps to escape.
                 if (document.fullscreenElement) {
                     gestureZone.style.left   = "0px";
                     gestureZone.style.top    = "0px";
@@ -238,7 +292,7 @@
 
         function cleanup() {
             isTracking = false;
-            if (rafId)       cancelAnimationFrame(rafId);
+            if (rafId) cancelAnimationFrame(rafId);
             clearTimeout(feedbackTimer);
             clearTimeout(hideTimer);
             try {
@@ -246,17 +300,17 @@
                     wpShell.parentNode.insertBefore(video, wpShell);
                     wpShell.remove();
                 }
-                if (document.fullscreenElement) {
-                    document.exitFullscreen().catch(() => {});
-                }
+                if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+
                 video.dataset.customPlayerActive = "";
                 video.controls = true;
-                video.style.transform  = "";
-                video.style.filter     = "";
+                video.style.transform = "";
+                video.style.filter    = "";
                 if (video.style) {
                     video.style.pointerEvents = video.dataset.originalPointerEvents || "";
                 }
                 document.body.classList.remove("webplayer-active");
+
                 Object.entries(videoListeners).forEach(([evt, fn]) => {
                     video.removeEventListener(evt, fn);
                 });
@@ -274,7 +328,9 @@
                 spinner.remove();
                 uiWrapper.remove();
                 feedbackOverlay.remove();
-                if (launchBtn) launchBtn.style.display = "block";
+
+                // Re-add the launch button for this video after exiting
+                addPlayerButton(video);
             } catch (e) {
                 console.warn("[WebPlayer] Cleanup error:", e);
             }
@@ -301,12 +357,12 @@
             return `${m}:${s}`;
         }
 
-        function safeUpdateText(element, text) {
-            if (element) element.innerText = text;
+        function safeUpdateText(el, text) {
+            if (el) el.innerText = text;
         }
 
-        progress?.addEventListener("mousedown",  () => { isDragging = true; });
-        progress?.addEventListener("touchstart", () => { isDragging = true; }, { passive: true });
+        progress?.addEventListener("mousedown",  () => { isDragging = true;  });
+        progress?.addEventListener("touchstart", () => { isDragging = true;  }, { passive: true });
         progress?.addEventListener("mouseup",    () => { isDragging = false; });
         progress?.addEventListener("touchend",   () => { isDragging = false; }, { passive: true });
 
@@ -316,16 +372,13 @@
                     video.currentTime = (e.target.value / 100) * video.duration;
                     safeUpdateText(timeCur, formatTime(video.currentTime));
                 }
-            } catch (err) {
-                console.warn("Input error:", err);
-            }
+            } catch (err) {}
         });
 
         videoListeners.timeupdate = () => {
             try {
                 if (!Number.isFinite(video.duration) || isDragging) return;
-                const pct = (video.currentTime / video.duration) * 100;
-                if (progress) progress.value = pct;
+                if (progress) progress.value = (video.currentTime / video.duration) * 100;
                 safeUpdateText(timeCur, formatTime(video.currentTime));
                 safeUpdateText(timeDur, formatTime(video.duration));
                 const rem = video.duration - video.currentTime;
@@ -344,11 +397,7 @@
         videoListeners.waiting = () => setBuffering(true);
         videoListeners.playing = () => setBuffering(false);
         videoListeners.canplay = () => setBuffering(false);
-        // FIX: "seeked" clears the buffering spinner. Previously only "playing"/
-        // "canplay" did — but on YouTube/HLS these often don't fire after a seek,
-        // leaving the spinner permanently on and the video appearing black.
         videoListeners.seeked  = () => setBuffering(false);
-
         video.addEventListener("waiting", videoListeners.waiting);
         video.addEventListener("playing", videoListeners.playing);
         video.addEventListener("canplay", videoListeners.canplay);
@@ -377,70 +426,15 @@
             try { video.currentTime = Math.max(0, video.currentTime - 10); } catch(e){}
             showFeedback("⏪ −10s");
         });
-
         uiWrapper.querySelector("#wp-skip-fwd")?.addEventListener("click", () => {
             safeSeekForward(video, 10);
             showFeedback("⏩ +10s");
         });
-
         uiWrapper.querySelector("#wp-speed")?.addEventListener("change", e => {
             try { video.playbackRate = parseFloat(e.target.value); } catch(e){}
             showFeedback(`⚡ ${e.target.value}×`);
         });
-
         uiWrapper.querySelector("#wp-pip")?.addEventListener("click", async () => {
             try {
                 document.pictureInPictureElement
-                    ? await document.exitPictureInPicture()
-                    : await video.requestPictureInPicture();
-            } catch (err) {
-                console.warn("[WebPlayer] PiP:", err);
-                showFeedback("⚠️ PiP unavailable");
-            }
-        });
-
-        uiWrapper.querySelector("#wp-fs")?.addEventListener("click", () => {
-            try {
-                if (document.fullscreenElement) {
-                    document.exitFullscreen();
-                } else {
-                    (wpShell.requestFullscreen?.() ?? video.requestFullscreen?.());
-                }
-            } catch (err) {
-                console.warn("[WebPlayer] Fullscreen:", err);
-            }
-        });
-
-        let currentRotation = 0;
-        uiWrapper.querySelector("#wp-rotate")?.addEventListener("click", () => {
-            if (document.fullscreenElement) return;
-            currentRotation = (currentRotation + 90) % 360;
-            video.style.transform  = `rotate(${currentRotation}deg)`;
-            video.style.transition = "transform 0.3s ease";
-            showFeedback(`↻ ${currentRotation}°`);
-        });
-
-        // ── GESTURE ENGINE ────────────────────────────────────────────────────────
-        let pressTimer         = null;
-        let isLongPressing     = false;
-        let isPointerDown      = false;
-        let gestureActionTaken = false;
-        let originalSpeed      = 1.0;
-
-        let startX = 0, startY = 0, lastY = 0;
-        let lastTapTime = 0, lastTapX = 0;
-        let swipeDirection       = null;
-        let currentBrightness    = 1.0;
-        let gestureThrottleTimer = null;
-
-        // 300 ms → 350 ms: catches slightly slower double-taps common on mobile
-        const DOUBLE_TAP_MS = 350;
-        const DOUBLE_TAP_PX = 40;
-
-        function handlePointerDown(e) {
-            try {
-                e.preventDefault();
-                e.stopPropagation();
-                isPointerDown      = true;
-                gestureActionTaken = false;
- 
+                    ? await
