@@ -17,14 +17,22 @@
     border-radius: 8px;
     font-family: system-ui, sans-serif;
     font-size: 13px;
+    font-weight: 600;
     cursor: pointer;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
     transition: background 0.2s, border-color 0.2s;
     pointer-events: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    line-height: 1;
 }
 .custom-player-overlay-btn:hover {
     background-color: #4a9eff;
     border-color: #4a9eff;
+}
+.custom-player-overlay-btn svg {
+    flex-shrink: 0;
 }
 
 /* ─── Dedicated fullscreen shell wrapping the video ──────────────────────── */
@@ -98,11 +106,6 @@
 .wp-time-block span.wp-time-sep { color: #555; }
 
 /* ─── Progress bar (desktop default) ────────────────────────────────────── */
-/*
- * FIX: Without -webkit-appearance:none the browser (especially Android Chrome)
- * renders its own oversized material thumb that ignores the track height and
- * cannot be resized. Resetting appearance gives us full control.
- */
 #wp-progress {
     flex: 1;
     cursor: pointer;
@@ -138,7 +141,7 @@
     border-radius: 50%;
     background: #4a9eff;
     cursor: pointer;
-    margin-top: -5.5px; /* vertically centres thumb on the 5px track */
+    margin-top: -5.5px;
     transition: transform 0.1s ease;
 }
 #wp-progress::-webkit-slider-thumb:active {
@@ -165,14 +168,23 @@
     position: relative;
 }
 
+/* SVG icons inside buttons inherit button color */
+.wp-center-row button svg {
+    display: block;
+    flex-shrink: 0;
+    pointer-events: none;
+}
+
 #wp-play {
     width: 52px !important;
     height: 52px !important;
-    font-size: 22px !important;
     background: rgba(74, 158, 255, 0.20) !important;
     border: 1px solid rgba(74, 158, 255, 0.35) !important;
     border-radius: 50% !important;
     flex-shrink: 0;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
 }
 #wp-play:hover {
     background: rgba(74, 158, 255, 0.45) !important;
@@ -190,9 +202,9 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    font-size: 17px;
     transition: background 0.18s, transform 0.12s ease-out;
     flex-shrink: 0;
+    padding: 0;
 }
 .wp-center-row button:hover {
     background: rgba(255, 255, 255, 0.15);
@@ -292,12 +304,10 @@
     .wp-center-row button {
         width: 44px;
         height: 44px;
-        font-size: 19px;
     }
     #wp-play {
         width: 58px !important;
         height: 58px !important;
-        font-size: 24px !important;
     }
     .webplayer-ui-wrapper {
         max-width: 100%;
@@ -305,10 +315,6 @@
         padding: 10px 14px 14px;
     }
 
-    /* FIX: Shrink the progress bar track and thumb on touch/mobile.
-     * Android Chrome renders a huge default thumb unless -webkit-appearance
-     * is reset and the pseudo-element size is explicitly overridden here.
-     */
     #wp-progress {
         height: 3px;
     }

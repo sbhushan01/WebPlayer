@@ -3,6 +3,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const container  = document.getElementById("video-container");
     const bufferEl   = document.getElementById("buffering-indicator");
     const skipBadge  = document.getElementById("skip-badge");
+    const skipBadgeText = document.getElementById("skip-badge-text");
 
     if (!player || !container) {
         console.error("Critical player elements missing.");
@@ -10,13 +11,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // ── DOUBLE-TAP INTERCEPTOR (Capture Phase) ──────────────────────────────
-    // FIX: The original code unconditionally called exitFullscreen() on every
-    // double-tap while in fullscreen — so seeking never happened and the screen
-    // collapsed to black. The fix divides the container into three horizontal
-    // zones (matching the gesture engine in content.js):
-    //   Left  33% → seek −10 s
-    //   Right 33% → seek +10 s
-    //   Center    → toggle fullscreen
     let lastPointerDownTime = 0;
     let isDoubleTapping     = false;
 
@@ -42,7 +36,6 @@ document.addEventListener("DOMContentLoaded", async () => {
                     player.currentTime + 10
                 );
             } else {
-                // Centre zone → toggle fullscreen
                 if (document.fullscreenElement) {
                     document.exitFullscreen().catch(() => {});
                 } else {
@@ -98,7 +91,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     function showError(msg) {
         const errorBox = document.getElementById("error-box");
         if (errorBox) {
-            errorBox.textContent   = `⚠️ ${msg}`;
+            errorBox.textContent   = `${msg}`;
             errorBox.style.display = "block";
         }
     }
@@ -122,8 +115,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     player.addEventListener("canplay",    () => setBuffering(false));
     player.addEventListener("loadeddata", () => setBuffering(false));
     player.addEventListener("stalled",    () => setBuffering(true));
-    // FIX: "seeked" clears buffering — same fix as content.js. On YouTube/HLS
-    // "playing" may not fire after a seek, leaving the screen appearing black.
     player.addEventListener("seeked",     () => setBuffering(false));
 
     setInterval(() => {
@@ -233,9 +224,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     let isSkipping   = false;
     let badgeTimer   = null;
 
+    // Skip icon SVG for the badge
+    const SKIP_ICON_SVG = `<svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="flex-shrink:0" aria-hidden="true"><path d="M6 18l8.5-6L6 6v12zm2-8.14L11.03 12 8 14.14V9.86zM16 6h2v12h-2z"/></svg>`;
+
     function flashSkipBadge(label) {
         if (!skipBadge) return;
-        skipBadge.textContent = `⏭ Skipping ${label}…`;
+        // Prepend icon SVG before the text span
+        const existingIcon = skipBadge.querySelector("svg");
+        if (!existingIcon) skipBadge.insertAdjacentHTML("afterbegin", SKIP_ICON_SVG);
+        if (skipBadgeText) skipBadgeText.textContent = `Skipping ${label}`;
         skipBadge.classList.add("visible");
         clearTimeout(badgeTimer);
         badgeTimer = setTimeout(() => skipBadge.classList.remove("visible"), 1400);

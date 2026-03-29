@@ -25,19 +25,38 @@
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
+    // SVG icon constants
+    // ─────────────────────────────────────────────────────────────────────────────
+    const IC = {
+        play: `<svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22" aria-hidden="true"><path d="M8 5.14v14l11-7-11-7z"/></svg>`,
+        pause: `<svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1.5"/><rect x="14" y="4" width="4" height="16" rx="1.5"/></svg>`,
+        skipBack: `<svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
+          <path d="M12 5V2L8 6l4 4V7c2.76 0 5 2.24 5 5s-2.24 5-5 5-5-2.24-5-5H5c0 3.87 3.13 7 7 7s7-3.13 7-7-3.13-7-7-7z"/>
+          <text x="12" y="15" text-anchor="middle" font-size="5.5" font-family="system-ui,sans-serif" font-weight="800">10</text>
+        </svg>`,
+        skipFwd: `<svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
+          <path d="M18 13c0 3.31-2.69 6-6 6s-6-2.69-6-6 2.69-6 6-6v3l4-4-4-4v3c-4.42 0-8 3.58-8 8s3.58 8 8 8 8-3.58 8-8h-2z"/>
+          <text x="12" y="15" text-anchor="middle" font-size="5.5" font-family="system-ui,sans-serif" font-weight="800">10</text>
+        </svg>`,
+        pip: `<svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true"><path d="M19 7h-8v6h8V7zm2-4H3c-1.1 0-2 .9-2 2v14c0 1.1.9 1.99 2 1.99h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16.01H3V4.98h18v14.03z"/></svg>`,
+        fullscreen: `<svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>`,
+        rotate: `<svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true"><path d="M7.11 8.53 5.7 7.11C4.8 8.27 4.24 9.61 4.07 11h2.02c.14-.87.49-1.72 1.02-2.47zM6.09 13H4.07c.17 1.39.72 2.73 1.62 3.89l1.41-1.42c-.52-.75-.87-1.59-1.01-2.47zm1.01 5.32c1.16.9 2.51 1.44 3.9 1.61V17.9c-.87-.15-1.71-.49-2.46-1.03L7.1 18.32zM13 4.07V1L8.45 5.55 13 10V6.09c2.84.48 5 2.94 5 5.91s-2.16 5.43-5 5.91v2.02c3.95-.49 7-3.85 7-7.93s-3.05-7.44-7-7.93z"/></svg>`,
+        close: `<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>`,
+        launch: `<svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" aria-hidden="true" style="vertical-align:-2px;margin-right:5px"><path d="M8 5.14v14l11-7-11-7z"/></svg>`,
+    };
+
+    // ─────────────────────────────────────────────────────────────────────────────
     // Button registry — maps each video element to its launch button.
     // ─────────────────────────────────────────────────────────────────────────────
     const buttonRegistry = new WeakMap();
 
     // ─────────────────────────────────────────────────────────────────────────────
     // findVideos — scans for visible videos not yet registered.
-    // Called on boot, MutationObserver ticks, and a periodic re-scan.
     // ─────────────────────────────────────────────────────────────────────────────
     function findVideos() {
         try {
             document.querySelectorAll("video").forEach(video => {
                 if (buttonRegistry.has(video)) return;
-                // Skip videos that have no painted area yet
                 const r = video.getBoundingClientRect();
                 if (r.width <= 0 || r.height <= 0) return;
                 addPlayerButton(video);
@@ -49,14 +68,10 @@
 
     // ─────────────────────────────────────────────────────────────────────────────
     // addPlayerButton
-    //
-    // FIX: Button is appended to document.body with position:fixed and tracked
-    // via rAF. The old approach (position:absolute inside videoElement.parent)
-    // was clipped by overflow:hidden ancestors (e.g. YouTube's video container).
     // ─────────────────────────────────────────────────────────────────────────────
     function addPlayerButton(video) {
         const btn = document.createElement("button");
-        btn.innerText = "▶ Launch WebPlayer UI";
+        btn.innerHTML = `${IC.launch}Launch WebPlayer`;
         btn.className = "custom-player-overlay-btn";
         document.body.appendChild(btn);
 
@@ -145,9 +160,21 @@
                 <span id="wp-time-rem" style="color:#666;min-width:44px;text-align:right"></span>
             </div>
             <div class="wp-center-row">
-                <button id="wp-skip-back"  title="Back 10s">⏮ 10</button>
-                <button id="wp-play"       title="Play / Pause">⏸</button>
-                <button id="wp-skip-fwd"   title="Forward 10s">10 ⏭</button>
+                <button id="wp-skip-back" title="Back 10s" aria-label="Back 10 seconds">
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
+                    <path d="M12 5V2L8 6l4 4V7c2.76 0 5 2.24 5 5s-2.24 5-5 5-5-2.24-5-5H5c0 3.87 3.13 7 7 7s7-3.13 7-7-3.13-7-7-7z"/>
+                    <text x="12" y="15" text-anchor="middle" font-size="5.5" font-family="system-ui,sans-serif" font-weight="800">10</text>
+                  </svg>
+                </button>
+                <button id="wp-play" title="Play / Pause" aria-label="Play or pause">
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1.5"/><rect x="14" y="4" width="4" height="16" rx="1.5"/></svg>
+                </button>
+                <button id="wp-skip-fwd" title="Forward 10s" aria-label="Forward 10 seconds">
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
+                    <path d="M18 13c0 3.31-2.69 6-6 6s-6-2.69-6-6 2.69-6 6-6v3l4-4-4-4v3c-4.42 0-8 3.58-8 8s3.58 8 8 8 8-3.58 8-8h-2z"/>
+                    <text x="12" y="15" text-anchor="middle" font-size="5.5" font-family="system-ui,sans-serif" font-weight="800">10</text>
+                  </svg>
+                </button>
                 <select id="wp-speed" title="Playback Speed" aria-label="Playback speed">
                     <option value="0.5">0.5×</option>
                     <option value="1" selected>1×</option>
@@ -155,10 +182,18 @@
                     <option value="1.5">1.5×</option>
                     <option value="2">2×</option>
                 </select>
-                <button id="wp-pip"    title="Picture in Picture">⧉</button>
-                <button id="wp-fs"     title="Fullscreen">⛶</button>
-                <button id="wp-rotate" title="Rotate video">↻</button>
-                <button id="wp-exit"   title="Exit WebPlayer">✕</button>
+                <button id="wp-pip" title="Picture in Picture" aria-label="Picture in Picture">
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true"><path d="M19 7h-8v6h8V7zm2-4H3c-1.1 0-2 .9-2 2v14c0 1.1.9 1.99 2 1.99h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16.01H3V4.98h18v14.03z"/></svg>
+                </button>
+                <button id="wp-fs" title="Fullscreen" aria-label="Toggle fullscreen">
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+                </button>
+                <button id="wp-rotate" title="Rotate video" aria-label="Rotate video">
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true"><path d="M7.11 8.53 5.7 7.11C4.8 8.27 4.24 9.61 4.07 11h2.02c.14-.87.49-1.72 1.02-2.47zM6.09 13H4.07c.17 1.39.72 2.73 1.62 3.89l1.41-1.42c-.52-.75-.87-1.59-1.01-2.47zm1.01 5.32c1.16.9 2.51 1.44 3.9 1.61V17.9c-.87-.15-1.71-.49-2.46-1.03L7.1 18.32zM13 4.07V1L8.45 5.55 13 10V6.09c2.84.48 5 2.94 5 5.91s-2.16 5.43-5 5.91v2.02c3.95-.49 7-3.85 7-7.93s-3.05-7.44-7-7.93z"/></svg>
+                </button>
+                <button id="wp-exit" title="Exit WebPlayer" aria-label="Exit WebPlayer">
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                </button>
             </div>
         `;
 
@@ -207,8 +242,6 @@
 
                 const rect = video.getBoundingClientRect();
 
-                // In fullscreen pin gesture zone to full viewport to prevent
-                // any gap where taps can trigger browser-native exit-fullscreen.
                 if (document.fullscreenElement) {
                     gestureZone.style.left   = "0px";
                     gestureZone.style.top    = "0px";
@@ -326,7 +359,6 @@
                 uiWrapper.remove();
                 feedbackOverlay.remove();
 
-                // Re-add launch button after exiting
                 addPlayerButton(video);
             } catch (e) {
                 console.warn("[WebPlayer] Cleanup error:", e);
@@ -404,16 +436,22 @@
 
         videoListeners.error = () => {
             setBuffering(false);
-            const msgs = { 1: "⚠️ Aborted", 2: "⚠️ Network error", 3: "⚠️ Decode error", 4: "⚠️ Unsupported" };
+            const msgs = { 1: "Aborted", 2: "Network error", 3: "Decode error", 4: "Unsupported" };
             const code = video.error ? video.error.code : 0;
-            showFeedback(msgs[code] || "⚠️ Video error", true);
+            showFeedback(msgs[code] || "Video error", true);
         };
         video.addEventListener("error", videoListeners.error);
 
         // ── Play / Pause ──────────────────────────────────────────────────────────
         const playBtn = uiWrapper.querySelector("#wp-play");
-        videoListeners.play  = () => { safeUpdateText(playBtn, "⏸"); };
-        videoListeners.pause = () => { safeUpdateText(playBtn, "▶"); showControls(); };
+
+        videoListeners.play  = () => {
+            if (playBtn) playBtn.innerHTML = IC.pause;
+        };
+        videoListeners.pause = () => {
+            if (playBtn) playBtn.innerHTML = IC.play;
+            showControls();
+        };
         video.addEventListener("play",  videoListeners.play);
         video.addEventListener("pause", videoListeners.pause);
 
@@ -424,17 +462,17 @@
 
         uiWrapper.querySelector("#wp-skip-back")?.addEventListener("click", () => {
             try { video.currentTime = Math.max(0, video.currentTime - 10); } catch (_) {}
-            showFeedback("⏪ −10s");
+            showFeedback("−10s");
         });
 
         uiWrapper.querySelector("#wp-skip-fwd")?.addEventListener("click", () => {
             safeSeekForward(video, 10);
-            showFeedback("⏩ +10s");
+            showFeedback("+10s");
         });
 
         uiWrapper.querySelector("#wp-speed")?.addEventListener("change", e => {
             try { video.playbackRate = parseFloat(e.target.value); } catch (_) {}
-            showFeedback(`⚡ ${e.target.value}×`);
+            showFeedback(`${e.target.value}×`);
         });
 
         uiWrapper.querySelector("#wp-pip")?.addEventListener("click", async () => {
@@ -443,7 +481,7 @@
                     ? await document.exitPictureInPicture()
                     : await video.requestPictureInPicture();
             } catch (_) {
-                showFeedback("⚠️ PiP unavailable");
+                showFeedback("PiP unavailable");
             }
         });
 
@@ -461,7 +499,7 @@
             currentRotation = (currentRotation + 90) % 360;
             video.style.transform  = `rotate(${currentRotation}deg)`;
             video.style.transition = "transform 0.3s ease";
-            showFeedback(`↻ ${currentRotation}°`);
+            showFeedback(`${currentRotation}°`);
         });
 
         // ── GESTURE ENGINE ────────────────────────────────────────────────────────
@@ -495,7 +533,7 @@
                     isLongPressing     = true;
                     gestureActionTaken = true;
                     try { video.playbackRate = 2.0; } catch (_) {}
-                    showFeedback("⚡ 2× Speed", true);
+                    showFeedback("2× Speed", true);
                 }, 500);
             } catch (_) {}
         }
@@ -521,12 +559,12 @@
                         try {
                             const newVol = video.volume - deltaY * 0.005;
                             video.volume = Number(Math.max(0, Math.min(1, newVol)).toFixed(2));
-                            showFeedback(`🔊 ${Math.round(video.volume * 100)}%`, true);
+                            showFeedback(`Vol ${Math.round(video.volume * 100)}%`, true);
                         } catch (_) {}
                     } else {
                         currentBrightness  = Math.max(0.1, Math.min(2.5, currentBrightness - deltaY * 0.01));
                         video.style.filter = `brightness(${currentBrightness})`;
-                        showFeedback(`☀️ ${Math.round(currentBrightness * 100)}%`, true);
+                        showFeedback(`Brightness ${Math.round(currentBrightness * 100)}%`, true);
                     }
                     gestureThrottleTimer = setTimeout(() => { gestureThrottleTimer = null; }, 50);
                 }
@@ -564,8 +602,8 @@
 
                 if (swipeDirection === "horizontal") {
                     if (Math.abs(diffX) > 40) {
-                        if (diffX > 0) { safeSeekForward(video, 10);                              showFeedback("⏩ +10s"); }
-                        else           { video.currentTime = Math.max(0, video.currentTime - 10); showFeedback("⏪ −10s"); }
+                        if (diffX > 0) { safeSeekForward(video, 10);                              showFeedback("+10s"); }
+                        else           { video.currentTime = Math.max(0, video.currentTime - 10); showFeedback("−10s"); }
                         showControls();
                     }
                     return;
@@ -578,16 +616,16 @@
                     if (tapTimeDiff < DOUBLE_TAP_MS && tapDistDiff < DOUBLE_TAP_PX) {
                         if (relativeX < leftZone) {
                             video.currentTime = Math.max(0, video.currentTime - 10);
-                            showFeedback("⏪ −10s");
+                            showFeedback("−10s");
                             showControls();
                         } else if (relativeX > rightZone) {
                             safeSeekForward(video, 10);
-                            showFeedback("⏩ +10s");
+                            showFeedback("+10s");
                             showControls();
                         } else {
                             try {
-                                if (video.paused) { video.play();  showFeedback("▶ Play");  }
-                                else              { video.pause(); showFeedback("⏸ Pause"); }
+                                if (video.paused) { video.play();  showFeedback("Play");  }
+                                else              { video.pause(); showFeedback("Pause"); }
                             } catch (_) {}
                         }
                         lastTapTime = 0;
@@ -623,12 +661,16 @@
         document.addEventListener("DOMContentLoaded", observeBody);
     }
 
-    // Periodic re-scan for 60 s — catches videos with zero dimensions at boot time
-    // (deferred layout, lazy loading, SPA route changes).
     let scanCount = 0;
     const periodicScan = setInterval(() => {
         findVideos();
         if (++scanCount >= 30) clearInterval(periodicScan);
     }, 2000);
 
+    // ── Stream detection badge ────────────────────────────────────────────────────
+    chrome.runtime.onMessage.addListener((msg) => {
+        if (msg.action === "stream_detected" && msg.url) {
+            // Handled by existing button infrastructure
+        }
+    });
 })();
