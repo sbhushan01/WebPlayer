@@ -4,10 +4,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     const bufferEl   = document.getElementById("buffering-indicator");
     const skipBadge  = document.getElementById("skip-badge");
     const skipBadgeText = document.getElementById("skip-badge-text");
+    const liveBadge  = document.getElementById("live-badge");
+    const qualitySelect = document.getElementById("quality-select");
 
     if (!player || !container) return;
 
-    // ── Media Session API (OS Level Controls) ────────────────────────────────
     if ('mediaSession' in navigator) {
         navigator.mediaSession.setActionHandler('play', () => player.play());
         navigator.mediaSession.setActionHandler('pause', () => player.pause());
@@ -15,7 +16,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         navigator.mediaSession.setActionHandler('seekforward', (e) => player.currentTime = Math.min(player.duration, player.currentTime + (e.seekOffset || 10)));
     }
 
-    // ── DOUBLE-TAP INTERCEPTOR ─────────────────────────────────────────────
     let lastPointerDownTime = 0, isDoubleTapping = false;
     container.addEventListener("pointerdown", (e) => {
         if (!e.isPrimary) return;
@@ -45,7 +45,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     }, true);
     container.addEventListener("dblclick", e => { e.preventDefault(); e.stopPropagation(); }, true);
 
-    // ── Initialization & Source Loading ────────────────────────────────────
     const urlParams = new URLSearchParams(window.location.search);
     const videoSrc  = urlParams.get("src");
     const pageTitle = urlParams.get("title");
@@ -53,12 +52,26 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (!videoSrc) { showError("No video source provided."); return; }
 
-    // ── Playback State Persistence ─────────────────────────────────────────
+    function showError(msg) {
+        const errorBox = document.getElementById("error-box");
+        if (errorBox) { errorBox.textContent = `${msg}`; errorBox.style.display = "block"; }
+    }
+
+    player.addEventListener("loadedmetadata", () => {
+        if (player.duration === Infinity) {
+            liveBadge.style.display = "flex";
+        } else {
+            liveBadge.style.display = "none";
+        }
+    });
+
     const cleanUrl = videoSrc.split("?")[0];
     chrome.storage.local.get([cleanUrl]).then(res => {
         if (res[cleanUrl]) {
             const seekToSaved = () => {
-                player.currentTime = res[cleanUrl];
+                if (player.duration !== Infinity) {
+                    player.currentTime = res[cleanUrl];
+                }
                 player.removeEventListener('loadedmetadata', seekToSaved);
             };
             if (player.readyState >= 1) seekToSaved();
@@ -69,15 +82,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     let lastSave = 0;
     player.addEventListener("timeupdate", () => {
         const now = Date.now();
-        // Save state every 5 seconds, avoiding SponsorBlock skip jumps
-        if (now - lastSave > 5000 && !window.__isSkipping) {
+        if (now - lastSave > 5000 && !window.__isSkipping && player.duration !== Infinity) {
             chrome.storage.local.set({ [cleanUrl]: player.currentTime });
             lastSave = now;
         }
     });
     player.addEventListener("ended", () => chrome.storage.local.remove([cleanUrl]));
 
-    // ── Engine Setup (HLS / DASH) ──────────────────────────────────────────
     let currentHls = null, currentDash = null;
     function destroyEngines() {
         if (currentHls)  { currentHls.destroy(); currentHls   = null; }
@@ -87,11 +98,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         destroyEngines();
         if (audioContext && audioContext.state !== "closed") audioContext.close();
     });
-
-    function showError(msg) {
-        const errorBox = document.getElementById("error-box");
-        if (errorBox) { errorBox.textContent = `${msg}`; errorBox.style.display = "block"; }
-    }
 
     function setBuffering(on) { bufferEl?.classList.toggle("is-buffering", on); }
     player.addEventListener("waiting",    () => setBuffering(true));
@@ -116,26 +122,90 @@ document.addEventListener("DOMContentLoaded", async () => {
         destroyEngines();
         player.crossOrigin = "anonymous";
         setBuffering(true);
+        qualitySelect.style.display = "none";
+        
         const cleanSrc = src.split("?")[0].toLowerCase();
 
         try {
             if (cleanSrc.endsWith(".m3u8")) {
-                await loadScript("libs/hls.min.js");
-                if (window.Hls && Hls.isSupported()) {
-                    currentHls = new Hls({ manifestLoadingMaxRetry: 4 });
-                    currentHls.loadSource(src); currentHls.attachMedia(player);
-                    currentHls.on(Hls.Events.MANIFEST_PARSED, () => player.play().catch(()=>{}));
+                if (player.canPlayType('application/vnd.apple.mpegurl')) {
+                    player.src = src;
+                    player.addEventListener('loadedmetadata', () => player.play().catch(()=>{}), { once: true });
+                } else {
+                    await loadScript("libs/hls.min.js");
+                    if (window.Hls && Hls.isSupported()) {
+                        currentHls = new Hls({ manifestLoadingMaxRetry: 4 });
+                        currentHls.loadSource(src); 
+                        currentHls.attachMedia(player);
+                        
+                        currentHls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
+                            player.play().catch(()=>{});
+                            if (data.levels && data.levels.length > 1) {
+                                qualitySelect.innerHTML = '<option value="-1">Auto</option>' + 
+                                    data.levels.map((l, i) => `<option value="${i}">${l.height}p</option>`).join('');
+                                qualitySelect.style.display = "inline-flex";
+                                qualitySelect.onchange = (e) => { currentHls.currentLevel = parseInt(e.target.value); };
+                            }
+                        });
+
+                        currentHls.on(Hls.Events.ERROR, (event, data) => {
+                            if (data.fatal) {
+                                switch (data.type) {
+                                    case Hls.ErrorTypes.NETWORK_ERROR:
+                                        console.warn("[WebPlayer] HLS Network Error, recovering...");
+                                        currentHls.startLoad();
+                                        break;
+                                    case Hls.ErrorTypes.MEDIA_ERROR:
+                                        console.warn("[WebPlayer] HLS Media Error, recovering...");
+                                        currentHls.recoverMediaError();
+                                        break;
+                                    default:
+                                        destroyEngines();
+                                        showError("Fatal HLS playback error.");
+                                        break;
+                                }
+                            }
+                        });
+                    } else {
+                        showError("HLS is not supported in this browser.");
+                    }
                 }
             } else if (cleanSrc.endsWith(".mpd")) {
                 await loadScript("libs/dash.all.min.js");
                 if (window.dashjs) {
                     currentDash = dashjs.MediaPlayer().create();
                     currentDash.initialize(player, src, true);
+                    
+                    currentDash.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, () => {
+                        const bitrates = currentDash.getBitrateInfoListFor('video');
+                        if (bitrates && bitrates.length > 1) {
+                            qualitySelect.innerHTML = '<option value="-1">Auto</option>' + 
+                                bitrates.map((b, i) => `<option value="${i}">${b.height}p</option>`).join('');
+                            qualitySelect.style.display = "inline-flex";
+                            qualitySelect.onchange = (e) => {
+                                const val = parseInt(e.target.value);
+                                currentDash.updateSettings({
+                                    streaming: { abr: { autoSwitchBitrate: { video: val === -1 } } }
+                                });
+                                if (val !== -1) currentDash.setQualityFor('video', val);
+                            };
+                        }
+                    });
+
+                    currentDash.on(dashjs.MediaPlayer.events.ERROR, (e) => {
+                        if (e.error === "download") console.warn("[WebPlayer] DASH download failed.");
+                    });
+                } else {
+                    showError("DASH is not supported in this browser.");
                 }
             } else {
-                player.src = src; player.load();
+                player.src = src; 
+                player.load();
             }
-        } catch (err) { showError(`Init failed: ${err.message}`); setBuffering(false); }
+        } catch (err) { 
+            showError(`Stream initialization failed: ${err.message}`); 
+            setBuffering(false); 
+        }
     }
 
     await attachSource(videoSrc);
@@ -146,7 +216,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         showError((code === 2 || code === 3 || code === 4) ? "Network/CORS error." : "Could not load video.");
     });
 
-    // ── SponsorBlock ─────────────────────────────────────────────────────────
     window.__isSkipping = false;
     async function fetchSegments() {
         try {
@@ -188,7 +257,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     });
 
-    // ── 10-Band EQ & Preamp (Audiophile Pipeline) ───────────────────────────
     const FREQS = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
     const LABELS = ["31", "62", "125", "250", "500", "1K", "2K", "4K", "8K", "16K"];
     
@@ -202,7 +270,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     let eqNodes = [];
     let mediaNodeCreated = false;
 
-    // Generate UI
     const containerEl = document.getElementById("eq-bands-container");
     const preampSlider = document.getElementById("eq-preamp");
     const preampLabel  = document.getElementById("preamp-label");
@@ -268,7 +335,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     eq.type = (i === 0) ? "lowshelf" : (i === FREQS.length - 1) ? "highshelf" : "peaking";
                     eq.frequency.value = f;
                     eq.gain.value = savedEq.bands[i];
-                    if (eq.type === "peaking") eq.Q.value = 1.41; // 1 Octave bandwidth
+                    if (eq.type === "peaking") eq.Q.value = 1.41;
                     
                     eqNodes.push(eq);
                     prevNode.connect(eq);
@@ -280,9 +347,44 @@ document.addEventListener("DOMContentLoaded", async () => {
         } catch (err) { console.warn("[WebPlayer] Audio graph failed:", err); }
     });
 
-    // ── Speed & Keyboard ─────────────────────────────────────────────────────
     const speedSelect = document.getElementById("speed-select");
     if (speedSelect) speedSelect.addEventListener("change", () => player.playbackRate = parseFloat(speedSelect.value));
+
+    document.getElementById("pip-btn")?.addEventListener("click", async (e) => {
+        const btn = e.currentTarget;
+        try { 
+            document.pictureInPictureElement ? await document.exitPictureInPicture() : await player.requestPictureInPicture(); 
+            btn.classList.remove("disabled");
+            btn.title = "Picture in Picture";
+        } catch (err) { 
+            console.error("PiP failed:", err);
+            btn.disabled = true;
+            btn.title = "PiP Disabled by Browser";
+            showError("Picture-in-Picture is unavailable for this video.");
+        }
+    });
+
+    const fsBtn  = document.getElementById("fs-btn");
+    const fsIcon = document.getElementById("fs-icon");
+    const ICON_FS_ENTER = `<path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>`;
+    const ICON_FS_EXIT  = `<path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>`;
+
+    fsBtn?.addEventListener("click", async (e) => {
+        const btn = e.currentTarget;
+        try { 
+            document.fullscreenElement ? await document.exitFullscreen() : await (container.requestFullscreen?.() ?? player.requestFullscreen?.()); 
+        } catch (err) {
+            btn.disabled = true;
+            btn.title = "Fullscreen Disabled";
+            showError("Fullscreen is blocked by the browser.");
+        }
+    });
+
+    document.addEventListener("fullscreenchange", () => {
+        if (fsIcon) fsIcon.innerHTML = document.fullscreenElement ? ICON_FS_EXIT : ICON_FS_ENTER;
+        const textSpan = fsBtn.querySelector('.btn-text');
+        if (textSpan) textSpan.textContent = document.fullscreenElement ? "Exit Fullscreen" : "Fullscreen";
+    });
 
     document.addEventListener("keydown", e => {
         if (["INPUT", "SELECT", "TEXTAREA", "BUTTON"].includes(e.target.tagName)) return;
@@ -293,7 +395,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             case "ArrowUp":    e.preventDefault(); player.volume = Math.min(1, parseFloat((player.volume + 0.1).toFixed(1))); break;
             case "ArrowDown":  e.preventDefault(); player.volume = Math.max(0, parseFloat((player.volume - 0.1).toFixed(1))); break;
             case "m": player.muted = !player.muted; break;
-            case "f": document.fullscreenElement ? document.exitFullscreen() : (container?.requestFullscreen?.() ?? player.requestFullscreen?.()); break;
+            case "f": fsBtn.click(); break;
         }
     });
 });

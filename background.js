@@ -82,7 +82,9 @@ chrome.webRequest.onHeadersReceived.addListener(
             chrome.tabs.sendMessage(details.tabId, {
                 action: "stream_detected",
                 url: details.url
-            }).catch(() => {});
+            }, () => {
+                if (chrome.runtime.lastError) { /* Silently ignore if content script isn't ready */ }
+            });
         }
     },
     { urls: ["<all_urls>"], types: ["xmlhttprequest", "media"] }
