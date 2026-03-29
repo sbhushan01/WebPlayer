@@ -59,17 +59,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                         return;
                     }
 
-                    function cleanupListener(tabId, changeInfo) {
+                    // BUG FIX: Only remove the CORS bypass rule when the tab is actually closed. 
+                    // This prevents the video from breaking if the user hits refresh.
+                    function cleanupListener(tabId) {
                         if (tabId === tab.id) {
-                            if (!changeInfo || changeInfo.url) { 
-                                chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [ruleId] });
-                                chrome.tabs.onRemoved.removeListener(cleanupListener);
-                                chrome.tabs.onUpdated.removeListener(cleanupListener);
-                            }
+                            chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [ruleId] });
+                            chrome.tabs.onRemoved.removeListener(cleanupListener);
                         }
                     }
                     chrome.tabs.onRemoved.addListener(cleanupListener);
-                    chrome.tabs.onUpdated.addListener(cleanupListener);
                 });
             }
         );
