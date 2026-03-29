@@ -134,14 +134,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     attachSource(videoSrc);
 
-    // --- SponsorBlock (BUG 1 FIX: Safe Array Handling) ---
+    // --- SponsorBlock ---
     window.__isSkipping = false;
     async function fetchSegments() {
         try {
             let videoId = new URL(videoSrc).searchParams.get("v") || new URLSearchParams(window.location.search).get("v");
-            if (!videoId || videoId.length !== 11) return []; // Ignore non-YouTube
+            if (!videoId || videoId.length !== 11) return []; 
             const res = await fetch(`https://sponsor.ajay.app/api/skipSegments?videoID=${videoId}`);
-            if (!res.ok) return []; // Fix: Don't parse 404s
+            if (!res.ok) return []; 
             const data = await res.json();
             return Array.isArray(data) ? data : [];
         } catch (e) { return []; }
@@ -225,8 +225,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Playback & Volume
     const togglePlay = () => player.paused ? player.play() : player.pause();
     playBtn.addEventListener("click", togglePlay);
-    player.addEventListener("play", () => playIconPath.setAttribute("d", "M6 19h4V5H6v14zm8-14v14h4V5h-4z")); // Pause Icon
-    player.addEventListener("pause", () => playIconPath.setAttribute("d", "M8 5.14v14l11-7-11-7z")); // Play Icon
+    player.addEventListener("play", () => playIconPath.setAttribute("d", "M6 19h4V5H6v14zm8-14v14h4V5h-4z")); 
+    player.addEventListener("pause", () => playIconPath.setAttribute("d", "M8 5.14v14l11-7-11-7z")); 
     
     player.addEventListener("waiting", () => bufferEl.classList.add("is-buffering"));
     player.addEventListener("playing", () => bufferEl.classList.remove("is-buffering"));
@@ -240,7 +240,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         volumeSlider.value = player.muted ? 0 : player.volume;
     });
 
-    // Fullscreen (BUG 4 FIX: WebKit Fallback)
     const toggleFS = async () => {
         if (document.fullscreenElement || document.webkitFullscreenElement) {
             if (document.exitFullscreen) await document.exitFullscreen();
@@ -276,7 +275,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     player.addEventListener("play", resetIdle);
     player.addEventListener("pause", () => container.classList.remove("idle"));
 
-    // --- Gesture Zone (UX Improvement 3) ---
+    // --- FIX: Gesture Zone ---
     let feedbackTimer;
     const showFeedback = (text) => {
         feedbackOverlay.textContent = text;
@@ -285,7 +284,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         feedbackTimer = setTimeout(() => feedbackOverlay.style.opacity = 0, 800);
     };
 
+    // 1. Prevent native browser scrolling/swiping
+    gestureZone.style.touchAction = "none"; 
+
     let startX=0, startY=0, lastY=0, swipeDir=null, isPointerDown=false, lastTapTime=0, currentBrightness=1.0;
+    let tapTimeout; // 2. Timeout for single vs double tap
+
     gestureZone.addEventListener("pointerdown", (e) => {
         isPointerDown = true; gestureZone.setPointerCapture(e.pointerId);
         startX = e.clientX; startY = e.clientY; lastY = e.clientY; swipeDir = null;
@@ -328,20 +332,25 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (!swipeDir) {
             const now = Date.now();
             if (now - lastTapTime < 300) {
-                // Double tap
+                // Double tap detected
+                clearTimeout(tapTimeout);
                 const rect = gestureZone.getBoundingClientRect();
                 if (e.clientX < rect.left + rect.width * 0.33) { player.currentTime = Math.max(0, player.currentTime - 10); showFeedback("-10s"); }
                 else if (e.clientX > rect.left + rect.width * 0.66) { player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 10); showFeedback("+10s"); }
                 else toggleFS();
                 lastTapTime = 0;
             } else {
+                // Single tap detected
                 lastTapTime = now;
-                togglePlay();
+                tapTimeout = setTimeout(() => {
+                    togglePlay();
+                    lastTapTime = 0;
+                }, 300);
             }
         }
     });
 
-    // --- Audio EQ Setup (UX Improvement 2: Hidden in Popover) ---
+    // --- Audio EQ Setup ---
     let audioContext, preampNode, eqNodes = [], mediaNodeCreated = false;
     const FREQS = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
     const LABELS = ["31", "62", "125", "250", "500", "1K", "2K", "4K", "8K", "16K"];
@@ -395,5 +404,54 @@ document.addEventListener("DOMContentLoaded", async () => {
                 prev.connect(audioContext.destination);
             }
         } catch(e) {}
+    });
+
+    // --- FIX: Keyboard Shortcuts ---
+    window.addEventListener("keydown", (e) => {
+        // Prevent shortcuts from triggering if the user is typing in an input field
+        if (["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName)) return;
+
+        switch(e.key.toLowerCase()) {
+            case " ":
+            case "k":
+                e.preventDefault();
+                togglePlay();
+                showFeedback(player.paused ? "Paused" : "Playing");
+                break;
+            case "arrowleft":
+            case "j":
+                e.preventDefault();
+                player.currentTime = Math.max(0, player.currentTime - 10);
+                showFeedback("-10s");
+                break;
+            case "arrowright":
+            case "l":
+                e.preventDefault();
+                player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 10);
+                showFeedback("+10s");
+                break;
+            case "arrowup":
+                e.preventDefault();
+                player.volume = Math.min(1, player.volume + 0.05);
+                volumeSlider.value = player.volume;
+                showFeedback(`Vol: ${Math.round(player.volume * 100)}%`);
+                break;
+            case "arrowdown":
+                e.preventDefault();
+                player.volume = Math.max(0, player.volume - 0.05);
+                volumeSlider.value = player.volume;
+                showFeedback(`Vol: ${Math.round(player.volume * 100)}%`);
+                break;
+            case "f":
+                e.preventDefault();
+                toggleFS();
+                break;
+            case "m":
+                e.preventDefault();
+                player.muted = !player.muted;
+                volumeSlider.value = player.muted ? 0 : player.volume;
+                showFeedback(player.muted ? "Muted" : "Unmuted");
+                break;
+        }
     });
 });
