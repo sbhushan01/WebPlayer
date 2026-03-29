@@ -4,7 +4,6 @@
 
     const getRootContainer = () => document.body || document.documentElement;
 
-    // We still inject a basic global style to hide the host's native controls
     if (!document.getElementById("wp-global-style")) {
         const globalStyles = document.createElement("style");
         globalStyles.id = "wp-global-style";
@@ -88,25 +87,15 @@
         const root = getRootContainer();
         if (root) root.classList.add("webplayer-active");
 
-        const wpShell = document.createElement("div");
-        wpShell.style.position = "relative";
-        wpShell.style.width = "100%";
-        wpShell.style.height = "100%";
-        wpShell.style.display = "flex"; // Prevents inline gap collapsing
+        // --- FIX: Overlay Injection (Do not reparent video) ---
+        if (getComputedStyle(video.parentElement).position === "static") {
+            video.parentElement.style.position = "relative";
+        }
 
-        // Force the video to fill the new shell
-        video.style.width = "100%";
-        video.style.height = "100%";
-
-        video.parentElement.insertBefore(wpShell, video);
-        wpShell.appendChild(video);
-
-        // --- BUG FIX: SHADOW DOM INJECTION ---
-        // Isolates the UI so website CSS cannot override the player styles
         const shadowHost = document.createElement("div");
         shadowHost.style.position = "absolute"; shadowHost.style.inset = "0"; 
         shadowHost.style.pointerEvents = "none"; shadowHost.style.zIndex = "2147483647";
-        wpShell.appendChild(shadowHost);
+        video.parentElement.appendChild(shadowHost);
 
         const shadow = shadowHost.attachShadow({ mode: "closed" });
 
@@ -130,7 +119,7 @@
                 position: absolute; top: 15%; left: 50%; transform: translateX(-50%);
                 background: rgba(0,0,0,0.6); padding: 8px 16px; border-radius: 20px; font-weight: bold; opacity: 0; transition: 0.2s; color: white; pointer-events: none;
             }
-            .webplayer-gesture-zone { position: absolute; inset: 0; pointer-events: auto; }
+            .webplayer-gesture-zone { position: absolute; inset: 0; pointer-events: auto; touch-action: none; }
         `;
         shadow.appendChild(styles);
 
@@ -182,15 +171,9 @@
         };
 
         const cleanup = () => {
-            wpShell.parentNode.insertBefore(video, wpShell);
-            wpShell.remove();
+            shadowHost.remove(); // Safely remove just the overlay
             video.dataset.customPlayerActive = "";
             video.controls = (video.dataset.originalControls === "true");
-            
-            // Restore original video dimensions
-            video.style.width = "";
-            video.style.height = "";
-            
             root.classList.remove("webplayer-active");
             addPlayerButton(video);
         };
@@ -229,8 +212,8 @@
         uiWrapper.querySelector("#wp-pip").addEventListener("click", async () => { document.pictureInPictureElement ? await document.exitPictureInPicture() : await video.requestPictureInPicture(); });
         
         uiWrapper.querySelector("#wp-fs").addEventListener("click", async () => {
-            const req = wpShell.requestFullscreen || wpShell.webkitRequestFullscreen;
-            document.fullscreenElement ? document.exitFullscreen() : req?.call(wpShell);
+            const req = video.requestFullscreen || video.webkitRequestFullscreen;
+            document.fullscreenElement ? document.exitFullscreen() : req?.call(video);
         });
 
         let rot = 0;
@@ -238,8 +221,8 @@
             rot = (rot + 90) % 360; video.style.transform = `rotate(${rot}deg)`; video.style.transition = "transform 0.3s";
         });
 
-        // Simplified gesture logic within Shadow DOM
-        let startX=0, lastTap=0;
+        // --- FIX: Gesture Engine (Timeout Logic) ---
+        let startX=0, lastTap=0, tapTimeout;
         gestureZone.addEventListener("pointerdown", e => { startX = e.clientX; });
         gestureZone.addEventListener("pointerup", e => {
             const diffX = e.clientX - startX;
@@ -248,8 +231,21 @@
                 else { video.currentTime -= 10; showFeedback("−10s"); }
             } else {
                 const now = Date.now();
-                if (now - lastTap < 300) { video.paused ? video.play() : video.pause(); lastTap = 0; }
-                else lastTap = now;
+                if (now - lastTap < 300) { 
+                    // Double Tap detected
+                    clearTimeout(tapTimeout);
+                    const rect = gestureZone.getBoundingClientRect();
+                    if (e.clientX < rect.left + rect.width * 0.5) { video.currentTime -= 10; showFeedback("-10s"); }
+                    else { safeSeekForward(video, 10); showFeedback("+10s"); }
+                    lastTap = 0;
+                } else {
+                    // Single Tap detected
+                    lastTap = now;
+                    tapTimeout = setTimeout(() => {
+                        video.paused ? video.play() : video.pause(); 
+                        lastTap = 0;
+                    }, 300);
+                }
             }
         });
     }
