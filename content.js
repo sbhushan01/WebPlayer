@@ -25,28 +25,21 @@
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
-    // Button registry — maps each video element to its launch button so we can
-    // reposition and clean up without leaking DOM nodes.
+    // Button registry — maps each video element to its launch button.
     // ─────────────────────────────────────────────────────────────────────────────
-    const buttonRegistry = new WeakMap(); // video → { btn, rafId, cleanup }
+    const buttonRegistry = new WeakMap();
 
     // ─────────────────────────────────────────────────────────────────────────────
-    // findVideos — accepts any video that has non-zero painted dimensions.
-    // Called on boot, on every MutationObserver tick, and every 2 s for 60 s
-    // (catches lazy-loaded / SPA-navigated videos).
+    // findVideos — scans for visible videos not yet registered.
+    // Called on boot, MutationObserver ticks, and a periodic re-scan.
     // ─────────────────────────────────────────────────────────────────────────────
     function findVideos() {
         try {
             document.querySelectorAll("video").forEach(video => {
-                // Skip if already registered
                 if (buttonRegistry.has(video)) return;
-
-                // Accept video if it has any painted area — drop the offsetParent
-                // check because YouTube sets overflow:hidden on ancestors which
-                // makes offsetParent null even on perfectly visible videos.
+                // Skip videos that have no painted area yet
                 const r = video.getBoundingClientRect();
                 if (r.width <= 0 || r.height <= 0) return;
-
                 addPlayerButton(video);
             });
         } catch (err) {
@@ -57,39 +50,29 @@
     // ─────────────────────────────────────────────────────────────────────────────
     // addPlayerButton
     //
-    // FIX: Button is now appended to document.body with position:fixed and tracked
-    // via rAF. The old approach (position:absolute inside videoElement.parentElement)
-    // was silently clipped by overflow:hidden on ancestor containers (e.g. YouTube's
-    // .html5-video-container), making the button invisible on most real-world sites.
+    // FIX: Button is appended to document.body with position:fixed and tracked
+    // via rAF. The old approach (position:absolute inside videoElement.parent)
+    // was clipped by overflow:hidden ancestors (e.g. YouTube's video container).
     // ─────────────────────────────────────────────────────────────────────────────
     function addPlayerButton(video) {
         const btn = document.createElement("button");
         btn.innerText = "▶ Launch WebPlayer UI";
         btn.className = "custom-player-overlay-btn";
-
-        // Append to body so no ancestor overflow:hidden can clip it
         document.body.appendChild(btn);
 
-        // Position the button over the top-left of the video using fixed coords
         function positionBtn() {
             try {
                 const r = video.getBoundingClientRect();
-
-                // If the video has been removed or collapsed, hide the button
                 if (r.width <= 0 || r.height <= 0 || !document.contains(video)) {
                     btn.style.display = "none";
                     return;
                 }
-
                 btn.style.display = "";
-                // position:fixed — coordinates are relative to the viewport
-                btn.style.left    = `${r.left   + 10}px`;
-                btn.style.top     = `${r.top    + 10}px`;
+                btn.style.left    = `${r.left + 10}px`;
+                btn.style.top     = `${r.top  + 10}px`;
             } catch (_) {}
         }
 
-        // rAF loop keeps the button on top of the video through scrolls,
-        // layout shifts, and fullscreen transitions
         let rafId = requestAnimationFrame(function loop() {
             positionBtn();
             rafId = requestAnimationFrame(loop);
@@ -103,7 +86,7 @@
 
         btn.addEventListener("click", e => {
             e.preventDefault();
-            cleanup(); // remove button before injecting player
+            cleanup();
             injectCustomPlayer(video);
         });
 
@@ -140,12 +123,14 @@
             video.style.setProperty("pointer-events", "none", "important");
         }
 
+        // ── Fullscreen shell ──────────────────────────────────────────────────────
         const wpShell = document.createElement("div");
         wpShell.className = "wp-fs-shell";
         wpShell.style.touchAction = "none";
         video.parentElement.insertBefore(wpShell, video);
         wpShell.appendChild(video);
 
+        // ── UI wrapper ────────────────────────────────────────────────────────────
         const uiWrapper = document.createElement("div");
         uiWrapper.className = "webplayer-ui-wrapper";
         uiWrapper.innerHTML = `
@@ -177,17 +162,18 @@
             </div>
         `;
 
-        const spinner = document.createElement("div");
-        spinner.className = "webplayer-spinner";
+        const spinner       = document.createElement("div");
+        spinner.className   = "webplayer-spinner";
 
-        const feedbackOverlay = document.createElement("div");
+        const feedbackOverlay     = document.createElement("div");
         feedbackOverlay.className = "webplayer-feedback";
 
-        const gestureZone = document.createElement("div");
-        gestureZone.className = "webplayer-gesture-zone";
+        const gestureZone         = document.createElement("div");
+        gestureZone.className     = "webplayer-gesture-zone";
         gestureZone.style.touchAction = "none";
         gestureZone.style.userSelect  = "none";
 
+        // Block native dblclick from bubbling out of our shell
         const globalEventShield = (e) => {
             if (wpShell?.contains(e.target) || gestureZone?.contains(e.target)) {
                 e.preventDefault();
@@ -197,12 +183,14 @@
         };
         window.addEventListener("dblclick", globalEventShield, true);
 
+        // Block native touch gestures (double-tap zoom, exit-fullscreen)
         const preventTouch = (e) => { e.preventDefault(); };
         gestureZone.addEventListener("touchstart",  preventTouch, { passive: false });
         gestureZone.addEventListener("touchend",    preventTouch, { passive: false });
         gestureZone.addEventListener("touchmove",   preventTouch, { passive: false });
         gestureZone.addEventListener("touchcancel", preventTouch, { passive: false });
 
+        // ── rAF position tracker ──────────────────────────────────────────────────
         let isTracking = true;
         let rafId      = null;
 
@@ -219,6 +207,8 @@
 
                 const rect = video.getBoundingClientRect();
 
+                // In fullscreen pin gesture zone to full viewport to prevent
+                // any gap where taps can trigger browser-native exit-fullscreen.
                 if (document.fullscreenElement) {
                     gestureZone.style.left   = "0px";
                     gestureZone.style.top    = "0px";
@@ -237,24 +227,27 @@
                 let uiX = rect.left + rect.width / 2;
                 let uiY = rect.bottom - uiWrapper.offsetHeight - 20;
                 uiX = Math.max(uiWrapper.offsetWidth / 2 + 10,
-                               Math.min(uiX, window.innerWidth - uiWrapper.offsetWidth / 2 - 10));
-                uiY = Math.max(10, Math.min(uiY, window.innerHeight - uiWrapper.offsetHeight - 10));
+                               Math.min(uiX, window.innerWidth  - uiWrapper.offsetWidth  / 2 - 10));
+                uiY = Math.max(10,
+                               Math.min(uiY, window.innerHeight - uiWrapper.offsetHeight - 10));
                 uiWrapper.style.left = `${uiX}px`;
                 uiWrapper.style.top  = `${uiY}px`;
 
                 let feedX = rect.left + rect.width / 2;
-                let feedY = rect.top + rect.height * 0.15;
+                let feedY = rect.top  + rect.height * 0.15;
                 feedX = Math.max(feedbackOverlay.offsetWidth / 2 + 10,
-                                 Math.min(feedX, window.innerWidth - feedbackOverlay.offsetWidth / 2 - 10));
-                feedY = Math.max(10, Math.min(feedY, window.innerHeight - feedbackOverlay.offsetHeight - 10));
+                                 Math.min(feedX, window.innerWidth  - feedbackOverlay.offsetWidth  / 2 - 10));
+                feedY = Math.max(10,
+                                 Math.min(feedY, window.innerHeight - feedbackOverlay.offsetHeight - 10));
                 feedbackOverlay.style.left = `${feedX}px`;
                 feedbackOverlay.style.top  = `${feedY}px`;
-            } catch (err) {}
+            } catch (_) {}
 
             rafId = requestAnimationFrame(trackVideoPosition);
         }
         trackVideoPosition();
 
+        // ── Auto-hide controls ────────────────────────────────────────────────────
         const AUTO_HIDE_MS = 3000;
         let hideTimer = null;
 
@@ -271,6 +264,7 @@
         gestureZone.addEventListener("pointerdown", showControls, { passive: true });
         showControls();
 
+        // ── Feedback pill ─────────────────────────────────────────────────────────
         let feedbackTimer = null;
         function showFeedback(text, keepAlive = false) {
             if (!feedbackOverlay) return;
@@ -290,6 +284,7 @@
 
         const videoListeners = {};
 
+        // ── Cleanup ───────────────────────────────────────────────────────────────
         function cleanup() {
             isTracking = false;
             if (rafId) cancelAnimationFrame(rafId);
@@ -303,7 +298,7 @@
                 if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
 
                 video.dataset.customPlayerActive = "";
-                video.controls = true;
+                video.controls    = true;
                 video.style.transform = "";
                 video.style.filter    = "";
                 if (video.style) {
@@ -316,6 +311,7 @@
                 });
                 document.removeEventListener("fullscreenchange", onFullscreenChange);
                 window.removeEventListener("dblclick", globalEventShield, true);
+
                 gestureZone.removeEventListener("touchstart",  preventTouch);
                 gestureZone.removeEventListener("touchend",    preventTouch);
                 gestureZone.removeEventListener("touchmove",   preventTouch);
@@ -324,12 +320,13 @@
                 gestureZone.removeEventListener("pointermove",   handlePointerMove);
                 gestureZone.removeEventListener("pointerup",     handlePointerUp);
                 gestureZone.removeEventListener("pointercancel", handlePointerUp);
+
                 gestureZone.remove();
                 spinner.remove();
                 uiWrapper.remove();
                 feedbackOverlay.remove();
 
-                // Re-add the launch button for this video after exiting
+                // Re-add launch button after exiting
                 addPlayerButton(video);
             } catch (e) {
                 console.warn("[WebPlayer] Cleanup error:", e);
@@ -344,6 +341,7 @@
         }
         document.addEventListener("fullscreenchange", onFullscreenChange);
 
+        // ── Progress bar ──────────────────────────────────────────────────────────
         const progress = uiWrapper.querySelector("#wp-progress");
         const timeCur  = uiWrapper.querySelector("#wp-time-cur");
         const timeDur  = uiWrapper.querySelector("#wp-time-dur");
@@ -372,7 +370,7 @@
                     video.currentTime = (e.target.value / 100) * video.duration;
                     safeUpdateText(timeCur, formatTime(video.currentTime));
                 }
-            } catch (err) {}
+            } catch (_) {}
         });
 
         videoListeners.timeupdate = () => {
@@ -383,14 +381,15 @@
                 safeUpdateText(timeDur, formatTime(video.duration));
                 const rem = video.duration - video.currentTime;
                 safeUpdateText(timeRem, rem > 0 ? `-${formatTime(rem)}` : "");
-            } catch (e) {}
+            } catch (_) {}
         };
         video.addEventListener("timeupdate", videoListeners.timeupdate);
 
         videoListeners.loadedmetadata = () => {
             try {
-                safeUpdateText(timeDur, Number.isFinite(video.duration) ? formatTime(video.duration) : "Live");
-            } catch (e) {}
+                safeUpdateText(timeDur, Number.isFinite(video.duration)
+                    ? formatTime(video.duration) : "Live");
+            } catch (_) {}
         };
         video.addEventListener("loadedmetadata", videoListeners.loadedmetadata);
 
@@ -411,6 +410,7 @@
         };
         video.addEventListener("error", videoListeners.error);
 
+        // ── Play / Pause ──────────────────────────────────────────────────────────
         const playBtn = uiWrapper.querySelector("#wp-play");
         videoListeners.play  = () => { safeUpdateText(playBtn, "⏸"); };
         videoListeners.pause = () => { safeUpdateText(playBtn, "▶"); showControls(); };
@@ -423,32 +423,36 @@
         });
 
         uiWrapper.querySelector("#wp-skip-back")?.addEventListener("click", () => {
-            try { video.currentTime = Math.max(0, video.currentTime - 10); } catch(e){}
+            try { video.currentTime = Math.max(0, video.currentTime - 10); } catch (_) {}
             showFeedback("⏪ −10s");
         });
+
         uiWrapper.querySelector("#wp-skip-fwd")?.addEventListener("click", () => {
             safeSeekForward(video, 10);
             showFeedback("⏩ +10s");
         });
+
         uiWrapper.querySelector("#wp-speed")?.addEventListener("change", e => {
-            try { video.playbackRate = parseFloat(e.target.value); } catch(e){}
+            try { video.playbackRate = parseFloat(e.target.value); } catch (_) {}
             showFeedback(`⚡ ${e.target.value}×`);
         });
+
         uiWrapper.querySelector("#wp-pip")?.addEventListener("click", async () => {
             try {
                 document.pictureInPictureElement
                     ? await document.exitPictureInPicture()
                     : await video.requestPictureInPicture();
-            } catch (err) {
+            } catch (_) {
                 showFeedback("⚠️ PiP unavailable");
             }
         });
+
         uiWrapper.querySelector("#wp-fs")?.addEventListener("click", () => {
             try {
                 document.fullscreenElement
                     ? document.exitFullscreen()
                     : (wpShell.requestFullscreen?.() ?? video.requestFullscreen?.());
-            } catch (err) {}
+            } catch (_) {}
         });
 
         let currentRotation = 0;
@@ -488,11 +492,12 @@
                 lastY  = e.clientY;
                 originalSpeed = video.playbackRate;
                 pressTimer = setTimeout(() => {
-                    isLongPressing = true; gestureActionTaken = true;
+                    isLongPressing     = true;
+                    gestureActionTaken = true;
                     try { video.playbackRate = 2.0; } catch (_) {}
                     showFeedback("⚡ 2× Speed", true);
                 }, 500);
-            } catch (err) {}
+            } catch (_) {}
         }
 
         function handlePointerMove(e) {
@@ -525,7 +530,7 @@
                     }
                     gestureThrottleTimer = setTimeout(() => { gestureThrottleTimer = null; }, 50);
                 }
-            } catch (err) {}
+            } catch (_) {}
         }
 
         function handlePointerUp(e) {
@@ -542,8 +547,8 @@
                 const currentMs = Date.now();
                 const zoneRect  = gestureZone.getBoundingClientRect();
                 const relativeX = currentX - zoneRect.left;
-                const leftZone  = zoneRect.width  * 0.33;
-                const rightZone = zoneRect.width  * 0.66;
+                const leftZone  = zoneRect.width * 0.33;
+                const rightZone = zoneRect.width * 0.66;
 
                 if (isLongPressing) {
                     try { video.playbackRate = originalSpeed; } catch (_) {}
@@ -551,33 +556,39 @@
                     if (feedbackOverlay) feedbackOverlay.style.opacity = "0";
                     return;
                 }
+
                 if (swipeDirection === "vertical") {
                     if (feedbackOverlay) feedbackOverlay.style.opacity = "0";
                     return;
                 }
+
                 if (swipeDirection === "horizontal") {
                     if (Math.abs(diffX) > 40) {
-                        if (diffX > 0) { safeSeekForward(video, 10);                                    showFeedback("⏩ +10s"); }
-                        else           { video.currentTime = Math.max(0, video.currentTime - 10);       showFeedback("⏪ −10s"); }
+                        if (diffX > 0) { safeSeekForward(video, 10);                              showFeedback("⏩ +10s"); }
+                        else           { video.currentTime = Math.max(0, video.currentTime - 10); showFeedback("⏪ −10s"); }
                         showControls();
                     }
                     return;
                 }
+
+                // ── Double-tap engine ─────────────────────────────────────────────
                 if (!gestureActionTaken) {
                     const tapTimeDiff = currentMs - lastTapTime;
                     const tapDistDiff = Math.abs(currentX - lastTapX);
                     if (tapTimeDiff < DOUBLE_TAP_MS && tapDistDiff < DOUBLE_TAP_PX) {
                         if (relativeX < leftZone) {
                             video.currentTime = Math.max(0, video.currentTime - 10);
-                            showFeedback("⏪ −10s"); showControls();
+                            showFeedback("⏪ −10s");
+                            showControls();
                         } else if (relativeX > rightZone) {
                             safeSeekForward(video, 10);
-                            showFeedback("⏩ +10s"); showControls();
+                            showFeedback("⏩ +10s");
+                            showControls();
                         } else {
                             try {
                                 if (video.paused) { video.play();  showFeedback("▶ Play");  }
                                 else              { video.pause(); showFeedback("⏸ Pause"); }
-                            } catch (err) {}
+                            } catch (_) {}
                         }
                         lastTapTime = 0;
                     } else {
@@ -585,7 +596,7 @@
                         lastTapX    = currentX;
                     }
                 }
-            } catch (err) {}
+            } catch (_) {}
         }
 
         gestureZone.addEventListener("pointerdown",   handlePointerDown);
@@ -599,7 +610,6 @@
     // ─────────────────────────────────────────────────────────────────────────────
     findVideos();
 
-    // MutationObserver for dynamic DOM changes (SPA navigation, lazy video insertion)
     let debounceTimer = null;
     const observer = new MutationObserver(() => {
         clearTimeout(debounceTimer);
@@ -613,13 +623,12 @@
         document.addEventListener("DOMContentLoaded", observeBody);
     }
 
-    // Periodic re-scan for the first 60 seconds.
-    // Catches videos that are in the DOM but had zero dimensions at scan time
+    // Periodic re-scan for 60 s — catches videos with zero dimensions at boot time
     // (deferred layout, lazy loading, SPA route changes).
     let scanCount = 0;
     const periodicScan = setInterval(() => {
         findVideos();
-        if (++scanCount >= 30) clearInterval(periodicScan); // stop after 60 s
+        if (++scanCount >= 30) clearInterval(periodicScan);
     }, 2000);
 
 })();
