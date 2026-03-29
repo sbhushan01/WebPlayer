@@ -210,26 +210,27 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     // ── SponsorBlock ─────────────────────────────────────────────────────────
-    async function fetchSegments(url) {
+    async function fetchSegments() {
         try {
-            const parsedUrl = new URL(url);
-            const videoId   = parsedUrl.searchParams.get("v");
+            const parsedUrl = new URL(videoSrc);
+            let videoId   = parsedUrl.searchParams.get("v") || new URLSearchParams(window.location.search).get("v");
+            
             if (!videoId) return [];
             const res = await fetch(`https://sponsor.ajay.app/api/skipSegments?videoID=${videoId}`);
             return await res.json();
         } catch (e) { return []; }
     }
 
-    let skipSegments = await fetchSegments(videoSrc);
+    let skipSegments = await fetchSegments();
     let isSkipping   = false;
     let badgeTimer   = null;
+    let skippedIds   = new Set();
 
     // Skip icon SVG for the badge
     const SKIP_ICON_SVG = `<svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="flex-shrink:0" aria-hidden="true"><path d="M6 18l8.5-6L6 6v12zm2-8.14L11.03 12 8 14.14V9.86zM16 6h2v12h-2z"/></svg>`;
 
     function flashSkipBadge(label) {
         if (!skipBadge) return;
-        // Prepend icon SVG before the text span
         const existingIcon = skipBadge.querySelector("svg");
         if (!existingIcon) skipBadge.insertAdjacentHTML("afterbegin", SKIP_ICON_SVG);
         if (skipBadgeText) skipBadgeText.textContent = `Skipping ${label}`;
@@ -244,8 +245,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         for (const seg of skipSegments) {
             const start = seg.segment?.[0] ?? seg.start;
             const end   = seg.segment?.[1] ?? seg.end;
-            if (t >= start && t < end) {
+            const segId = seg.UUID || start;
+
+            if (t >= start && t < end && !skippedIds.has(segId)) {
                 isSkipping         = true;
+                skippedIds.add(segId);
                 player.currentTime = end;
                 flashSkipBadge(seg.category || seg.type || "Segment");
                 player.addEventListener("seeked", () => { isSkipping = false; }, { once: true });
@@ -274,6 +278,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (highSlider) { highSlider.value = savedEq.highGain; highLabel.textContent = `${savedEq.highGain} dB`; }
 
     let audioContext, lowShelf, highShelf;
+    let mediaNodeCreated = false;
 
     player.addEventListener("play", () => {
         if (audioContext && audioContext.state === "suspended") {
@@ -282,22 +287,28 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (audioContext) return;
         try {
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            const track  = audioContext.createMediaElementSource(player);
+            
+            if (!mediaNodeCreated) {
+                const track  = audioContext.createMediaElementSource(player);
+                mediaNodeCreated = true;
 
-            lowShelf                  = audioContext.createBiquadFilter();
-            lowShelf.type             = "lowshelf";
-            lowShelf.frequency.value  = 250;
-            lowShelf.gain.value       = savedEq.lowGain;
+                lowShelf                  = audioContext.createBiquadFilter();
+                lowShelf.type             = "lowshelf";
+                lowShelf.frequency.value  = 250;
+                lowShelf.gain.value       = savedEq.lowGain;
 
-            highShelf                 = audioContext.createBiquadFilter();
-            highShelf.type            = "highshelf";
-            highShelf.frequency.value = 4000;
-            highShelf.gain.value      = savedEq.highGain;
+                highShelf                 = audioContext.createBiquadFilter();
+                highShelf.type            = "highshelf";
+                highShelf.frequency.value = 4000;
+                highShelf.gain.value      = savedEq.highGain;
 
-            track.connect(lowShelf);
-            lowShelf.connect(highShelf);
-            highShelf.connect(audioContext.destination);
-        } catch (err) {}
+                track.connect(lowShelf);
+                lowShelf.connect(highShelf);
+                highShelf.connect(audioContext.destination);
+            }
+        } catch (err) {
+            console.warn("[WebPlayer] Audio routing failed:", err);
+        }
     });
 
     if (lowSlider) {
