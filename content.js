@@ -437,4 +437,189 @@
         uiWrapper.querySelector("#wp-pip")?.addEventListener("click", async () => {
             try {
                 document.pictureInPictureElement
-                    ? await
+                    ? await document.exitPictureInPicture()
+                    : await video.requestPictureInPicture();
+            } catch (err) {
+                showFeedback("⚠️ PiP unavailable");
+            }
+        });
+        uiWrapper.querySelector("#wp-fs")?.addEventListener("click", () => {
+            try {
+                document.fullscreenElement
+                    ? document.exitFullscreen()
+                    : (wpShell.requestFullscreen?.() ?? video.requestFullscreen?.());
+            } catch (err) {}
+        });
+
+        let currentRotation = 0;
+        uiWrapper.querySelector("#wp-rotate")?.addEventListener("click", () => {
+            if (document.fullscreenElement) return;
+            currentRotation = (currentRotation + 90) % 360;
+            video.style.transform  = `rotate(${currentRotation}deg)`;
+            video.style.transition = "transform 0.3s ease";
+            showFeedback(`↻ ${currentRotation}°`);
+        });
+
+        // ── GESTURE ENGINE ────────────────────────────────────────────────────────
+        let pressTimer         = null;
+        let isLongPressing     = false;
+        let isPointerDown      = false;
+        let gestureActionTaken = false;
+        let originalSpeed      = 1.0;
+        let startX = 0, startY = 0, lastY = 0;
+        let lastTapTime = 0, lastTapX = 0;
+        let swipeDirection       = null;
+        let currentBrightness    = 1.0;
+        let gestureThrottleTimer = null;
+
+        const DOUBLE_TAP_MS = 350;
+        const DOUBLE_TAP_PX = 40;
+
+        function handlePointerDown(e) {
+            try {
+                e.preventDefault();
+                e.stopPropagation();
+                isPointerDown      = true;
+                gestureActionTaken = false;
+                swipeDirection     = null;
+                gestureZone.setPointerCapture(e.pointerId);
+                startX = e.clientX;
+                startY = e.clientY;
+                lastY  = e.clientY;
+                originalSpeed = video.playbackRate;
+                pressTimer = setTimeout(() => {
+                    isLongPressing = true; gestureActionTaken = true;
+                    try { video.playbackRate = 2.0; } catch (_) {}
+                    showFeedback("⚡ 2× Speed", true);
+                }, 500);
+            } catch (err) {}
+        }
+
+        function handlePointerMove(e) {
+            try {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!isPointerDown || isLongPressing) return;
+                const diffX = e.clientX - startX;
+                const diffY = e.clientY - startY;
+                if (Math.abs(diffX) > 15 || Math.abs(diffY) > 15) clearTimeout(pressTimer);
+                if (!swipeDirection) {
+                    if      (Math.abs(diffX) > 20) { swipeDirection = "horizontal"; gestureActionTaken = true; }
+                    else if (Math.abs(diffY) > 20) { swipeDirection = "vertical";   gestureActionTaken = true; }
+                }
+                if (swipeDirection === "vertical" && !gestureThrottleTimer) {
+                    const zoneRect  = gestureZone.getBoundingClientRect();
+                    const videoMidX = zoneRect.left + zoneRect.width / 2;
+                    const deltaY    = e.clientY - lastY;
+                    lastY = e.clientY;
+                    if (e.clientX > videoMidX) {
+                        try {
+                            const newVol = video.volume - deltaY * 0.005;
+                            video.volume = Number(Math.max(0, Math.min(1, newVol)).toFixed(2));
+                            showFeedback(`🔊 ${Math.round(video.volume * 100)}%`, true);
+                        } catch (_) {}
+                    } else {
+                        currentBrightness  = Math.max(0.1, Math.min(2.5, currentBrightness - deltaY * 0.01));
+                        video.style.filter = `brightness(${currentBrightness})`;
+                        showFeedback(`☀️ ${Math.round(currentBrightness * 100)}%`, true);
+                    }
+                    gestureThrottleTimer = setTimeout(() => { gestureThrottleTimer = null; }, 50);
+                }
+            } catch (err) {}
+        }
+
+        function handlePointerUp(e) {
+            try {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!isPointerDown) return;
+                isPointerDown = false;
+                try { gestureZone.releasePointerCapture(e.pointerId); } catch (_) {}
+                clearTimeout(pressTimer);
+
+                const currentX  = e.clientX;
+                const diffX     = currentX - startX;
+                const currentMs = Date.now();
+                const zoneRect  = gestureZone.getBoundingClientRect();
+                const relativeX = currentX - zoneRect.left;
+                const leftZone  = zoneRect.width  * 0.33;
+                const rightZone = zoneRect.width  * 0.66;
+
+                if (isLongPressing) {
+                    try { video.playbackRate = originalSpeed; } catch (_) {}
+                    isLongPressing = false;
+                    if (feedbackOverlay) feedbackOverlay.style.opacity = "0";
+                    return;
+                }
+                if (swipeDirection === "vertical") {
+                    if (feedbackOverlay) feedbackOverlay.style.opacity = "0";
+                    return;
+                }
+                if (swipeDirection === "horizontal") {
+                    if (Math.abs(diffX) > 40) {
+                        if (diffX > 0) { safeSeekForward(video, 10);                                    showFeedback("⏩ +10s"); }
+                        else           { video.currentTime = Math.max(0, video.currentTime - 10);       showFeedback("⏪ −10s"); }
+                        showControls();
+                    }
+                    return;
+                }
+                if (!gestureActionTaken) {
+                    const tapTimeDiff = currentMs - lastTapTime;
+                    const tapDistDiff = Math.abs(currentX - lastTapX);
+                    if (tapTimeDiff < DOUBLE_TAP_MS && tapDistDiff < DOUBLE_TAP_PX) {
+                        if (relativeX < leftZone) {
+                            video.currentTime = Math.max(0, video.currentTime - 10);
+                            showFeedback("⏪ −10s"); showControls();
+                        } else if (relativeX > rightZone) {
+                            safeSeekForward(video, 10);
+                            showFeedback("⏩ +10s"); showControls();
+                        } else {
+                            try {
+                                if (video.paused) { video.play();  showFeedback("▶ Play");  }
+                                else              { video.pause(); showFeedback("⏸ Pause"); }
+                            } catch (err) {}
+                        }
+                        lastTapTime = 0;
+                    } else {
+                        lastTapTime = currentMs;
+                        lastTapX    = currentX;
+                    }
+                }
+            } catch (err) {}
+        }
+
+        gestureZone.addEventListener("pointerdown",   handlePointerDown);
+        gestureZone.addEventListener("pointermove",   handlePointerMove);
+        gestureZone.addEventListener("pointerup",     handlePointerUp);
+        gestureZone.addEventListener("pointercancel", handlePointerUp);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Bootstrap
+    // ─────────────────────────────────────────────────────────────────────────────
+    findVideos();
+
+    // MutationObserver for dynamic DOM changes (SPA navigation, lazy video insertion)
+    let debounceTimer = null;
+    const observer = new MutationObserver(() => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(findVideos, 300);
+    });
+
+    const observeBody = () => observer.observe(document.body, { childList: true, subtree: true });
+    if (document.body) {
+        observeBody();
+    } else {
+        document.addEventListener("DOMContentLoaded", observeBody);
+    }
+
+    // Periodic re-scan for the first 60 seconds.
+    // Catches videos that are in the DOM but had zero dimensions at scan time
+    // (deferred layout, lazy loading, SPA route changes).
+    let scanCount = 0;
+    const periodicScan = setInterval(() => {
+        findVideos();
+        if (++scanCount >= 30) clearInterval(periodicScan); // stop after 60 s
+    }, 2000);
+
+})();
