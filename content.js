@@ -218,8 +218,12 @@
         };
         window.addEventListener("dblclick", globalEventShield, true);
 
-        // Block native touch gestures (double-tap zoom, exit-fullscreen)
-        const preventTouch = (e) => { e.preventDefault(); };
+        // Block native touch gestures only if fullscreen
+        const preventTouch = (e) => { 
+            if (document.fullscreenElement) {
+                e.preventDefault(); 
+            }
+        };
         gestureZone.addEventListener("touchstart",  preventTouch, { passive: false });
         gestureZone.addEventListener("touchend",    preventTouch, { passive: false });
         gestureZone.addEventListener("touchmove",   preventTouch, { passive: false });
@@ -359,6 +363,9 @@
                 uiWrapper.remove();
                 feedbackOverlay.remove();
 
+                window.removeEventListener("mouseup", mouseUpGlobalListener);
+                window.removeEventListener("touchend", touchEndGlobalListener);
+
                 addPlayerButton(video);
             } catch (e) {
                 console.warn("[WebPlayer] Cleanup error:", e);
@@ -391,10 +398,13 @@
             if (el) el.innerText = text;
         }
 
+        const mouseUpGlobalListener = () => { isDragging = false; };
+        const touchEndGlobalListener = () => { isDragging = false; };
+
         progress?.addEventListener("mousedown",  () => { isDragging = true;  });
         progress?.addEventListener("touchstart", () => { isDragging = true;  }, { passive: true });
-        progress?.addEventListener("mouseup",    () => { isDragging = false; });
-        progress?.addEventListener("touchend",   () => { isDragging = false; }, { passive: true });
+        window.addEventListener("mouseup", mouseUpGlobalListener);
+        window.addEventListener("touchend", touchEndGlobalListener, { passive: true });
 
         progress?.addEventListener("input", e => {
             try {
