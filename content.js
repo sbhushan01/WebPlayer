@@ -170,37 +170,41 @@
         styles.textContent = `
             * { box-sizing: border-box; font-family: system-ui, sans-serif; }
             .webplayer-ui-wrapper {
-                position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-                background: rgba(10,10,15,0.85); backdrop-filter: blur(8px); padding: 12px 20px;
-                border-radius: 12px; display: flex; flex-direction: column; gap: 10px; opacity: 0;
-                transition: opacity 0.3s; pointer-events: auto; border: 1px solid rgba(255,255,255,0.1);
-                width: 90%; max-width: 600px; color: white;
+                position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+                background: rgba(26, 29, 36, 0.65); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+                padding: 16px 24px; border-radius: 28px; display: flex; flex-direction: column; gap: 12px; opacity: 0;
+                transition: opacity 0.4s ease, transform 0.4s ease; pointer-events: auto; border: 1px solid rgba(255,255,255,0.08);
+                width: 95%; max-width: 800px; color: #E3E3E3; box-shadow: 0px 8px 16px 2px rgba(0,0,0,0.2);
             }
-            .wp-controls-visible { opacity: 1; }
-            .wp-progress-row { display: flex; align-items: center; gap: 10px; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
-            input[type=range] { flex: 1; accent-color: #4a9eff; cursor: pointer; }
-            .wp-center-row { display: flex; justify-content: center; align-items: center; gap: 12px; }
-            button { background: none; border: none; color: white; cursor: pointer; padding: 4px; display: flex; align-items: center; opacity: 0.8; transition: 0.2s; }
-            button:hover { opacity: 1; transform: scale(1.1); }
-            .speed-pills { display: flex; background: rgba(255,255,255,0.1); border-radius: 5px; padding: 2px; gap: 1px; }
-            .speed-pill { font-size: 11px; padding: 2px 7px; border-radius: 3px; opacity: 0.7; white-space: nowrap; transition: background 0.15s, opacity 0.15s; }
-            .speed-pill:hover { opacity: 1; transform: none; }
-            .speed-pill.active { background: rgba(74,158,255,0.85); opacity: 1; }
+            .video-container.idle .webplayer-ui-wrapper { opacity: 0; transform: translate(-50%, 20px); pointer-events: none; }
+            .wp-controls-visible { opacity: 1; transform: translateX(-50%); }
+            .wp-progress-row { display: flex; align-items: center; gap: 12px; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; font-weight: 500; color: #C4C7C5; }
+            input[type=range] { flex: 1; accent-color: #A8C7FA; cursor: pointer; height: 6px; border-radius: 4px; background: rgba(255,255,255,0.15); transition: background 0.3s; }
+            input[type=range]:hover { background: rgba(255,255,255,0.25); }
+            .wp-center-row { display: flex; justify-content: center; align-items: center; gap: 16px; margin-top: 4px; }
+            button { background: rgba(255,255,255,0.0); border: none; color: #E3E3E3; cursor: pointer; padding: 6px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: all 0.2s ease; width: 40px; height: 40px; }
+            button:hover { background: rgba(255,255,255,0.12); transform: scale(1.05); }
+            .speed-pills { display: flex; align-items: center; gap: 6px; margin: 0 8px; }
+            .speed-pill { font-size: 13px; font-weight: 600; padding: 0 12px; height: 32px; border-radius: 16px; background: rgba(255,255,255,0.06); color: #C4C7C5; transition: all 0.3s ease; border: 1px solid rgba(255,255,255,0.08); width: auto; display: flex; align-items: center; }
+            .speed-pill:hover { background: rgba(255,255,255,0.15); color: #E3E3E3; transform: scale(1); }
+            .speed-pill.active { background: linear-gradient(135deg, #A8C7FA, #062E6F); color: #062E6F; border-color: transparent; box-shadow: 0 0 16px rgba(168, 199, 250, 0.6); }
             .webplayer-feedback {
-                position: absolute; top: 15%; left: 50%; transform: translateX(-50%);
-                background: rgba(0,0,0,0.6); padding: 8px 16px; border-radius: 20px;
-                font-weight: bold; opacity: 0; transition: 0.2s; color: white; pointer-events: none;
-                white-space: nowrap;
+                position: absolute; top: 18%; left: 50%; transform: translateX(-50%);
+                background: rgba(10, 10, 15, 0.75); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+                padding: 12px 32px; border-radius: 32px; font-size: 1.15rem; font-weight: 600;
+                opacity: 0; pointer-events: none; transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                z-index: 20; white-space: nowrap; border: 1px solid rgba(255,255,255,0.08); box-shadow: 0px 8px 16px 2px rgba(0,0,0,0.2); color: white;
             }
             .webplayer-gesture-zone {
                 position: absolute; inset: 0; pointer-events: auto;
                 touch-action: none; user-select: none; -webkit-user-select: none;
             }
             .wp-ripple {
-                position: absolute; border-radius: 50%; background: rgba(255, 255, 255, 0.4);
-                transform: scale(0); animation: wp-ripple-anim 0.4s linear; pointer-events: none;
+                position: absolute; border-radius: 50%; background: #A8C7FA;
+                transform: scale(0); opacity: 0.5; pointer-events: none;
+                animation: wp-ripple-anim 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards; box-shadow: 0 0 20px rgba(168, 199, 250, 0.6);
             }
-            @keyframes wp-ripple-anim { to { transform: scale(4); opacity: 0; } }
+            @keyframes wp-ripple-anim { to { transform: scale(4.5); opacity: 0; } }
         `;
         shadow.appendChild(styles);
 
@@ -286,15 +290,23 @@
         const tCur = uiWrapper.querySelector("#wp-time-cur");
         const tDur = uiWrapper.querySelector("#wp-time-dur");
 
+        let isScrubbing = false;
+        prog.addEventListener("pointerdown", () => isScrubbing = true);
+        prog.addEventListener("pointerup", () => isScrubbing = false);
+
         video.addEventListener("timeupdate", () => {
-            if (!isFinite(video.duration)) return;
+            if (!isFinite(video.duration) || isScrubbing) return;
             prog.value     = (video.currentTime / video.duration) * 100;
             tCur.innerText = formatTime(video.currentTime);
             tDur.innerText = formatTime(video.duration);
         });
 
-        prog.addEventListener("input", e => {
+        prog.addEventListener("change", e => {
             if (isFinite(video.duration)) video.currentTime = (e.target.value / 100) * video.duration;
+        });
+
+        prog.addEventListener("input", e => {
+            if (isFinite(video.duration)) tCur.innerText = formatTime((e.target.value / 100) * video.duration);
         });
 
         const playBtn = uiWrapper.querySelector("#wp-play");
@@ -306,7 +318,7 @@
             wasPaused ? video.play() : video.pause();
         });
 
-        uiWrapper.querySelector("#wp-skip-back").addEventListener("click", () => { video.currentTime -= 10; showFeedback("−10s"); });
+        uiWrapper.querySelector("#wp-skip-back").addEventListener("click", () => { video.currentTime = Math.max(0, video.currentTime - 10); showFeedback("−10s"); });
         uiWrapper.querySelector("#wp-skip-fwd").addEventListener("click",  () => { safeSeekForward(video, 10); showFeedback("+10s"); });
         uiWrapper.querySelector("#wp-pip").addEventListener("click", async () => {
             document.pictureInPictureElement ? await document.exitPictureInPicture() : await video.requestPictureInPicture();
@@ -388,7 +400,7 @@
             const diffX = e.clientX - startX;
             if (swipeDir === "horizontal" && Math.abs(diffX) > 40) {
                 if (diffX > 0) { safeSeekForward(video, 10); showFeedback("+10s"); }
-                else           { video.currentTime -= 10;    showFeedback("−10s"); }
+                else           { video.currentTime = Math.max(0, video.currentTime - 10); showFeedback("−10s"); }
                 return;
             }
 

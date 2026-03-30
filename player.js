@@ -28,6 +28,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     const qualityDropdown = document.getElementById("quality-dropdown");
     const qualityIcon     = document.getElementById("quality-icon");
 
+    const themeToggleBtn  = document.getElementById("theme-toggle-btn");
+    const themePopover    = document.getElementById("theme-popover");
+    const themeCloseBtn   = document.getElementById("theme-close-btn");
+    const themeBtns       = document.querySelectorAll(".theme-btn");
+
     const eqToggleBtn     = document.getElementById("eq-toggle-btn");
     const eqPopover       = document.getElementById("eq-popover");
     const eqCloseBtn      = document.getElementById("eq-close-btn");
@@ -161,10 +166,27 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
     document.addEventListener("click", () => qualityDropdown.classList.remove("open"));
 
+    // ── Theme ─────────────────────────────────────────────────────────────────
+    const currentTheme = localStorage.getItem("wp_theme") || "blue";
+    document.documentElement.setAttribute("data-theme", currentTheme);
+    themeBtns.forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.value === currentTheme);
+        btn.addEventListener("click", () => {
+            const t = btn.dataset.value;
+            localStorage.setItem("wp_theme", t);
+            document.documentElement.setAttribute("data-theme", t);
+            themeBtns.forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+        });
+    });
+
     // ── Source attachment ─────────────────────────────────────────────────────
     async function attachSource(src) {
         destroyEngines();
-        player.crossOrigin = "anonymous";
+        const cleanSrcTest = src.split("?")[0].toLowerCase();
+        if (!cleanSrcTest.startsWith("blob:") && !cleanSrcTest.startsWith("data:")) {
+            player.crossOrigin = "anonymous";
+        }
         bufferEl.classList.add("is-buffering");
         qualityContainer.style.display = "none";
 
@@ -299,13 +321,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         progBuffered.style.width = `${(maxEnd / player.duration) * 100}%`;
     });
 
+    let pendingSeekPct = 0;
     const updateProgressFromEvent = (e) => {
         if (!isFinite(player.duration)) return;
         const rect = progWrapper.getBoundingClientRect();
-        const pct  = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-        progPlayed.style.width = `${pct * 100}%`;
-        progThumb.style.left   = `${pct * 100}%`;
-        player.currentTime     = pct * player.duration;
+        pendingSeekPct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        progPlayed.style.width = `${pendingSeekPct * 100}%`;
+        progThumb.style.left   = `${pendingSeekPct * 100}%`;
     };
 
     progWrapper.addEventListener("pointerdown", (e) => {
@@ -316,6 +338,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         const onUp   = () => {
             isDraggingProgress = false;
             progWrapper.classList.remove("dragging");
+            if (isFinite(player.duration)) {
+                player.currentTime = pendingSeekPct * player.duration;
+            }
             window.removeEventListener("pointermove", onMove);
             window.removeEventListener("pointerup",   onUp);
             window.removeEventListener("pointercancel", onUp);
@@ -427,14 +452,36 @@ document.addEventListener("DOMContentLoaded", async () => {
     player.addEventListener("play",  resetIdle);
     player.addEventListener("pause", () => container.classList.remove("idle"));
 
-    // ── EQ toggle ─────────────────────────────────────────────────────────────
-    eqToggleBtn.addEventListener("click", () => {
-        eqPopover.classList.toggle("active");
-        resetIdle(); // BUG FIX: reset idle when opening EQ
-    });
-    eqCloseBtn.addEventListener("click", () => {
+    // ── Popovers ──────────────────────────────────────────────────────────────
+    const closeAllPopovers = () => {
         eqPopover.classList.remove("active");
-        resetIdle(); // BUG FIX: reset idle when closing EQ
+        themePopover.classList.remove("active");
+        qualityDropdown.classList.remove("open");
+    };
+
+    themeToggleBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const wasActive = themePopover.classList.contains("active");
+        closeAllPopovers();
+        if (!wasActive) themePopover.classList.add("active");
+        resetIdle();
+    });
+    themeCloseBtn.addEventListener("click", () => { themePopover.classList.remove("active"); resetIdle(); });
+
+    eqToggleBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const wasActive = eqPopover.classList.contains("active");
+        closeAllPopovers();
+        if (!wasActive) eqPopover.classList.add("active");
+        resetIdle();
+    });
+    eqCloseBtn.addEventListener("click", () => { eqPopover.classList.remove("active"); resetIdle(); });
+
+    // Close on outside click
+    document.addEventListener("click", (e) => {
+        if (!e.target.closest("#custom-controls") && !e.target.closest(".quality-container") && !e.target.closest("#theme-popover") && !e.target.closest("#eq-popover")) {
+            closeAllPopovers();
+        }
     });
 
     // ── Shortcuts modal ───────────────────────────────────────────────────────
