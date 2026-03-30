@@ -60,7 +60,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     return;
                 }
 
-                // FIX: Pass pageUrl so player.js can extract YouTube video IDs for SponsorBlock.
                 const params = new URLSearchParams({
                     src:     videoUrl,
                     title:   request.pageTitle || "Video",
@@ -75,7 +74,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                         return;
                     }
 
-                    // Only remove the CORS bypass rule when the tab is actually closed.
                     function cleanupListener(tabId) {
                         if (tabId === tab.id) {
                             chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [ruleId] });
@@ -89,9 +87,23 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
 });
 
+// Cache to prevent duplicate tab spawning for the same stream
+const recentlyIntercepted = new Set();
+
 chrome.webRequest.onHeadersReceived.addListener(
     (details) => {
         if (details.tabId >= 0 && (details.url.includes('.m3u8') || details.url.includes('.mpd'))) {
+            
+            // Ignore stream chunks to prevent loop triggers
+            if (details.url.includes('.ts') || details.url.includes('.m4s') || /seg\d+/i.test(details.url)) return;
+
+            const cleanUrl = details.url.split('?')[0];
+            
+            // Deduplicate requests
+            if (recentlyIntercepted.has(cleanUrl)) return;
+            recentlyIntercepted.add(cleanUrl);
+            setTimeout(() => recentlyIntercepted.delete(cleanUrl), 5000); 
+
             chrome.tabs.sendMessage(details.tabId, {
                 action:  "stream_detected",
                 url:     details.url,
