@@ -32,15 +32,21 @@
 
     const buttonRegistry = new WeakMap();
     const interceptedUrls = new Set();
+    let isSpawningPlayer = false;
+
     chrome.runtime.onMessage.addListener((msg) => {
-        if (msg.action === "stream_detected" && msg.url && !interceptedUrls.has(msg.url)) {
+        if (msg.action === "stream_detected" && msg.url && !interceptedUrls.has(msg.url) && !isSpawningPlayer) {
             interceptedUrls.add(msg.url);
+            isSpawningPlayer = true;
+            
             chrome.runtime.sendMessage({
                 action:    "open_player",
                 videoSrc:  msg.url,
                 pageTitle: document.title,
                 pageUrl:   window.location.href
             });
+
+            setTimeout(() => isSpawningPlayer = false, 5000);
         }
     });
 
