@@ -341,6 +341,7 @@
                     video.currentTime = end;
                     showFeedback(SEGMENT_LABELS[seg.category] || "Segment Skipped");
                     video.addEventListener("seeked", () => { window.__isSkipping = false; }, { once: true });
+                    setTimeout(() => { window.__isSkipping = false; }, 1000);
                     break;
                 }
             }
@@ -500,6 +501,10 @@
 
         gestureZone.addEventListener("contextmenu", e => e.preventDefault());
 
+        gestureZone.addEventListener("dblclick", e => {
+            if (e.pointerType === "mouse") uiWrapper.querySelector("#wp-fs").click();
+        });
+
         gestureZone.addEventListener("pointerdown", e => {
             isPointerDown = true;
             gestureZone.setPointerCapture(e.pointerId);
@@ -528,6 +533,7 @@
 
                 if (e.clientX > rect.left + rect.width / 2) {
                     video.volume = Math.max(0, Math.min(1, video.volume - deltaY * 0.005));
+                    video.muted = false;
                     showFeedback(`Vol: ${Math.round(video.volume * 100)}%`);
                 } else {
                     currentBrightness       = Math.max(0.1, Math.min(2.5, currentBrightness - deltaY * 0.01));
@@ -559,40 +565,46 @@
             }
 
             if (!swipeDir) {
-                const now = Date.now();
-                if (now - lastTapTime < 300) { // UI FIX: revert to 300ms for easier tapping
-                    clearTimeout(tapTimeout);
-                    const rect = gestureZone.getBoundingClientRect();
-
-                    const ripple = document.createElement("div");
-                    ripple.className = "wp-ripple";
-                    ripple.style.left   = `${e.clientX - rect.left - 25}px`;
-                    ripple.style.top    = `${e.clientY - rect.top  - 25}px`;
-                    ripple.style.width  = ripple.style.height = "50px";
-                    gestureZone.appendChild(ripple);
-                    setTimeout(() => ripple.remove(), 400);
-
-                    // BUG FIX: capture paused state BEFORE toggling, not after
+                if (e.pointerType === "mouse") {
                     const wasPaused = video.paused;
-                    if (e.clientX < rect.left + rect.width * 0.33) {
-                        video.currentTime = Math.max(0, video.currentTime - 10);
-                        showFeedback("−10s");
-                        lastTapTime = now; // Keep chain alive for triple taps
-                    } else if (e.clientX > rect.left + rect.width * 0.66) {
-                        safeSeekForward(video, 10);
-                        showFeedback("+10s");
-                        lastTapTime = now; // Keep chain alive for triple taps
-                    } else {
-                        wasPaused ? safePlay(video) : video.pause();
-                        showFeedback(wasPaused ? "Playing" : "Paused");
-                        lastTapTime = 0;
-                    }
+                    wasPaused ? safePlay(video) : video.pause();
+                    showFeedback(wasPaused ? "Playing" : "Paused");
                 } else {
-                    lastTapTime = now;
-                    tapTimeout = setTimeout(() => {
-                        video.paused ? safePlay(video) : video.pause();
-                        lastTapTime = 0;
-                    }, 300);
+                    const now = Date.now();
+                    if (now - lastTapTime < 300) { // UI FIX: revert to 300ms for easier tapping
+                        clearTimeout(tapTimeout);
+                        const rect = gestureZone.getBoundingClientRect();
+
+                        const ripple = document.createElement("div");
+                        ripple.className = "wp-ripple";
+                        ripple.style.left   = `${e.clientX - rect.left - 25}px`;
+                        ripple.style.top    = `${e.clientY - rect.top  - 25}px`;
+                        ripple.style.width  = ripple.style.height = "50px";
+                        gestureZone.appendChild(ripple);
+                        setTimeout(() => ripple.remove(), 400);
+
+                        // BUG FIX: capture paused state BEFORE toggling, not after
+                        const wasPaused = video.paused;
+                        if (e.clientX < rect.left + rect.width * 0.33) {
+                            video.currentTime = Math.max(0, video.currentTime - 10);
+                            showFeedback("−10s");
+                            lastTapTime = now; // Keep chain alive for triple taps
+                        } else if (e.clientX > rect.left + rect.width * 0.66) {
+                            safeSeekForward(video, 10);
+                            showFeedback("+10s");
+                            lastTapTime = now; // Keep chain alive for triple taps
+                        } else {
+                            wasPaused ? safePlay(video) : video.pause();
+                            showFeedback(wasPaused ? "Playing" : "Paused");
+                            lastTapTime = 0;
+                        }
+                    } else {
+                        lastTapTime = now;
+                        tapTimeout = setTimeout(() => {
+                            showControls();
+                            lastTapTime = 0;
+                        }, 300);
+                    }
                 }
             }
         };

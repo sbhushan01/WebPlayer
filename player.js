@@ -384,6 +384,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 player.currentTime = end;
                 showSkipBadge(seg.category);
                 player.addEventListener("seeked", () => { window.__isSkipping = false; }, { once: true });
+                setTimeout(() => { window.__isSkipping = false; }, 1000);
                 break;
             }
         }
@@ -587,9 +588,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Close on outside click
     document.addEventListener("click", (e) => {
-        if (!e.target.closest("#custom-controls") && !e.target.closest(".quality-container") && !e.target.closest("#theme-popover") && !e.target.closest("#eq-popover")) {
-            closeAllPopovers();
-        }
+        if (!e.target.closest("#theme-popover") && !e.target.closest("#theme-toggle-btn")) themePopover.classList.remove("active");
+        if (!e.target.closest("#eq-popover") && !e.target.closest("#eq-toggle-btn")) eqPopover.classList.remove("active");
+        if (!e.target.closest(".quality-dropdown") && !e.target.closest("#quality-btn")) qualityDropdown.classList.remove("open");
+        if (!e.target.closest(".quality-dropdown") && !e.target.closest("#cc-btn")) ccDropdown.classList.remove("open");
     });
 
     // ── Shortcuts modal ───────────────────────────────────────────────────────
@@ -682,6 +684,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     gestureZone.addEventListener("contextmenu", e => e.preventDefault());
 
+    gestureZone.addEventListener("dblclick", (e) => {
+        if (e.pointerType === "mouse") toggleFS();
+    });
+
     gestureZone.addEventListener("pointerdown", (e) => {
         isPointerDown = true;
         gestureZone.setPointerCapture(e.pointerId);
@@ -742,40 +748,46 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         if (!swipeDir) {
-            const now = Date.now();
-            if (now - lastTapTime < 300) { // UI FIX: revert to 300ms for easier tapping
-                clearTimeout(tapTimeout);
-                const rect = gestureZone.getBoundingClientRect();
-
-                const ripple = document.createElement("div");
-                ripple.className = "wp-ripple";
-                ripple.style.left    = `${e.clientX - rect.left - 24}px`;
-                ripple.style.top     = `${e.clientY - rect.top  - 24}px`;
-                ripple.style.width   = ripple.style.height = "48px";
-                gestureZone.appendChild(ripple);
-                setTimeout(() => ripple.remove(), 400);
-
-                // BUG FIX: capture paused state BEFORE toggling
+            if (e.pointerType === "mouse") {
                 const wasPaused = player.paused;
-                if (e.clientX < rect.left + rect.width * 0.33) {
-                    player.currentTime = Math.max(0, player.currentTime - 10);
-                    showFeedback("−10s");
-                    lastTapTime = now; // Keep chain alive for triple taps
-                } else if (e.clientX > rect.left + rect.width * 0.66) {
-                    player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 10);
-                    showFeedback("+10s");
-                    lastTapTime = now; // Keep chain alive for triple taps
-                } else {
-                    wasPaused ? safePlay() : player.pause();
-                    showFeedback(wasPaused ? "Playing" : "Paused");
-                    lastTapTime = 0;
-                }
+                wasPaused ? safePlay() : player.pause();
+                showFeedback(wasPaused ? "Playing" : "Paused");
             } else {
-                lastTapTime = now;
-                tapTimeout = setTimeout(() => {
-                    player.paused ? safePlay() : player.pause();
-                    lastTapTime = 0;
-                }, 300);
+                const now = Date.now();
+                if (now - lastTapTime < 300) { // UI FIX: revert to 300ms for easier tapping
+                    clearTimeout(tapTimeout);
+                    const rect = gestureZone.getBoundingClientRect();
+
+                    const ripple = document.createElement("div");
+                    ripple.className = "wp-ripple";
+                    ripple.style.left    = `${e.clientX - rect.left - 24}px`;
+                    ripple.style.top     = `${e.clientY - rect.top  - 24}px`;
+                    ripple.style.width   = ripple.style.height = "48px";
+                    gestureZone.appendChild(ripple);
+                    setTimeout(() => ripple.remove(), 400);
+
+                    // BUG FIX: capture paused state BEFORE toggling
+                    const wasPaused = player.paused;
+                    if (e.clientX < rect.left + rect.width * 0.33) {
+                        player.currentTime = Math.max(0, player.currentTime - 10);
+                        showFeedback("−10s");
+                        lastTapTime = now; // Keep chain alive for triple taps
+                    } else if (e.clientX > rect.left + rect.width * 0.66) {
+                        player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 10);
+                        showFeedback("+10s");
+                        lastTapTime = now; // Keep chain alive for triple taps
+                    } else {
+                        wasPaused ? safePlay() : player.pause();
+                        showFeedback(wasPaused ? "Playing" : "Paused");
+                        lastTapTime = 0;
+                    }
+                } else {
+                    lastTapTime = now;
+                    tapTimeout = setTimeout(() => {
+                        resetIdle(); // single tap on touch shows UI without pausing
+                        lastTapTime = 0;
+                    }, 300);
+                }
             }
         }
     };
