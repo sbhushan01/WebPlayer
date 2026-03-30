@@ -465,7 +465,7 @@
 
             if (!swipeDir) {
                 const now = Date.now();
-                if (now - lastTapTime < 200) { // UI FIX: 300→200ms
+                if (now - lastTapTime < 300) { // UI FIX: revert to 300ms for easier tapping
                     clearTimeout(tapTimeout);
                     const rect = gestureZone.getBoundingClientRect();
 
@@ -482,20 +482,22 @@
                     if (e.clientX < rect.left + rect.width * 0.33) {
                         video.currentTime = Math.max(0, video.currentTime - 10);
                         showFeedback("−10s");
+                        lastTapTime = now; // Keep chain alive for triple taps
                     } else if (e.clientX > rect.left + rect.width * 0.66) {
                         safeSeekForward(video, 10);
                         showFeedback("+10s");
+                        lastTapTime = now; // Keep chain alive for triple taps
                     } else {
                         wasPaused ? video.play() : video.pause();
                         showFeedback(wasPaused ? "Playing" : "Paused");
+                        lastTapTime = 0;
                     }
-                    lastTapTime = 0;
                 } else {
                     lastTapTime = now;
                     tapTimeout = setTimeout(() => {
                         video.paused ? video.play() : video.pause();
                         lastTapTime = 0;
-                    }, 200); // UI FIX: 300→200ms
+                    }, 300);
                 }
             }
         };

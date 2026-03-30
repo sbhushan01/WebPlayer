@@ -648,7 +648,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         if (!swipeDir) {
             const now = Date.now();
-            if (now - lastTapTime < 200) { // UI FIX: 300→200ms feels snappier
+            if (now - lastTapTime < 300) { // UI FIX: revert to 300ms for easier tapping
                 clearTimeout(tapTimeout);
                 const rect = gestureZone.getBoundingClientRect();
 
@@ -665,20 +665,22 @@ document.addEventListener("DOMContentLoaded", async () => {
                 if (e.clientX < rect.left + rect.width * 0.33) {
                     player.currentTime = Math.max(0, player.currentTime - 10);
                     showFeedback("−10s");
+                    lastTapTime = now; // Keep chain alive for triple taps
                 } else if (e.clientX > rect.left + rect.width * 0.66) {
                     player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 10);
                     showFeedback("+10s");
+                    lastTapTime = now; // Keep chain alive for triple taps
                 } else {
                     wasPaused ? safePlay() : player.pause();
                     showFeedback(wasPaused ? "Playing" : "Paused");
+                    lastTapTime = 0;
                 }
-                lastTapTime = 0;
             } else {
                 lastTapTime = now;
                 tapTimeout = setTimeout(() => {
                     player.paused ? safePlay() : player.pause();
                     lastTapTime = 0;
-                }, 200); // UI FIX: 300→200ms
+                }, 300);
             }
         }
     };
