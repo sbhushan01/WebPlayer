@@ -491,54 +491,83 @@ document.addEventListener("DOMContentLoaded", async () => {
     window.audioContext = null; 
     let mediaElementSource, preampGain;
     const eqFilters = [];
+    let isAudioInitialized = false;
 
     const initAudioContext = () => {
-        if (window.audioContext) return;
-        window.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        mediaElementSource = window.audioContext.createMediaElementSource(player);
-        preampGain = window.audioContext.createGain();
+        if (isAudioInitialized || window.audioContext) return;
         
-        const frequencies = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
-        let prevNode = mediaElementSource;
-        
-        frequencies.forEach(freq => {
-            const filter = window.audioContext.createBiquadFilter();
-            filter.type = "peaking";
-            filter.frequency.value = freq;
-            filter.Q.value = 1.4; 
-            filter.gain.value = 0;
-            eqFilters.push(filter);
+        try {
+            window.audioContext = new (window.AudioContext || window.webkitAudioContext)();
             
-            prevNode.connect(filter);
-            prevNode = filter;
-        });
-        
-        prevNode.connect(preampGain);
-        preampGain.connect(window.audioContext.destination);
+            // Resume context if it started in a suspended state (common in Autoplay)
+            if (window.audioContext.state === 'suspended') {
+                window.audioContext.resume();
+            }
 
-        preampSlider.addEventListener("input", (e) => {
-            const val = parseFloat(e.target.value);
-            preampGain.gain.value = val;
-            preampLabel.textContent = val.toFixed(1);
-        });
-
-        eqBandsContainer.innerHTML = "";
-        frequencies.forEach((freq, i) => {
-            const bandDiv = document.createElement("div");
-            bandDiv.className = "eq-band";
-            bandDiv.innerHTML = `
-                <input type="range" min="-12" max="12" step="0.5" value="0">
-                <div class="eq-zero-mark"></div>
-                <span>${freq >= 1000 ? freq/1000 + 'k' : freq}</span>
-            `;
-            const slider = bandDiv.querySelector("input");
-            slider.addEventListener("input", (e) => {
-                eqFilters[i].gain.value = parseFloat(e.target.value);
+            mediaElementSource = window.audioContext.createMediaElementSource(player);
+            preampGain = window.audioContext.createGain();
+            
+            const frequencies = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+            let prevNode = mediaElementSource;
+            
+            frequencies.forEach(freq => {
+                const filter = window.audioContext.createBiquadFilter();
+                filter.type = "peaking";
+                filter.frequency.value = freq;
+                filter.Q.value = 1.4; 
+                filter.gain.value = 0;
+                eqFilters.push(filter);
+                
+                prevNode.connect(filter);
+                prevNode = filter;
             });
-            eqBandsContainer.appendChild(bandDiv);
-        });
+            
+            prevNode.connect(preampGain);
+            preampGain.connect(window.audioContext.destination);
+
+            // Bind Sliders
+            if (preampSlider) {
+                preampSlider.addEventListener("input", (e) => {
+                    const val = parseFloat(e.target.value);
+                    if (preampGain) preampGain.gain.value = val;
+                    if (preampLabel) preampLabel.textContent = val.toFixed(1);
+                });
+            }
+
+            if (eqBandsContainer) {
+                eqBandsContainer.innerHTML = "";
+                frequencies.forEach((freq, i) => {
+                    const bandDiv = document.createElement("div");
+                    bandDiv.className = "eq-band";
+                    bandDiv.innerHTML = `
+                        <input type="range" min="-12" max="12" step="0.5" value="0">
+                        <div class="eq-zero-mark"></div>
+                        <span>${freq >= 1000 ? freq/1000 + 'k' : freq}</span>
+                    `;
+                    const slider = bandDiv.querySelector("input");
+                    slider.addEventListener("input", (e) => {
+                        if (eqFilters[i]) eqFilters[i].gain.value = parseFloat(e.target.value);
+                    });
+                    eqBandsContainer.appendChild(bandDiv);
+                });
+            }
+
+            isAudioInitialized = true;
+
+        } catch (err) {
+            console.warn("[WebPlayer] Equalizer could not be initialized (likely CORS or Autoplay restrictions):", err);
+            // Revert changes so audio still plays normally without the EQ routing
+            if (window.audioContext && window.audioContext.state !== "closed") {
+                window.audioContext.close();
+            }
+            window.audioContext = null;
+            isAudioInitialized = true; // Prevent it from continuously retrying and throwing errors
+        }
     };
 
-    player.addEventListener('play', initAudioContext, { once: true });
+    // Use a wrapper to ensure 'this' and event properties don't cause context issues
+    player.addEventListener('play', () => {
+        if (!isAudioInitialized) initAudioContext();
+    });
 
-});
+}); // End of DOMContentLoaded
