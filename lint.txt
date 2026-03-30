@@ -1,0 +1,109 @@
+Validation Summary:
+
+errors          1              
+notices         0              
+warnings        7              
+
+ERRORS:
+
+Code                                  Message       Description              F
+BACKGROUND_SERVICE_WORKER_NOFALLBAΓÇª   Unsupported   The                      m
+CK                                    "/backgrouΓÇª   "/background/service_ΓÇª   s
+                                      nd/serviceΓÇª   worker" manifest          
+                                      _worker"      property must be          
+                                      manifest      paired with use of        
+                                      property      "/background/scripts"     
+                                      used          property for Firefox      
+                                      without       compatibility. See        
+                                      "/backgrouΓÇª   https://mzl.la/4r6SF1L    
+                                      nd/scripts"   for more information.     
+                                      property as                             
+                                      Firefox-coΓÇª                             
+                                      mpatible                                
+                                      fallback.                               
+WARNINGS:
+
+Code                                  Message       Description              F
+MISSING_DATA_COLLECTION_PERMISSIONS   The           The                      m
+                                      "data_collΓÇª   "/browser_specific_seΓÇª   s
+                                      ection_perΓÇª   ttings/gecko/data_colΓÇª    
+                                      missions"     lection_permissions"      
+                                      property is   property is required      
+                                      missing.      for all new Firefox       
+                                                    extensions, and will      
+                                                    be required for new       
+                                                    versions of existing      
+                                                    extensions in the         
+                                                    future. Please add        
+                                                    this key to the           
+                                                    manifest. More            
+                                                    information at:           
+                                                    https://mzl.la/firefoΓÇª    
+                                                    x-builtin-data-consent    
+UNSAFE_VAR_ASSIGNMENT                 Unsafe        Due to both security     c
+                                      assignment    and performance           
+                                      to            concerns, this may not    
+                                      innerHTML     be set using dynamic      
+                                                    values which have not     
+                                                    been adequately           
+                                                    sanitized. This can       
+                                                    lead to security          
+                                                    issues or fairly          
+                                                    serious performance       
+                                                    degradation.              
+UNSAFE_VAR_ASSIGNMENT                 Unsafe        Due to both security     c
+                                      assignment    and performance           
+                                      to            concerns, this may not    
+                                      innerHTML     be set using dynamic      
+                                                    values which have not     
+                                                    been adequately           
+                                                    sanitized. This can       
+                                                    lead to security          
+                                                    issues or fairly          
+                                                    serious performance       
+                                                    degradation.              
+UNSAFE_VAR_ASSIGNMENT                 Unsafe        Due to both security     c
+                                      assignment    and performance           
+                                      to            concerns, this may not    
+                                      innerHTML     be set using dynamic      
+                                                    values which have not     
+                                                    been adequately           
+                                                    sanitized. This can       
+                                                    lead to security          
+                                                    issues or fairly          
+                                                    serious performance       
+                                                    degradation.              
+UNSAFE_VAR_ASSIGNMENT                 Unsafe        Due to both security     c
+                                      assignment    and performance           
+                                      to            concerns, this may not    
+                                      innerHTML     be set using dynamic      
+                                                    values which have not     
+                                                    been adequately           
+                                                    sanitized. This can       
+                                                    lead to security          
+                                                    issues or fairly          
+                                                    serious performance       
+                                                    degradation.              
+UNSAFE_VAR_ASSIGNMENT                 Unsafe        Due to both security     p
+                                      assignment    and performance           
+                                      to            concerns, this may not    
+                                      innerHTML     be set using dynamic      
+                                                    values which have not     
+                                                    been adequately           
+                                                    sanitized. This can       
+                                                    lead to security          
+                                                    issues or fairly          
+                                                    serious performance       
+                                                    degradation.              
+DANGEROUS_EVAL                        The           Evaluation of strings    l
+                                      Function      as code can lead to      a
+                                      constructor   security                  
+                                      is eval.      vulnerabilities and       
+                                                    performance issues,       
+                                                    even in the most          
+                                                    innocuous of              
+                                                    circumstances. Please     
+                                                    avoid using `eval` and    
+                                                    the `Function`            
+                                                    constructor when at       
+                                                    all possible.             
