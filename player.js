@@ -35,8 +35,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     const shortcutsBtn   = document.getElementById("shortcuts-btn");
     const shortcutsClose = document.getElementById("shortcuts-close");
 
+    // Safe play wrapper to prevent Unhandled Promise Rejections (Fixes Line 276 Error)
+    const safePlay = () => {
+        const playPromise = player.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(err => {
+                console.warn("[WebPlayer] Playback prevented:", err);
+            });
+        }
+    };
+
     if ("mediaSession" in navigator) {
-        navigator.mediaSession.setActionHandler("play",         () => player.play());
+        navigator.mediaSession.setActionHandler("play",         () => safePlay());
         navigator.mediaSession.setActionHandler("pause",        () => player.pause());
         navigator.mediaSession.setActionHandler("seekbackward", (e) => player.currentTime = Math.max(0, player.currentTime - (e.seekOffset || 10)));
         navigator.mediaSession.setActionHandler("seekforward",  (e) => player.currentTime = Math.min(player.duration, player.currentTime + (e.seekOffset || 10)));
@@ -273,7 +283,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         window.addEventListener("pointercancel", onUp);
     });
 
-    const togglePlay = () => player.paused ? player.play() : player.pause();
+    const togglePlay = () => player.paused ? safePlay() : player.pause();
     playBtn.addEventListener("click", togglePlay);
     player.addEventListener("play",  () => playIcon.textContent = "pause");
     player.addEventListener("pause", () => playIcon.textContent = "play_arrow");
@@ -473,14 +483,14 @@ document.addEventListener("DOMContentLoaded", async () => {
                     player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 10);
                     showFeedback("+10s");
                 } else {
-                    player.paused ? player.play() : player.pause();
+                    player.paused ? safePlay() : player.pause();
                     showFeedback(player.paused ? "Paused" : "Playing");
                 }
                 lastTapTime = 0;
             } else {
                 lastTapTime = now;
                 tapTimeout = setTimeout(() => {
-                    player.paused ? player.play() : player.pause();
+                    player.paused ? safePlay() : player.pause();
                     lastTapTime = 0;
                 }, 300);
             }
@@ -499,9 +509,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         try {
             window.audioContext = new (window.AudioContext || window.webkitAudioContext)();
             
-            // Resume context if it started in a suspended state (common in Autoplay)
+            // Fixes Line 483 Error: Add .catch() to the async resume promise
             if (window.audioContext.state === 'suspended') {
-                window.audioContext.resume();
+                window.audioContext.resume().catch(err => {
+                    console.warn("[WebPlayer] AudioContext resume failed:", err);
+                });
             }
 
             mediaElementSource = window.audioContext.createMediaElementSource(player);
@@ -555,19 +567,17 @@ document.addEventListener("DOMContentLoaded", async () => {
             isAudioInitialized = true;
 
         } catch (err) {
-            console.warn("[WebPlayer] Equalizer could not be initialized (likely CORS or Autoplay restrictions):", err);
-            // Revert changes so audio still plays normally without the EQ routing
+            console.warn("[WebPlayer] Equalizer could not be initialized:", err);
             if (window.audioContext && window.audioContext.state !== "closed") {
                 window.audioContext.close();
             }
             window.audioContext = null;
-            isAudioInitialized = true; // Prevent it from continuously retrying and throwing errors
+            isAudioInitialized = true; 
         }
     };
 
-    // Use a wrapper to ensure 'this' and event properties don't cause context issues
     player.addEventListener('play', () => {
         if (!isAudioInitialized) initAudioContext();
     });
 
-}); // End of DOMContentLoaded
+});
