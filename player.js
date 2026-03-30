@@ -8,10 +8,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     const titleBar       = document.getElementById("title-bar");
 
     const playBtn        = document.getElementById("play-pause-btn");
-    const playIcon       = document.getElementById("play-icon"); // Material Icon
+    const playIcon       = document.getElementById("play-icon"); 
     const volumeSlider   = document.getElementById("volume-slider");
     const muteBtn        = document.getElementById("mute-btn");
-    const muteIcon       = document.getElementById("mute-icon"); // Material Icon
+    const muteIcon       = document.getElementById("mute-icon"); 
     const timeCur        = document.getElementById("time-current");
     const timeDur        = document.getElementById("time-duration");
     const progWrapper    = document.getElementById("progress-wrapper");
@@ -19,7 +19,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const progBuffered   = document.getElementById("progress-buffered");
     const progThumb      = document.getElementById("progress-thumb");
     const fsBtn          = document.getElementById("fs-btn");
-    const fsIcon         = document.getElementById("fs-icon"); // Material Icon
+    const fsIcon         = document.getElementById("fs-icon"); 
     const pipBtn         = document.getElementById("pip-btn");
     const qualitySelect  = document.getElementById("quality-select");
     const speedPillsEl   = document.getElementById("speed-pills");
@@ -72,7 +72,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const cleanUrl = videoSrc.split("?")[0];
     
-    // Resume playback and handle backwards compatibility with old number saves
     chrome.storage.local.get([cleanUrl]).then(res => {
         if (res[cleanUrl]) {
             const savedTime = typeof res[cleanUrl] === 'number' ? res[cleanUrl] : res[cleanUrl].time;
@@ -89,7 +88,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     player.addEventListener("timeupdate", () => {
         const now = Date.now();
         if (now - lastSave > 5000 && !window.__isSkipping && player.duration !== Infinity) {
-            // Save as an object with a timestamp so background.js can clear expired data
             chrome.storage.local.set({ [cleanUrl]: { time: player.currentTime, ts: now } });
             lastSave = now;
         }
@@ -103,7 +101,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     window.addEventListener("beforeunload", () => {
         destroyEngines();
-        if (audioContext && audioContext.state !== "closed") audioContext.close();
+        if (window.audioContext && window.audioContext.state !== "closed") window.audioContext.close();
     });
 
     const loadedScripts = {};
@@ -275,7 +273,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         window.addEventListener("pointercancel", onUp);
     });
 
-    // --- Material UI Icon Updates ---
     const togglePlay = () => player.paused ? player.play() : player.pause();
     playBtn.addEventListener("click", togglePlay);
     player.addEventListener("play",  () => playIcon.textContent = "pause");
@@ -312,11 +309,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     const toggleFS = async () => {
-        if (document.fullscreenElement || document.webkitFullscreenElement) {
-            (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
-        } else {
-            const req = container.requestFullscreen || container.webkitRequestFullscreen;
-            if (req) await req.call(container);
+        try {
+            if (document.fullscreenElement || document.webkitFullscreenElement) {
+                await (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+            } else {
+                const req = container.requestFullscreen || container.webkitRequestFullscreen;
+                if (req) await req.call(container);
+            }
+        } catch (err) {
+            console.warn("Fullscreen request denied", err);
         }
     };
     fsBtn.addEventListener("click", toggleFS);
@@ -333,7 +334,10 @@ document.addEventListener("DOMContentLoaded", async () => {
             document.pictureInPictureElement
                 ? await document.exitPictureInPicture()
                 : await player.requestPictureInPicture();
-        } catch {}
+        } catch (err) {
+            console.warn("PiP blocked", err);
+            showFeedback("PiP Blocked");
+        }
     });
 
     let idleTimer;
@@ -367,7 +371,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         feedbackTimer = setTimeout(() => feedbackOverlay.style.opacity = 0, 800);
     };
 
-    // Robust gesture zone logic
     gestureZone.style.touchAction = "none";
     gestureZone.style.userSelect = "none";
     gestureZone.style.webkitUserSelect = "none";
@@ -450,10 +453,92 @@ document.addEventListener("DOMContentLoaded", async () => {
                 ripple.className = "wp-ripple";
                 ripple.style.position = "absolute";
                 ripple.style.borderRadius = "50%";
-                ripple.style.background = "var(--md-sys-color-primary)"; // Material Primary Ripple
+                ripple.style.background = "var(--md-sys-color-primary)"; 
                 ripple.style.transform = "scale(0)";
                 ripple.style.pointerEvents = "none";
                 ripple.style.opacity = "0.4";
                 ripple.style.animation = "wp-ripple-anim 0.4s cubic-bezier(0.4, 0, 0.2, 1)";
                 
-  
+                ripple.style.left = `${e.clientX - rect.left - 24}px`;
+                ripple.style.top = `${e.clientY - rect.top - 24}px`;
+                ripple.style.width = ripple.style.height = "48px";
+                
+                gestureZone.appendChild(ripple);
+                setTimeout(() => ripple.remove(), 400);
+
+                if (e.clientX < rect.left + rect.width * 0.33) {
+                    player.currentTime = Math.max(0, player.currentTime - 10);
+                    showFeedback("−10s");
+                } else if (e.clientX > rect.left + rect.width * 0.66) {
+                    player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 10);
+                    showFeedback("+10s");
+                } else {
+                    player.paused ? player.play() : player.pause();
+                    showFeedback(player.paused ? "Paused" : "Playing");
+                }
+                lastTapTime = 0;
+            } else {
+                lastTapTime = now;
+                tapTimeout = setTimeout(() => {
+                    player.paused ? player.play() : player.pause();
+                    lastTapTime = 0;
+                }, 300);
+            }
+        }
+    });
+
+    // --- Web Audio API (Equalizer Implementation) ---
+    window.audioContext = null; 
+    let mediaElementSource, preampGain;
+    const eqFilters = [];
+
+    const initAudioContext = () => {
+        if (window.audioContext) return;
+        window.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        mediaElementSource = window.audioContext.createMediaElementSource(player);
+        preampGain = window.audioContext.createGain();
+        
+        const frequencies = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+        let prevNode = mediaElementSource;
+        
+        frequencies.forEach(freq => {
+            const filter = window.audioContext.createBiquadFilter();
+            filter.type = "peaking";
+            filter.frequency.value = freq;
+            filter.Q.value = 1.4; 
+            filter.gain.value = 0;
+            eqFilters.push(filter);
+            
+            prevNode.connect(filter);
+            prevNode = filter;
+        });
+        
+        prevNode.connect(preampGain);
+        preampGain.connect(window.audioContext.destination);
+
+        preampSlider.addEventListener("input", (e) => {
+            const val = parseFloat(e.target.value);
+            preampGain.gain.value = val;
+            preampLabel.textContent = val.toFixed(1);
+        });
+
+        eqBandsContainer.innerHTML = "";
+        frequencies.forEach((freq, i) => {
+            const bandDiv = document.createElement("div");
+            bandDiv.className = "eq-band";
+            bandDiv.innerHTML = `
+                <input type="range" min="-12" max="12" step="0.5" value="0">
+                <div class="eq-zero-mark"></div>
+                <span>${freq >= 1000 ? freq/1000 + 'k' : freq}</span>
+            `;
+            const slider = bandDiv.querySelector("input");
+            slider.addEventListener("input", (e) => {
+                eqFilters[i].gain.value = parseFloat(e.target.value);
+            });
+            eqBandsContainer.appendChild(bandDiv);
+        });
+    };
+
+    player.addEventListener('play', initAudioContext, { once: true });
+
+});
