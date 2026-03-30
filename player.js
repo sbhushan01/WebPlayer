@@ -686,14 +686,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     gestureZone.addEventListener("dblclick", (e) => {
         e.preventDefault();
+        // Fallback for native dblclick if pointer events miss the timing, 
+        // but restrict to fullscreen to avoid duplicated seeks.
         const rect = gestureZone.getBoundingClientRect();
-        if (e.clientX < rect.left + rect.width * 0.33) {
-            player.currentTime = Math.max(0, player.currentTime - 10);
-            showFeedback("−10s");
-        } else if (e.clientX > rect.left + rect.width * 0.66) {
-            player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 10);
-            showFeedback("+10s");
-        } else {
+        if (e.clientX > rect.left + rect.width * 0.33 && e.clientX < rect.left + rect.width * 0.66) {
             toggleFS();
         }
     });
@@ -758,46 +754,51 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         if (!swipeDir) {
-            if (e.pointerType === "mouse") {
-                const wasPaused = player.paused;
-                wasPaused ? safePlay() : player.pause();
-                showFeedback(wasPaused ? "Playing" : "Paused");
-            } else {
-                const now = Date.now();
-                if (now - lastTapTime < 300) { // UI FIX: revert to 300ms for easier tapping
-                    clearTimeout(tapTimeout);
-                    const rect = gestureZone.getBoundingClientRect();
+            const now = Date.now();
+            if (now - lastTapTime < 250) { // Fast double tap threshold
+                clearTimeout(tapTimeout);
+                const rect = gestureZone.getBoundingClientRect();
 
-                    const ripple = document.createElement("div");
-                    ripple.className = "wp-ripple";
-                    ripple.style.left    = `${e.clientX - rect.left - 24}px`;
-                    ripple.style.top     = `${e.clientY - rect.top  - 24}px`;
-                    ripple.style.width   = ripple.style.height = "48px";
-                    gestureZone.appendChild(ripple);
-                    setTimeout(() => ripple.remove(), 400);
+                const ripple = document.createElement("div");
+                ripple.className = "wp-ripple";
+                ripple.style.left    = `${e.clientX - rect.left - 24}px`;
+                ripple.style.top     = `${e.clientY - rect.top  - 24}px`;
+                ripple.style.width   = ripple.style.height = "48px";
+                gestureZone.appendChild(ripple);
+                setTimeout(() => ripple.remove(), 400);
 
-                    // BUG FIX: capture paused state BEFORE toggling
-                    const wasPaused = player.paused;
-                    if (e.clientX < rect.left + rect.width * 0.33) {
-                        player.currentTime = Math.max(0, player.currentTime - 10);
-                        showFeedback("−10s");
-                        lastTapTime = now; // Keep chain alive for triple taps
-                    } else if (e.clientX > rect.left + rect.width * 0.66) {
-                        player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 10);
-                        showFeedback("+10s");
-                        lastTapTime = now; // Keep chain alive for triple taps
+                // BUG FIX: Double tap on sides targets seeking, double tap in middle toggles Play/Pause or Fullscreen
+                if (e.clientX < rect.left + rect.width * 0.33) {
+                    player.currentTime = Math.max(0, player.currentTime - 10);
+                    showFeedback("−10s");
+                    lastTapTime = now; // Keep chain alive for triple taps
+                } else if (e.clientX > rect.left + rect.width * 0.66) {
+                    player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 10);
+                    showFeedback("+10s");
+                    lastTapTime = now; // Keep chain alive for triple taps
+                } else {
+                    // Double tap center toggles fullscreen for mouse, play/pause for touch
+                    if (e.pointerType === "mouse") {
+                        toggleFS();
                     } else {
+                        const wasPaused = player.paused;
                         wasPaused ? safePlay() : player.pause();
                         showFeedback(wasPaused ? "Playing" : "Paused");
-                        lastTapTime = 0;
                     }
-                } else {
-                    lastTapTime = now;
-                    tapTimeout = setTimeout(() => {
-                        resetIdle(); // single tap on touch shows UI without pausing
-                        lastTapTime = 0;
-                    }, 300);
+                    lastTapTime = 0;
                 }
+            } else {
+                lastTapTime = now;
+                tapTimeout = setTimeout(() => {
+                    if (e.pointerType === "mouse") {
+                        const wasPaused = player.paused;
+                        wasPaused ? safePlay() : player.pause();
+                        showFeedback(wasPaused ? "Playing" : "Paused");
+                    } else {
+                        resetIdle(); // single tap on touch shows UI without pausing
+                    }
+                    lastTapTime = 0;
+                }, 250); // 250ms distinct click delay
             }
         }
     };
