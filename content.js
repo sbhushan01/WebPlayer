@@ -35,16 +35,57 @@
     let isSpawningPlayer = false;
 
     chrome.runtime.onMessage.addListener((msg) => {
-        if (msg.action === "stream_detected" && msg.url && !interceptedUrls.has(msg.url) && !isSpawningPlayer) {
+        if (msg.action === "stream_detected" && msg.url && !interceptedUrls.has(msg.url)) {
             interceptedUrls.add(msg.url);
-            isSpawningPlayer = true;
-            chrome.runtime.sendMessage({
-                action:    "open_player",
-                videoSrc:  msg.url,
-                pageTitle: document.title,
-                pageUrl:   window.location.href
-            });
-            setTimeout(() => isSpawningPlayer = false, 5000);
+            
+            const prompt = document.createElement("div");
+            prompt.style.cssText = `
+                position: fixed; bottom: 20px; right: 20px; z-index: 2147483647;
+                background: rgba(20, 20, 30, 0.9); backdrop-filter: blur(8px);
+                border: 1px solid rgba(255,255,255,0.1); border-radius: 12px;
+                padding: 12px 20px; color: white; display: flex; align-items: center; gap: 12px;
+                box-shadow: 0 8px 24px rgba(0,0,0,0.3); font-family: system-ui, sans-serif;
+                animation: wp-slide-in 0.3s ease-out;
+            `;
+            prompt.innerHTML = `
+                <div style="display:flex; flex-direction:column;">
+                    <span style="font-weight: 600; font-size: 14px;">Stream Detected</span>
+                    <span style="font-size: 12px; color: #aaa;">HLS/DASH stream available</span>
+                </div>
+                <div style="display:flex; gap: 8px;">
+                    <button id="wp-prompt-ignore" style="background: rgba(255,255,255,0.1); border: none; padding: 6px 12px; border-radius: 6px; color: white; cursor: pointer; font-size: 12px; transition: 0.2s;">Ignore</button>
+                    <button id="wp-prompt-launch" style="background: #4A9EFF; border: none; padding: 6px 12px; border-radius: 6px; color: white; cursor: pointer; font-size: 12px; font-weight: bold; transition: 0.2s;">Launch Player</button>
+                </div>
+            `;
+            
+            if (!document.getElementById("wp-prompt-style")) {
+                const s = document.createElement("style");
+                s.id = "wp-prompt-style";
+                s.textContent = "@keyframes wp-slide-in { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }";
+                getRootContainer()?.appendChild(s);
+            }
+            
+            getRootContainer()?.appendChild(prompt);
+            
+            const closePrompt = () => {
+                prompt.style.opacity = "0";
+                prompt.style.transform = "translateY(20px)";
+                prompt.style.transition = "all 0.3s ease-in";
+                setTimeout(() => prompt.remove(), 300);
+            };
+            
+            prompt.querySelector("#wp-prompt-ignore").onclick = closePrompt;
+            prompt.querySelector("#wp-prompt-launch").onclick = () => {
+                closePrompt();
+                chrome.runtime.sendMessage({
+                    action:    "open_player",
+                    videoSrc:  msg.url,
+                    pageTitle: document.title,
+                    pageUrl:   window.location.href
+                });
+            };
+            
+            setTimeout(closePrompt, 15000);
         }
     });
 
@@ -324,9 +365,27 @@
             document.pictureInPictureElement ? await document.exitPictureInPicture() : await video.requestPictureInPicture();
         });
         uiWrapper.querySelector("#wp-fs").addEventListener("click", async () => {
-            const container = video.parentElement;
+            const ytFsBtn = document.querySelector(".ytp-fullscreen-button");
+            if (ytFsBtn) {
+                ytFsBtn.click();
+                return;
+            }
+            
+            const container = video.closest('.html5-video-player, [data-vjs-player]') || video.parentElement;
             const req = container.requestFullscreen || container.webkitRequestFullscreen;
-            document.fullscreenElement ? document.exitFullscreen() : req?.call(container);
+            try {
+                if (document.fullscreenElement || document.webkitFullscreenElement) {
+                    await (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+                } else {
+                    await req?.call(container);
+                }
+            } catch (err) {
+                console.warn("[WebPlayer] Container FS failed:", err);
+                try {
+                    const vidReq = video.requestFullscreen || video.webkitRequestFullscreen;
+                    await vidReq?.call(video);
+                } catch (e) { console.warn("[WebPlayer] FS completely blocked", e); showFeedback("FS Blocked"); }
+            }
         });
 
         uiWrapper.querySelectorAll(".speed-pill").forEach(pill => {
