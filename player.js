@@ -68,7 +68,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         navigator.mediaSession.setActionHandler("play",         () => safePlay());
         navigator.mediaSession.setActionHandler("pause",        () => player.pause());
         navigator.mediaSession.setActionHandler("seekbackward", (e) => { player.currentTime = Math.max(0, player.currentTime - (e.seekOffset || 10)); });
-        navigator.mediaSession.setActionHandler("seekforward",  (e) => { player.currentTime = Math.min(player.duration, player.currentTime + (e.seekOffset || 10)); });
+        navigator.mediaSession.setActionHandler("seekforward",  (e) => { player.currentTime = Math.min(player.duration || Infinity, player.currentTime + (e.seekOffset || 10)); });
     }
 
     // ── URL params ────────────────────────────────────────────────────────────
