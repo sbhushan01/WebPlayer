@@ -1,15 +1,16 @@
-// Keep service worker alive via periodic alarms
 function setupAlarms() {
     chrome.alarms.create("keepAlive", { periodInMinutes: 0.5 });
 }
 
-// Cleanup stale storage data (Older than 7 days) to prevent Quota Exhaustion
 function cleanupOldVideoProgress() {
     chrome.storage.local.get(null, (items) => {
         const now = Date.now();
         const keysToRemove = [];
         for (const [key, val] of Object.entries(items)) {
-            if (val && val.ts && (now - val.ts > 7 * 24 * 60 * 60 * 1000)) {
+            // Delete if it's a legacy number OR if it has expired
+            if (typeof val === 'number') {
+                keysToRemove.push(key);
+            } else if (val && val.ts && (now - val.ts > 7 * 24 * 60 * 60 * 1000)) {
                 keysToRemove.push(key);
             }
         }
@@ -27,7 +28,6 @@ chrome.runtime.onStartup.addListener(() => {
 });
 chrome.alarms.onAlarm.addListener(() => {});
 
-// Globally registered listener for DNR cleanup to prevent Memory Leaks
 chrome.tabs.onRemoved.addListener(async (tabId) => {
     const tabKey = tabId.toString();
     const data = await chrome.storage.session.get(tabKey);
@@ -46,15 +46,13 @@ function domainFilter(rawUrl) {
     }
 }
 
-let nextRuleId = 1;
-
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "open_player" && request.videoSrc) {
         const videoUrl  = request.videoSrc;
         const urlFilter = domainFilter(videoUrl);
 
-        const ruleId = nextRuleId++;
-        if (nextRuleId > 1_000_000) nextRuleId = 1;
+        // Generate a random rule ID to prevent sleep/wake collisions
+        const ruleId = Math.floor(Math.random() * 1000000) + 1;
 
         chrome.declarativeNetRequest.updateSessionRules(
             {
@@ -101,7 +99,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                             chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [ruleId] });
                             return;
                         }
-                        // Persist the association to session storage instead of a volatile callback variable
                         chrome.storage.session.set({ [tab.id.toString()]: ruleId });
                     });
                 } catch (err) {
