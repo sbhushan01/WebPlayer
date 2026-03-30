@@ -170,6 +170,17 @@
         } catch (e) {}
     }
 
+    function safePlay(video) {
+        try {
+            const p = video.play();
+            if (p && typeof p.catch === "function") {
+                p.catch(err => console.warn("[WebPlayer] Playback prevented:", err));
+            }
+        } catch (err) {
+            console.warn("[WebPlayer] Playback synchronous error:", err);
+        }
+    }
+
     function injectCustomPlayer(video) {
         if (!video || !video.parentElement || video.dataset.customPlayerActive) return;
         video.dataset.customPlayerActive = "true";
@@ -299,6 +310,42 @@
             setTimeout(() => feedbackOverlay.style.opacity = "0", 800);
         };
 
+        // ── SponsorBlock ──────────────────────────────────────────────────────────
+        window.__isSkipping = false;
+        async function fetchSegments() {
+            try {
+                const match = /(?:v=|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/.exec(window.location.href);
+                if (!match) return [];
+                const res = await fetch(`https://sponsor.ajay.app/api/skipSegments?videoID=${match[1]}`);
+                if (!res.ok) return [];
+                const data = await res.json();
+                return Array.isArray(data) ? data : [];
+            } catch { return []; }
+        }
+
+        let skipSegments = [];
+        fetchSegments().then(segs => { skipSegments = segs; });
+        const skippedIds = new Set();
+        const SEGMENT_LABELS = { sponsor: "Sponsor Skipped", intro: "Intro Skipped", outro: "Outro Skipped", selfpromo: "Self-Promo Skipped", interaction: "Interaction Skipped", music_offtopic: "Music Skipped", preview: "Preview Skipped" };
+
+        video.addEventListener("timeupdate", () => {
+            if (window.__isSkipping || !skipSegments.length) return;
+            const t = video.currentTime;
+            for (const seg of skipSegments) {
+                const start = seg.segment?.[0] ?? seg.start;
+                const end   = seg.segment?.[1] ?? seg.end;
+                const segId = seg.UUID || start;
+                if (t >= start && t < end && !skippedIds.has(segId)) {
+                    window.__isSkipping = true;
+                    skippedIds.add(segId);
+                    video.currentTime = end;
+                    showFeedback(SEGMENT_LABELS[seg.category] || "Segment Skipped");
+                    video.addEventListener("seeked", () => { window.__isSkipping = false; }, { once: true });
+                    break;
+                }
+            }
+        });
+
         // Speed sync helper
         const setPlaybackRate = (rate) => {
             video.playbackRate = rate;
@@ -308,7 +355,55 @@
         };
 
         let tapTimeout;
+        const handleKeyDown = (e) => {
+            if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.isContentEditable) return;
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+            switch (e.key) {
+                case " ": case "k": case "K":
+                    e.preventDefault();
+                    video.paused ? safePlay(video) : video.pause();
+                    showFeedback(video.paused ? "Paused" : "Playing");
+                    break;
+                case "ArrowLeft":
+                    e.preventDefault();
+                    video.currentTime = Math.max(0, video.currentTime - 10);
+                    showFeedback("−10s");
+                    break;
+                case "ArrowRight":
+                    e.preventDefault();
+                    safeSeekForward(video, 10);
+                    showFeedback("+10s");
+                    break;
+                case "ArrowUp":
+                    e.preventDefault();
+                    video.volume = Math.min(1, video.volume + 0.05);
+                    video.muted = false;
+                    showFeedback(`Vol: ${Math.round(video.volume * 100)}%`);
+                    showControls();
+                    break;
+                case "ArrowDown":
+                    e.preventDefault();
+                    video.volume = Math.max(0, video.volume - 0.05);
+                    if (video.volume === 0) video.muted = true;
+                    showFeedback(`Vol: ${Math.round(video.volume * 100)}%`);
+                    showControls();
+                    break;
+                case "m": case "M":
+                    video.muted = !video.muted;
+                    showFeedback(video.muted ? "Muted" : "Unmuted");
+                    break;
+                case "f": case "F":
+                    uiWrapper.querySelector("#wp-fs").click();
+                    break;
+                case "r": case "R":
+                    uiWrapper.querySelector("#wp-rotate").click();
+                    break;
+            }
+        };
+        document.addEventListener("keydown", handleKeyDown);
+
         const cleanup = () => {
+            document.removeEventListener("keydown", handleKeyDown);
             clearTimeout(tapTimeout);
             ro.disconnect();
             shadowHost.remove();
@@ -356,7 +451,7 @@
         playBtn.addEventListener("click", () => {
             // BUG FIX: capture state before toggle
             const wasPaused = video.paused;
-            wasPaused ? video.play() : video.pause();
+            wasPaused ? safePlay(video) : video.pause();
         });
 
         uiWrapper.querySelector("#wp-skip-back").addEventListener("click", () => { video.currentTime = Math.max(0, video.currentTime - 10); showFeedback("−10s"); });
@@ -488,14 +583,14 @@
                         showFeedback("+10s");
                         lastTapTime = now; // Keep chain alive for triple taps
                     } else {
-                        wasPaused ? video.play() : video.pause();
+                        wasPaused ? safePlay(video) : video.pause();
                         showFeedback(wasPaused ? "Playing" : "Paused");
                         lastTapTime = 0;
                     }
                 } else {
                     lastTapTime = now;
                     tapTimeout = setTimeout(() => {
-                        video.paused ? video.play() : video.pause();
+                        video.paused ? safePlay(video) : video.pause();
                         lastTapTime = 0;
                     }, 300);
                 }
