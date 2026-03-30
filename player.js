@@ -48,8 +48,14 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // ── Safe play (suppresses unhandled rejections from autoplay policy) ──────
     const safePlay = () => {
-        const p = player.play();
-        if (p !== undefined) p.catch(err => console.warn("[WebPlayer] Playback prevented:", err));
+        try {
+            const p = player.play();
+            if (p && typeof p.catch === "function") {
+                p.catch(err => console.warn("[WebPlayer] Playback prevented:", err));
+            }
+        } catch (err) {
+            console.warn("[WebPlayer] Playback synchronous error:", err);
+        }
     };
 
     // ── Media Session ─────────────────────────────────────────────────────────
