@@ -241,8 +241,22 @@
             .video-container.idle .webplayer-ui-wrapper { opacity: 0; transform: translate(-50%, 20px); pointer-events: none; }
             .wp-controls-visible { opacity: 1; transform: translateX(-50%); }
             .wp-progress-row { display: flex; align-items: center; gap: 12px; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; font-weight: 500; color: #C4C7C5; }
-            input[type=range] { flex: 1; accent-color: #A8C7FA; cursor: pointer; height: 6px; border-radius: 4px; background: rgba(255,255,255,0.15); transition: background 0.3s; }
-            input[type=range]:hover { background: rgba(255,255,255,0.25); }
+            input[type=range] { 
+                -webkit-appearance: none; appearance: none; flex: 1; 
+                background: rgba(255,255,255,0.15); height: 6px; border-radius: 4px; 
+                cursor: pointer; outline: none; margin: 16px 0; 
+            }
+            input[type=range]::-webkit-slider-thumb {
+                -webkit-appearance: none; appearance: none;
+                width: 18px; height: 18px; border-radius: 50%; background: #A8C7FA; 
+                cursor: pointer; box-shadow: 0 0 8px rgba(0,0,0,0.4); transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            input[type=range]:active::-webkit-slider-thumb { transform: scale(1.3); }
+            input[type=range]::-moz-range-thumb {
+                width: 18px; height: 18px; border-radius: 50%; background: #A8C7FA; 
+                cursor: pointer; border: none; box-shadow: 0 0 8px rgba(0,0,0,0.4); transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            input[type=range]:active::-moz-range-thumb { transform: scale(1.3); }
             .wp-center-row { display: flex; justify-content: center; align-items: center; gap: 16px; margin-top: 4px; }
             button { background: rgba(255,255,255,0.0); border: none; color: #E3E3E3; cursor: pointer; padding: 6px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: all 0.2s ease; width: 40px; height: 40px; }
             button:hover { background: rgba(255,255,255,0.12); transform: scale(1.05); }
@@ -567,22 +581,37 @@
         const tDur = uiWrapper.querySelector("#wp-time-dur");
 
         let isScrubbing = false;
-        prog.addEventListener("pointerdown", () => isScrubbing = true);
-        prog.addEventListener("pointerup", () => isScrubbing = false);
+        let scrubTimeout;
 
-        video.addEventListener("timeupdate", () => {
-            if (!isFinite(video.duration) || isScrubbing) return;
-            prog.value     = (video.currentTime / video.duration) * 100;
-            tCur.innerText = formatTime(video.currentTime);
-            tDur.innerText = formatTime(video.duration);
+        const syncTimelineStyle = (val) => {
+            prog.style.background = `linear-gradient(to right, #A8C7FA ${val}%, rgba(255,255,255,0.15) ${val}%)`;
+        };
+
+        prog.addEventListener("input", e => {
+            isScrubbing = true;
+            clearTimeout(scrubTimeout);
+            const val = e.target.value;
+            syncTimelineStyle(val);
+            if (isFinite(video.duration)) {
+                tCur.innerText = formatTime((val / 100) * video.duration);
+            }
         });
 
         prog.addEventListener("change", e => {
-            if (isFinite(video.duration)) video.currentTime = (e.target.value / 100) * video.duration;
+            if (isFinite(video.duration)) {
+                video.currentTime = (e.target.value / 100) * video.duration;
+            }
+            // Add a slight delay before releasing the lock so timeupdate doesn't snap standard progress back
+            scrubTimeout = setTimeout(() => { isScrubbing = false; }, 300);
         });
 
-        prog.addEventListener("input", e => {
-            if (isFinite(video.duration)) tCur.innerText = formatTime((e.target.value / 100) * video.duration);
+        video.addEventListener("timeupdate", () => {
+            if (!isFinite(video.duration) || isScrubbing) return;
+            const val = (video.currentTime / video.duration) * 100;
+            prog.value = val;
+            syncTimelineStyle(val);
+            tCur.innerText = formatTime(video.currentTime);
+            tDur.innerText = formatTime(video.duration);
         });
 
         const playBtn = uiWrapper.querySelector("#wp-play");

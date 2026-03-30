@@ -122,7 +122,7 @@
             border-radius: 4px; cursor: pointer; transition: height 0.2s, background 0.3s;
             display: flex; align-items: center; box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
         }
-        .progress-wrapper::before { content: ''; position: absolute; top: -14px; bottom: -14px; left: 0; right: 0; }
+        .progress-wrapper::before { content: ''; position: absolute; top: -20px; bottom: -20px; left: 0; right: 0; }
         .progress-wrapper:hover { height: 8px; background: rgba(255,255,255,0.25); }
         .progress-buffered {
             position: absolute; left: 0; top: 0; bottom: 0; background: rgba(255,255,255,0.3);
@@ -135,12 +135,12 @@
         }
         .progress-thumb {
             position: absolute; left: 0%; width: 18px; height: 18px; background: #FFF;
-            border-radius: 50%; transform: translateX(-50%) scale(0); opacity: 0;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.4), 0 0 16px var(--glow-color);
-            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s, left 0.1s linear; pointer-events: none;
+            border-radius: 50%; transform: translateX(-50%) scale(0.6); opacity: 1;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4), 0 0 12px var(--glow-color);
+            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), left 0.1s linear; pointer-events: none;
         }
         .progress-wrapper:hover .progress-thumb, .progress-wrapper.dragging .progress-thumb {
-            opacity: 1; transform: translateX(-50%) scale(1);
+            transform: translateX(-50%) scale(1.1); box-shadow: 0 4px 12px rgba(0,0,0,0.5), 0 0 20px var(--glow-color);
         }
 
         /* ── Controls layout ─────────────────────────────────────────────────── */
