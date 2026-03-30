@@ -56,7 +56,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         document.getElementById("error-msg").textContent = msg;
         box.style.display = "flex";
     }
+    
     document.getElementById("error-retry").addEventListener("click", () => {
+        if (!videoSrc) { 
+            showError("No video source provided."); 
+            return; 
+        }
         document.getElementById("error-box").style.display = "none";
         bufferEl.classList.add("is-buffering");
         attachSource(videoSrc);
