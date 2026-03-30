@@ -414,5 +414,15 @@
 
     findVideos();
     const observer = new MutationObserver(() => { setTimeout(findVideos, 300); });
-    if (document.body) observer.observe(document.body, { childList: true, subtree: true });
+    
+    if (document.body) {
+        observer.observe(document.body, { childList: true, subtree: true });
+    } else {
+        // Observe the root element until the body is available
+        observer.observe(document.documentElement, { childList: true, subtree: true });
+        document.addEventListener("DOMContentLoaded", () => {
+            observer.disconnect();
+            if (document.body) observer.observe(document.body, { childList: true, subtree: true });
+        }, { once: true });
+    }
 })();
