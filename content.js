@@ -103,10 +103,13 @@
         let rafId = requestAnimationFrame(function loop() {
             try {
                 const r = video.getBoundingClientRect();
-                if (r.width <= 0 || !document.contains(video)) { btn.style.display = "none"; return; }
-                btn.style.display = "";
-                btn.style.left    = `${r.left + window.scrollX + 10}px`;
-                btn.style.top     = `${r.top  + window.scrollY + 10}px`;
+                if (r.width <= 0 || !document.contains(video)) { 
+                    btn.style.display = "none"; 
+                } else {
+                    btn.style.display = "";
+                    btn.style.left    = `${r.left + window.scrollX + 10}px`;
+                    btn.style.top     = `${r.top  + window.scrollY + 10}px`;
+                }
             } catch (_) {}
             rafId = requestAnimationFrame(loop);
         });
@@ -312,7 +315,6 @@
             video.style.transition = "transform 0.3s";
         });
 
-        // Robust Gesture Engine
         let startX = 0, startY = 0, lastY = 0, swipeDir = null;
         let isPointerDown = false, lastTapTime = 0, longPressTimer = null;
         let currentBrightness = 1.0, originalSpeed = 1.0;
@@ -418,7 +420,6 @@
     if (document.body) {
         observer.observe(document.body, { childList: true, subtree: true });
     } else {
-        // Observe the root element until the body is available
         observer.observe(document.documentElement, { childList: true, subtree: true });
         document.addEventListener("DOMContentLoaded", () => {
             observer.disconnect();
