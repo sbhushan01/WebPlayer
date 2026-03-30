@@ -6,147 +6,275 @@
     <title>WebPlayer</title>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
         body {
             background: #0a0a10; display: flex; flex-direction: column;
-            align-items: center; justify-content: center; min-height: 100vh; color: white;
-            font-family: system-ui, -apple-system, sans-serif; overflow: hidden;
+            align-items: center; justify-content: center; min-height: 100vh;
+            color: white; font-family: system-ui, -apple-system, sans-serif; overflow: hidden;
         }
 
+        /* ── Error box ─────────────────────────────────────────────────────── */
         #error-box {
-            position: absolute; top: 20px; z-index: 100;
-            display: none; background: rgba(92, 26, 26, 0.9);
-            color: #ffaaaa; border: 1px solid #a33; border-radius: 8px;
-            padding: 12px 20px; width: 90%; max-width: 600px; text-align: center; font-size: 0.9rem;
+            position: absolute; top: 20px; z-index: 100; display: none; flex-direction: column;
+            align-items: center; gap: 12px; background: rgba(92, 26, 26, 0.9);
+            color: #ffaaaa; border: 1px solid #a33; border-radius: 10px;
+            padding: 16px 24px; width: 90%; max-width: 520px; text-align: center; font-size: 0.9rem;
         }
+        #error-retry {
+            background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25);
+            color: #fff; padding: 6px 20px; border-radius: 6px; cursor: pointer;
+            font-size: 0.85rem; transition: background 0.15s;
+        }
+        #error-retry:hover { background: rgba(255,255,255,0.28); transform: none; }
 
+        /* ── Video container ───────────────────────────────────────────────── */
         .video-container {
             position: relative; width: 100vw; height: 100vh; background: #000;
-            display: flex; align-items: center; justify-content: center; overflow: hidden; touch-action: none;
+            display: flex; align-items: center; justify-content: center;
+            overflow: hidden; touch-action: none;
         }
 
-        /* Video element - Removed native controls */
         video { width: 100%; height: 100%; object-fit: contain; outline: none; display: block; touch-action: none; }
 
-        /* Gesture & Feedback Zone */
+        /* ── Title bar ─────────────────────────────────────────────────────── */
+        .title-bar {
+            position: absolute; top: 0; left: 0; right: 0; z-index: 30;
+            padding: 14px 20px;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, transparent 100%);
+            font-size: 0.9rem; font-weight: 500; opacity: 1;
+            transition: opacity 0.3s ease; pointer-events: none;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .video-container.idle .title-bar { opacity: 0; }
+
+        /* ── Gesture & feedback ────────────────────────────────────────────── */
         .gesture-zone { position: absolute; inset: 0; z-index: 10; cursor: default; }
-        
+
         .feedback-overlay {
             position: absolute; top: 15%; left: 50%; transform: translateX(-50%);
-            background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); padding: 8px 16px;
-            border-radius: 20px; font-size: 1rem; font-weight: bold; opacity: 0;
-            pointer-events: none; transition: opacity 0.2s; z-index: 20;
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+            padding: 8px 18px; border-radius: 20px; font-size: 1rem; font-weight: bold;
+            opacity: 0; pointer-events: none; transition: opacity 0.2s; z-index: 20;
         }
 
-        /* Buffering Spinner */
+        /* ── Buffering spinner ─────────────────────────────────────────────── */
         #buffering-indicator {
             position: absolute; inset: 0; display: flex; align-items: center;
-            justify-content: center; pointer-events: none; opacity: 0; transition: opacity 0.2s ease; z-index: 15;
+            justify-content: center; pointer-events: none; opacity: 0;
+            transition: opacity 0.2s ease; z-index: 15;
         }
         #buffering-indicator.is-buffering { opacity: 1; }
         .spinner-ring {
-            width: 52px; height: 52px; border-radius: 50%; border: 4px solid rgba(255,255,255,0.15);
+            width: 52px; height: 52px; border-radius: 50%;
+            border: 4px solid rgba(255,255,255,0.15);
             border-top-color: #4a9eff; animation: spin 0.7s linear infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* Unified Control Bar */
+        /* ── Custom control bar ────────────────────────────────────────────── */
         .custom-controls {
             position: absolute; bottom: 0; left: 0; right: 0;
-            background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0) 100%);
+            background: linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0) 100%);
             padding: 40px 20px 15px; display: flex; flex-direction: column; gap: 10px;
             z-index: 30; opacity: 1; transition: opacity 0.3s ease;
         }
         .video-container.idle .custom-controls { opacity: 0; pointer-events: none; }
 
-        /* Progress Bar */
+        /* ── Progress bar ──────────────────────────────────────────────────── */
         .progress-wrapper {
-            position: relative; width: 100%; height: 6px; background: rgba(255,255,255,0.2);
-            border-radius: 3px; cursor: pointer; transition: height 0.1s; display: flex; align-items: center;
+            position: relative; width: 100%; height: 6px;
+            background: rgba(255,255,255,0.2); border-radius: 3px;
+            cursor: pointer; transition: height 0.1s; display: flex; align-items: center;
         }
         .progress-wrapper:hover { height: 8px; }
-        .progress-buffered { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(255,255,255,0.4); border-radius: 3px; width: 0%; pointer-events: none; }
-        .progress-played { position: absolute; left: 0; top: 0; bottom: 0; background: #4a9eff; border-radius: 3px; width: 0%; pointer-events: none; }
+        .progress-buffered { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(255,255,255,0.35); border-radius: 3px; width: 0%; pointer-events: none; }
+        .progress-played   { position: absolute; left: 0; top: 0; bottom: 0; background: #4a9eff; border-radius: 3px; width: 0%; pointer-events: none; }
         .progress-thumb {
-            position: absolute; left: 0%; width: 14px; height: 14px; background: #fff; border-radius: 50%;
-            transform: translateX(-50%); opacity: 0; transition: opacity 0.1s; pointer-events: none; box-shadow: 0 0 4px rgba(0,0,0,0.5);
+            position: absolute; left: 0%; width: 14px; height: 14px; background: #fff;
+            border-radius: 50%; transform: translateX(-50%); opacity: 0;
+            transition: opacity 0.1s; pointer-events: none; box-shadow: 0 0 4px rgba(0,0,0,0.5);
         }
-        .progress-wrapper:hover .progress-thumb, .progress-wrapper.dragging .progress-thumb { opacity: 1; }
+        .progress-wrapper:hover .progress-thumb,
+        .progress-wrapper.dragging .progress-thumb { opacity: 1; }
 
-        /* Controls Layout */
+        /* ── Controls layout ───────────────────────────────────────────────── */
         .controls-row { display: flex; align-items: center; justify-content: space-between; width: 100%; }
-        .controls-left, .controls-right { display: flex; align-items: center; gap: 16px; }
-        
-        .time-display { font-size: 0.85rem; font-variant-numeric: tabular-nums; opacity: 0.9; }
-        
+        .controls-left, .controls-right { display: flex; align-items: center; gap: 14px; }
+        .time-display { font-size: 0.85rem; font-variant-numeric: tabular-nums; opacity: 0.9; white-space: nowrap; }
+
         button {
             background: none; border: none; color: white; cursor: pointer; padding: 4px;
-            display: flex; align-items: center; justify-content: center; opacity: 0.85; transition: opacity 0.2s, transform 0.1s;
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0.85; transition: opacity 0.2s, transform 0.1s;
         }
         button:hover { opacity: 1; transform: scale(1.1); }
-        select { background: transparent; color: white; border: none; cursor: pointer; font-size: 0.9rem; font-weight: 500; outline: none; }
+
+        /* ── Volume ─────────────────────────────────────────────────────────── */
+        .volume-container { display: flex; align-items: center; gap: 8px; }
+        .volume-slider {
+            width: 0; opacity: 0;
+            transition: width 0.2s, opacity 0.2s;
+            accent-color: #4a9eff; cursor: pointer;
+        }
+        .volume-container:hover .volume-slider { width: 80px; opacity: 1; }
+        /* FIX: Always show volume slider on touch devices (no hover state). */
+        @media (pointer: coarse) {
+            .volume-slider { width: 70px !important; opacity: 1 !important; }
+        }
+
+        /* ── Speed pills ────────────────────────────────────────────────────── */
+        .speed-pills {
+            display: flex; align-items: center;
+            background: rgba(255,255,255,0.1); border-radius: 6px; padding: 2px; gap: 1px;
+        }
+        .speed-pill {
+            font-size: 0.78rem; padding: 3px 9px; border-radius: 4px; opacity: 0.65;
+            white-space: nowrap; transition: background 0.15s, opacity 0.15s;
+        }
+        .speed-pill:hover { opacity: 1; transform: none; }
+        .speed-pill.active { background: rgba(74,158,255,0.85); opacity: 1; }
+
+        /* ── Quality select ─────────────────────────────────────────────────── */
+        select {
+            background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 5px; padding: 3px 6px; cursor: pointer; font-size: 0.82rem; outline: none;
+        }
         select option { background: #1a1a2e; color: white; }
 
-        /* Volume Slider */
-        .volume-container { display: flex; align-items: center; gap: 8px; }
-        .volume-slider { width: 0px; opacity: 0; transition: width 0.2s, opacity 0.2s; accent-color: #4a9eff; cursor: pointer; }
-        .volume-container:hover .volume-slider { width: 80px; opacity: 1; }
+        /* ── Badges ─────────────────────────────────────────────────────────── */
+        .badges-container {
+            position: absolute; top: 20px; right: 20px;
+            display: flex; flex-direction: column; gap: 8px;
+            pointer-events: none; z-index: 20;
+        }
+        #skip-badge {
+            background: rgba(74,158,255,0.9); color: white;
+            padding: 6px 14px; border-radius: 6px; font-size: 0.85rem;
+            font-weight: bold; display: none; opacity: 0;
+            transform: translateY(-6px);
+            transition: opacity 0.18s ease, transform 0.18s ease;
+        }
+        #skip-badge.showing { opacity: 1; transform: translateY(0); }
 
-        /* EQ Popover Menu */
+        /* ── EQ popover ─────────────────────────────────────────────────────── */
         .eq-popover {
-            position: absolute; bottom: 80px; right: 20px; background: rgba(20,20,30,0.95);
-            backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px;
-            padding: 20px; display: none; flex-direction: column; gap: 16px; z-index: 40; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            width: 320px;
+            position: absolute; bottom: 80px; right: 20px;
+            background: rgba(20,20,30,0.95); backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1); border-radius: 12px;
+            padding: 20px; display: none; flex-direction: column; gap: 16px;
+            z-index: 40; box-shadow: 0 10px 30px rgba(0,0,0,0.5); width: 340px;
         }
         .eq-popover.active { display: flex; }
-        .eq-header { display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; font-weight: bold; color: #ccc; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;}
-        .eq-close { cursor: pointer; color: #fff; }
-        
+        .eq-header {
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 0.9rem; font-weight: bold; color: #ccc;
+            border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;
+        }
+        .eq-close { cursor: pointer; color: #fff; font-size: 1rem; line-height: 1; }
+
         .preamp-row { display: flex; align-items: center; gap: 12px; }
         .preamp-row label { font-size: 0.8rem; flex: 1; }
         .preamp-row input { flex: 2; accent-color: #ff4a4a; }
-        
-        .eq-sliders { display: flex; justify-content: space-between; height: 100px; padding-top: 10px; }
-        .eq-band { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-        .eq-band input[type="range"] { -webkit-appearance: slider-vertical; appearance: slider-vertical; width: 6px; height: 70px; accent-color: #4a9eff; }
+
+        /* FIX: Replaced deprecated -webkit-appearance:slider-vertical with writing-mode. */
+        .eq-sliders { display: flex; justify-content: space-around; height: 130px; padding-top: 8px; align-items: flex-end; }
+        .eq-band {
+            display: flex; flex-direction: column; align-items: center;
+            gap: 6px; position: relative;
+        }
+        .eq-band input[type="range"] {
+            writing-mode: vertical-lr;
+            direction: rtl;            /* up = max value */
+            width: 20px;
+            height: 80px;
+            accent-color: #4a9eff;
+            cursor: pointer;
+            margin: 0;
+        }
+        /* UI: Zero-line marker at the midpoint of each EQ slider. */
+        .eq-zero-mark {
+            position: absolute;
+            top: calc(50% - 6px); /* roughly midpoint of the slider track */
+            width: 16px; height: 1px;
+            background: rgba(255,255,255,0.3);
+            pointer-events: none;
+        }
         .eq-band span { font-size: 0.6rem; color: #888; }
 
-        /* Badges */
-        .badges-container { position: absolute; top: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; pointer-events: none; z-index: 20;}
-        #skip-badge { background: rgba(74, 158, 255, 0.9); color: white; padding: 6px 14px; border-radius: 6px; font-size: 0.85rem; font-weight: bold; display: none; }
+        /* ── Keyboard shortcuts modal ────────────────────────────────────────── */
+        #shortcuts-modal {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.65);
+            display: none; align-items: center; justify-content: center; z-index: 200;
+        }
+        #shortcuts-modal.active { display: flex; }
+        .shortcuts-box {
+            background: rgba(18,18,28,0.98); border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 14px; padding: 24px 28px; width: 360px; max-width: 90vw;
+        }
+        .shortcuts-header {
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 1rem; font-weight: 600; margin-bottom: 18px; color: #ddd;
+        }
+        #shortcuts-close {
+            background: none; border: none; color: #aaa; font-size: 1.2rem;
+            cursor: pointer; padding: 0; opacity: 0.7; line-height: 1;
+        }
+        #shortcuts-close:hover { opacity: 1; transform: none; }
+        .shortcuts-grid {
+            display: grid; grid-template-columns: auto 1fr; gap: 10px 20px;
+            align-items: center;
+        }
+        .shortcuts-grid kbd {
+            background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 5px; padding: 3px 8px; font-family: monospace; font-size: 0.8rem;
+            white-space: nowrap; text-align: center;
+        }
+        .shortcuts-grid span { font-size: 0.85rem; color: #bbb; }
+        .shortcuts-hint {
+            margin-top: 16px; font-size: 0.75rem; color: #666; text-align: center;
+        }
     </style>
 </head>
 <body>
 
-    <div id="error-box"></div>
+    <div id="error-box">
+        <span id="error-msg"></span>
+        <button id="error-retry">↺ Retry</button>
+    </div>
 
     <div class="video-container" id="video-container">
+        <div class="title-bar" id="title-bar"></div>
+
         <video id="main-player" autoplay playsinline></video>
-        <div class="gesture-zone" id="gesture-zone"></div>
-        <div id="feedback-overlay" class="feedback-overlay"></div>
-        
+        <div class="gesture-zone"    id="gesture-zone"></div>
+        <div class="feedback-overlay" id="feedback-overlay"></div>
+
         <div id="buffering-indicator"><div class="spinner-ring"></div></div>
-        
+
         <div class="badges-container">
-            <div id="skip-badge">Skipping...</div>
+            <div id="skip-badge">⏭ Skipping…</div>
         </div>
 
         <div class="custom-controls" id="custom-controls">
             <div class="progress-wrapper" id="progress-wrapper">
                 <div class="progress-buffered" id="progress-buffered"></div>
-                <div class="progress-played" id="progress-played"></div>
-                <div class="progress-thumb" id="progress-thumb"></div>
+                <div class="progress-played"   id="progress-played"></div>
+                <div class="progress-thumb"    id="progress-thumb"></div>
             </div>
 
             <div class="controls-row">
                 <div class="controls-left">
-                    <button id="play-pause-btn" title="Play (k)">
-                        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path id="play-icon-path" d="M8 5.14v14l11-7-11-7z"/></svg>
+                    <button id="play-pause-btn" title="Play (k / space)">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                            <path id="play-icon-path" d="M8 5.14v14l11-7-11-7z"/>
+                        </svg>
                     </button>
-                    
+
                     <div class="volume-container">
                         <button id="mute-btn" title="Mute (m)">
-                            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                            </svg>
                         </button>
                         <input type="range" class="volume-slider" id="volume-slider" min="0" max="1" step="0.05" value="1">
                     </div>
@@ -157,25 +285,39 @@
                 </div>
 
                 <div class="controls-right">
-                    <select id="quality-select" style="display: none;"></select>
-                    
-                    <select id="speed-select" title="Speed">
-                        <option value="0.5">0.5x</option>
-                        <option value="1" selected>1x</option>
-                        <option value="1.5">1.5x</option>
-                        <option value="2">2x</option>
-                    </select>
+                    <select id="quality-select" style="display:none;"></select>
+
+                    <!-- UI: Speed pills replace the plain <select> for clearer affordance. -->
+                    <div class="speed-pills" id="speed-pills">
+                        <button class="speed-pill" data-speed="0.5">0.5×</button>
+                        <button class="speed-pill active" data-speed="1">1×</button>
+                        <button class="speed-pill" data-speed="1.5">1.5×</button>
+                        <button class="speed-pill" data-speed="2">2×</button>
+                    </div>
 
                     <button id="eq-toggle-btn" title="Equalizer">
-                        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M10 20H8V4h2v16zm6 0h-2V4h2v16zm-3-8h-2v8h2v-8zm0-8h-2v4h2V4zM7 12H5V4h2v8zm0 8H5v-4h2v4zm12-8h-2v8h2v-8zm0-8h-2v4h2V4z"/></svg>
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                            <path d="M10 20H8V4h2v16zm6 0h-2V4h2v16zm-3-8h-2v8h2v-8zm0-8h-2v4h2V4zM7 12H5V4h2v8zm0 8H5v-4h2v4zm12-8h-2v8h2v-8zm0-8h-2v4h2V4z"/>
+                        </svg>
                     </button>
 
-                    <button id="pip-btn" title="Picture in Picture">
-                        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 7h-8v6h8V7zm2-4H3c-1.1 0-2 .9-2 2v14c0 1.1.9 1.99 2 1.99h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16.01H3V4.98h18v14.03z"/></svg>
+                    <!-- UI: Keyboard shortcut discovery button. -->
+                    <button id="shortcuts-btn" title="Keyboard shortcuts (?)">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                            <path d="M20 5H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 5H5v-2h2v2zm10 0H9v-2h8v2zm0-3h-2v-2h2v2zm0-3h-2V8h2v2zm3 6h-2v-2h2v2z"/>
+                        </svg>
+                    </button>
+
+                    <button id="pip-btn" title="Picture in picture">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                            <path d="M19 7h-8v6h8V7zm2-4H3c-1.1 0-2 .9-2 2v14c0 1.1.9 1.99 2 1.99h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16.01H3V4.98h18v14.03z"/>
+                        </svg>
                     </button>
 
                     <button id="fs-btn" title="Fullscreen (f)">
-                        <svg id="fs-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+                        <svg id="fs-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                            <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+                        </svg>
                     </button>
                 </div>
             </div>
@@ -183,16 +325,36 @@
 
         <div class="eq-popover" id="eq-popover">
             <div class="eq-header">
-                <span>10-Band Graphic Equalizer</span>
+                <span>10-band equalizer</span>
                 <span class="eq-close" id="eq-close-btn">✕</span>
             </div>
             <div class="preamp-row">
-                <label>Preamp (<span id="preamp-label">1.0</span>x)</label>
+                <label>Preamp (<span id="preamp-label">1.0</span>×)</label>
                 <input type="range" id="eq-preamp" min="0.1" max="3" step="0.1" value="1.0">
             </div>
             <div class="eq-sliders" id="eq-bands-container"></div>
         </div>
+    </div>
 
+    <!-- UI: Keyboard shortcuts modal (toggle with ? key or the toolbar button). -->
+    <div id="shortcuts-modal">
+        <div class="shortcuts-box">
+            <div class="shortcuts-header">
+                <span>Keyboard shortcuts</span>
+                <button id="shortcuts-close">✕</button>
+            </div>
+            <div class="shortcuts-grid">
+                <kbd>Space / K</kbd> <span>Play / Pause</span>
+                <kbd>← / J</kbd>     <span>Seek −10 seconds</span>
+                <kbd>→ / L</kbd>     <span>Seek +10 seconds</span>
+                <kbd>↑</kbd>         <span>Volume +5%</span>
+                <kbd>↓</kbd>         <span>Volume −5%</span>
+                <kbd>M</kbd>         <span>Toggle mute</span>
+                <kbd>F</kbd>         <span>Toggle fullscreen</span>
+                <kbd>?</kbd>         <span>Show this help</span>
+            </div>
+            <p class="shortcuts-hint">Double-tap left / right of screen to seek ±10 s on touch.</p>
+        </div>
     </div>
 
     <script src="player.js"></script>

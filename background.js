@@ -1,3 +1,15 @@
+// FIX: Keep service worker alive via periodic alarms so webRequest listeners
+// aren't lost after the 30-second idle termination window.
+chrome.runtime.onInstalled.addListener(() => {
+    chrome.alarms.create("keepAlive", { periodInMinutes: 0.5 });
+});
+chrome.runtime.onStartup.addListener(() => {
+    chrome.alarms.create("keepAlive", { periodInMinutes: 0.5 });
+});
+chrome.alarms.onAlarm.addListener(() => {
+    // no-op — the listener registration itself is what keeps the worker alive
+});
+
 function domainFilter(rawUrl) {
     try {
         const u = new URL(rawUrl);
@@ -13,7 +25,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "open_player" && request.videoSrc) {
         const videoUrl  = request.videoSrc;
         const urlFilter = domainFilter(videoUrl);
-        
+
         const ruleId = nextRuleId++;
         if (nextRuleId > 1_000_000) nextRuleId = 1;
 
@@ -48,9 +60,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     return;
                 }
 
-                const playerUrl = chrome.runtime.getURL(
-                    `player.html?src=${encodeURIComponent(videoUrl)}&title=${encodeURIComponent(request.pageTitle || "Video")}`
-                );
+                // FIX: Pass pageUrl so player.js can extract YouTube video IDs for SponsorBlock.
+                const params = new URLSearchParams({
+                    src:     videoUrl,
+                    title:   request.pageTitle || "Video",
+                    pageUrl: request.pageUrl   || ""
+                });
+                const playerUrl = chrome.runtime.getURL(`player.html?${params}`);
 
                 chrome.tabs.create({ url: playerUrl }, (tab) => {
                     if (chrome.runtime.lastError) {
@@ -59,8 +75,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                         return;
                     }
 
-                    // BUG FIX: Only remove the CORS bypass rule when the tab is actually closed. 
-                    // This prevents the video from breaking if the user hits refresh.
+                    // Only remove the CORS bypass rule when the tab is actually closed.
                     function cleanupListener(tabId) {
                         if (tabId === tab.id) {
                             chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [ruleId] });
@@ -78,8 +93,9 @@ chrome.webRequest.onHeadersReceived.addListener(
     (details) => {
         if (details.tabId >= 0 && (details.url.includes('.m3u8') || details.url.includes('.mpd'))) {
             chrome.tabs.sendMessage(details.tabId, {
-                action: "stream_detected",
-                url: details.url
+                action:  "stream_detected",
+                url:     details.url,
+                pageUrl: details.initiator || ""
             }, () => {
                 if (chrome.runtime.lastError) { /* Silently ignore if content script isn't ready */ }
             });

@@ -10,38 +10,6 @@
     visibility: hidden !important;
 }
 
-.custom-player-overlay-btn {
-    position: absolute;
-    z-index: 2147483647;
-    background: rgba(20, 20, 30, 0.6);
-    backdrop-filter: blur(4px);
-    color: rgba(255, 255, 255, 0.7);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    padding: 6px 10px;
-    border-radius: 6px;
-    font-size: 0.8rem;
-    cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    display: flex;
-    align-items: center;
-    overflow: hidden;
-    max-width: 34px;
-    white-space: nowrap;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-}
-
-.custom-player-overlay-btn svg {
-    flex-shrink: 0;
-}
-
-.custom-player-overlay-btn:hover {
-    background: rgba(74, 158, 255, 0.9);
-    color: white;
-    max-width: 200px;
-    padding: 6px 14px;
-    border-color: rgba(255, 255, 255, 0.3);
-}
-
 .wp-ripple {
     position: absolute;
     border-radius: 50%;
