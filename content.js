@@ -442,7 +442,7 @@
             }
         });
 
-        gestureZone.addEventListener("pointerup", e => {
+        const handleGestureEnd = e => {
             if (!isPointerDown) return;
             isPointerDown = false;
             gestureZone.releasePointerCapture(e.pointerId);
@@ -498,7 +498,10 @@
                     }, 200); // UI FIX: 300→200ms
                 }
             }
-        });
+        };
+
+        gestureZone.addEventListener("pointerup", handleGestureEnd);
+        gestureZone.addEventListener("pointercancel", handleGestureEnd);
     }
 
     findVideos();

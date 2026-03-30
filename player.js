@@ -395,7 +395,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         updateVolIcon();
     });
     muteBtn.addEventListener("click", () => {
-        player.muted       = !player.muted;
+        if (player.volume === 0 && player.muted) {
+            player.volume = 1;
+            player.muted = false;
+        } else if (player.volume === 0 && !player.muted) {
+            player.volume = 1;
+        } else {
+            player.muted = !player.muted;
+        }
         volumeSlider.value = player.muted ? 0 : player.volume;
         updateVolIcon();
     });
@@ -617,7 +624,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     });
 
-    gestureZone.addEventListener("pointerup", (e) => {
+    const handleGestureEnd = (e) => {
         if (!isPointerDown) return;
         isPointerDown = false;
         gestureZone.releasePointerCapture(e.pointerId);
@@ -674,7 +681,11 @@ document.addEventListener("DOMContentLoaded", async () => {
                 }, 200); // UI FIX: 300→200ms
             }
         }
-    });
+    };
+
+    gestureZone.addEventListener("pointerup", handleGestureEnd);
+    gestureZone.addEventListener("pointercancel", handleGestureEnd);
+
 
     // ── Web Audio API — Equalizer with persistence ────────────────────────────
     window.audioContext = null;
