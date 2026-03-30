@@ -1,11 +1,41 @@
 // Keep service worker alive via periodic alarms
-chrome.runtime.onInstalled.addListener(() => {
+function setupAlarms() {
     chrome.alarms.create("keepAlive", { periodInMinutes: 0.5 });
+}
+
+// Cleanup stale storage data (Older than 7 days) to prevent Quota Exhaustion
+function cleanupOldVideoProgress() {
+    chrome.storage.local.get(null, (items) => {
+        const now = Date.now();
+        const keysToRemove = [];
+        for (const [key, val] of Object.entries(items)) {
+            if (val && val.ts && (now - val.ts > 7 * 24 * 60 * 60 * 1000)) {
+                keysToRemove.push(key);
+            }
+        }
+        if (keysToRemove.length > 0) chrome.storage.local.remove(keysToRemove);
+    });
+}
+
+chrome.runtime.onInstalled.addListener(() => {
+    setupAlarms();
+    cleanupOldVideoProgress();
 });
 chrome.runtime.onStartup.addListener(() => {
-    chrome.alarms.create("keepAlive", { periodInMinutes: 0.5 });
+    setupAlarms();
+    cleanupOldVideoProgress();
 });
 chrome.alarms.onAlarm.addListener(() => {});
+
+// Globally registered listener for DNR cleanup to prevent Memory Leaks
+chrome.tabs.onRemoved.addListener(async (tabId) => {
+    const tabKey = tabId.toString();
+    const data = await chrome.storage.session.get(tabKey);
+    if (data[tabKey]) {
+        chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [data[tabKey]] });
+        chrome.storage.session.remove(tabKey);
+    }
+});
 
 function domainFilter(rawUrl) {
     try {
@@ -66,24 +96,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
                 try {
                     chrome.tabs.create({ url: playerUrl }, (tab) => {
-                        // Check for both runtime errors and silent failures (undefined tab)
                         if (chrome.runtime.lastError || !tab) {
                             console.error("[WebPlayer] Failed to open tab:", chrome.runtime.lastError?.message);
                             chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [ruleId] });
                             return;
                         }
-
-                        function cleanupListener(tabId) {
-                            if (tabId === tab.id) {
-                                chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [ruleId] });
-                                chrome.tabs.onRemoved.removeListener(cleanupListener);
-                            }
-                        }
-                        chrome.tabs.onRemoved.addListener(cleanupListener);
+                        // Persist the association to session storage instead of a volatile callback variable
+                        chrome.storage.session.set({ [tab.id.toString()]: ruleId });
                     });
                 } catch (err) {
                     console.error("[WebPlayer] Exception while creating tab:", err);
-                    // Catch synchronous errors to prevent orphaned rules
                     chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [ruleId] });
                 }
             }
@@ -91,17 +113,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
 });
 
-// Cache to prevent duplicate tab spawning based on the Source Tab ID
 const recentlyInterceptedTabs = new Set();
 
 chrome.webRequest.onHeadersReceived.addListener(
     (details) => {
         if (details.tabId >= 0 && (details.url.includes('.m3u8') || details.url.includes('.mpd'))) {
-            
-            // Ignore stream chunks to prevent loop triggers
             if (details.url.includes('.ts') || details.url.includes('.m4s') || /seg\d+/i.test(details.url)) return;
 
-            // Deduplicate requests based on Tab ID to prevent multiple tabs for sub-manifests
             if (recentlyInterceptedTabs.has(details.tabId)) return;
             
             recentlyInterceptedTabs.add(details.tabId);
@@ -112,7 +130,7 @@ chrome.webRequest.onHeadersReceived.addListener(
                 url:     details.url,
                 pageUrl: details.initiator || ""
             }, () => {
-                if (chrome.runtime.lastError) { /* Silently ignore if content script isn't ready */ }
+                if (chrome.runtime.lastError) { /* Silently ignore */ }
             });
         }
     },
