@@ -28,8 +28,7 @@
     "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://sponsor.ajay.app;"
   },
   "background": {
-    "service_worker": "background.js",
-    "scripts": ["background.js"]
+    "service_worker": "background.js"
   },
   "content_scripts": [
     {
