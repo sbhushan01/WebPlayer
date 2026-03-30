@@ -1,14 +1,11 @@
-// FIX: Keep service worker alive via periodic alarms so webRequest listeners
-// aren't lost after the 30-second idle termination window.
+// Keep service worker alive via periodic alarms
 chrome.runtime.onInstalled.addListener(() => {
     chrome.alarms.create("keepAlive", { periodInMinutes: 0.5 });
 });
 chrome.runtime.onStartup.addListener(() => {
     chrome.alarms.create("keepAlive", { periodInMinutes: 0.5 });
 });
-chrome.alarms.onAlarm.addListener(() => {
-    // no-op — the listener registration itself is what keeps the worker alive
-});
+chrome.alarms.onAlarm.addListener(() => {});
 
 function domainFilter(rawUrl) {
     try {
@@ -87,8 +84,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
 });
 
-// Cache to prevent duplicate tab spawning for the same stream
-const recentlyIntercepted = new Set();
+// Cache to prevent duplicate tab spawning based on the Source Tab ID
+const recentlyInterceptedTabs = new Set();
 
 chrome.webRequest.onHeadersReceived.addListener(
     (details) => {
@@ -97,12 +94,11 @@ chrome.webRequest.onHeadersReceived.addListener(
             // Ignore stream chunks to prevent loop triggers
             if (details.url.includes('.ts') || details.url.includes('.m4s') || /seg\d+/i.test(details.url)) return;
 
-            const cleanUrl = details.url.split('?')[0];
+            // Deduplicate requests based on Tab ID to prevent multiple tabs for sub-manifests
+            if (recentlyInterceptedTabs.has(details.tabId)) return;
             
-            // Deduplicate requests
-            if (recentlyIntercepted.has(cleanUrl)) return;
-            recentlyIntercepted.add(cleanUrl);
-            setTimeout(() => recentlyIntercepted.delete(cleanUrl), 5000); 
+            recentlyInterceptedTabs.add(details.tabId);
+            setTimeout(() => recentlyInterceptedTabs.delete(details.tabId), 5000);
 
             chrome.tabs.sendMessage(details.tabId, {
                 action:  "stream_detected",
