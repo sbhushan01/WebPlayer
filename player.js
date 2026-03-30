@@ -8,9 +8,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     const titleBar       = document.getElementById("title-bar");
 
     const playBtn        = document.getElementById("play-pause-btn");
-    const playIconPath   = document.getElementById("play-icon-path");
+    const playIcon       = document.getElementById("play-icon"); // Material Icon
     const volumeSlider   = document.getElementById("volume-slider");
     const muteBtn        = document.getElementById("mute-btn");
+    const muteIcon       = document.getElementById("mute-icon"); // Material Icon
     const timeCur        = document.getElementById("time-current");
     const timeDur        = document.getElementById("time-duration");
     const progWrapper    = document.getElementById("progress-wrapper");
@@ -18,7 +19,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const progBuffered   = document.getElementById("progress-buffered");
     const progThumb      = document.getElementById("progress-thumb");
     const fsBtn          = document.getElementById("fs-btn");
-    const fsIcon         = document.getElementById("fs-icon");
+    const fsIcon         = document.getElementById("fs-icon"); // Material Icon
     const pipBtn         = document.getElementById("pip-btn");
     const qualitySelect  = document.getElementById("quality-select");
     const speedPillsEl   = document.getElementById("speed-pills");
@@ -262,7 +263,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         updateProgressFromEvent(e);
         const onMove = (ev) => updateProgressFromEvent(ev);
         
-        // Bug 4 Fix: include pointercancel to guarantee listener removal
         const onUp   = () => {
             isDraggingProgress = false;
             progWrapper.classList.remove("dragging");
@@ -275,22 +275,32 @@ document.addEventListener("DOMContentLoaded", async () => {
         window.addEventListener("pointercancel", onUp);
     });
 
+    // --- Material UI Icon Updates ---
     const togglePlay = () => player.paused ? player.play() : player.pause();
     playBtn.addEventListener("click", togglePlay);
-    player.addEventListener("play",  () => playIconPath.setAttribute("d", "M6 19h4V5H6v14zm8-14v14h4V5h-4z"));
-    player.addEventListener("pause", () => playIconPath.setAttribute("d", "M8 5.14v14l11-7-11-7z"));
+    player.addEventListener("play",  () => playIcon.textContent = "pause");
+    player.addEventListener("pause", () => playIcon.textContent = "play_arrow");
 
     player.addEventListener("waiting", () => bufferEl.classList.add("is-buffering"));
     player.addEventListener("playing", () => bufferEl.classList.remove("is-buffering"));
     player.addEventListener("error",   () => bufferEl.classList.remove("is-buffering"));
 
+    const updateVolIcon = () => {
+        if (player.muted || player.volume === 0) muteIcon.textContent = "volume_off";
+        else if (player.volume < 0.5) muteIcon.textContent = "volume_down";
+        else muteIcon.textContent = "volume_up";
+    };
+
     volumeSlider.addEventListener("input", (e) => {
         player.volume = parseFloat(e.target.value);
         player.muted  = player.volume === 0;
+        updateVolIcon();
     });
+    
     muteBtn.addEventListener("click", () => {
         player.muted        = !player.muted;
         volumeSlider.value  = player.muted ? 0 : player.volume;
+        updateVolIcon();
     });
 
     speedPillsEl.querySelectorAll(".speed-pill").forEach(pill => {
@@ -313,9 +323,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const onFSChange = () => {
         const isFS = document.fullscreenElement || document.webkitFullscreenElement;
-        fsIcon.innerHTML = isFS
-            ? `<path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>`
-            : `<path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>`;
+        fsIcon.textContent = isFS ? "fullscreen_exit" : "fullscreen";
     };
     document.addEventListener("fullscreenchange",       onFSChange);
     document.addEventListener("webkitfullscreenchange", onFSChange);
@@ -399,8 +407,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
             if (e.clientX > rect.left + rect.width / 2) {
                 player.volume       = Math.max(0, Math.min(1, player.volume - deltaY * 0.005));
-                player.muted        = false; // Bug 3 Fix: ensure mute unsets when modifying vol
+                player.muted        = false; 
                 volumeSlider.value  = player.volume;
+                updateVolIcon();
                 showFeedback(`Vol: ${Math.round(player.volume * 100)}%`);
             } else {
                 currentBrightness       = Math.max(0.1, Math.min(2.5, currentBrightness - deltaY * 0.01));
@@ -419,7 +428,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (player.playbackRate === 2.0 && originalSpeed !== 2.0) {
             player.playbackRate = originalSpeed;
             showFeedback("1× Speed");
-            lastTapTime = 0; // Bug 8 Fix: Reset tap time to prevent accidental pausing upon release
+            lastTapTime = 0; 
             return;
         }
 
@@ -441,187 +450,10 @@ document.addEventListener("DOMContentLoaded", async () => {
                 ripple.className = "wp-ripple";
                 ripple.style.position = "absolute";
                 ripple.style.borderRadius = "50%";
-                ripple.style.background = "rgba(255, 255, 255, 0.4)";
+                ripple.style.background = "var(--md-sys-color-primary)"; // Material Primary Ripple
                 ripple.style.transform = "scale(0)";
                 ripple.style.pointerEvents = "none";
-                ripple.style.animation = "wp-ripple-anim 0.4s linear";
+                ripple.style.opacity = "0.4";
+                ripple.style.animation = "wp-ripple-anim 0.4s cubic-bezier(0.4, 0, 0.2, 1)";
                 
-                ripple.style.left = `${e.clientX - rect.left - 25}px`;
-                ripple.style.top = `${e.clientY - rect.top - 25}px`;
-                ripple.style.width = ripple.style.height = "50px";
-                gestureZone.appendChild(ripple);
-                setTimeout(() => ripple.remove(), 400);
-
-                if (!document.getElementById('wp-ripple-style')) {
-                    const style = document.createElement('style');
-                    style.id = 'wp-ripple-style';
-                    style.textContent = `@keyframes wp-ripple-anim { to { transform: scale(4); opacity: 0; } }`;
-                    document.head.appendChild(style);
-                }
-
-                if (e.clientX < rect.left + rect.width * 0.33) {
-                    player.currentTime = Math.max(0, player.currentTime - 10);
-                    showFeedback("−10s");
-                } else if (e.clientX > rect.left + rect.width * 0.66) {
-                    player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 10);
-                    showFeedback("+10s");
-                } else {
-                    togglePlay();
-                    showFeedback(player.paused ? "Paused" : "Playing");
-                }
-                lastTapTime = 0;
-            } else {
-                lastTapTime = now;
-                tapTimeout  = setTimeout(() => {
-                    togglePlay();
-                    lastTapTime = 0;
-                }, 300);
-            }
-        }
-    });
-
-    let audioContext, preampNode, eqNodes = [], audioInitialized = false;
-    const FREQS  = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
-    const LABELS = ["31", "62", "125", "250", "500", "1K",  "2K",  "4K",  "8K",  "16K"];
-
-    let savedEq = { preamp: 1.0, bands: new Array(10).fill(0) };
-    chrome.storage.sync.get("eq").then(s => {
-        if (s.eq) savedEq = { ...savedEq, ...s.eq };
-        setupEQUI();
-    });
-
-    function setupEQUI() {
-        preampSlider.value = savedEq.preamp;
-        preampLabel.textContent = savedEq.preamp;
-        preampSlider.addEventListener("input", e => {
-            const val = parseFloat(e.target.value);
-            preampLabel.textContent = val.toFixed(1);
-            if (preampNode) preampNode.gain.value = val;
-            savedEq.preamp = val;
-            chrome.storage.sync.set({ eq: savedEq });
-        });
-
-        eqBandsContainer.innerHTML = "";
-        FREQS.forEach((f, i) => {
-            const div    = document.createElement("div");
-            div.className = "eq-band";
-
-            const slider  = document.createElement("input");
-            slider.type   = "range";
-            slider.min    = "-15"; slider.max = "15"; slider.step = "1";
-            slider.value  = savedEq.bands[i];
-            slider.addEventListener("input", e => {
-                const val = parseFloat(e.target.value);
-                if (eqNodes[i]) eqNodes[i].gain.value = val;
-                savedEq.bands[i] = val;
-                chrome.storage.sync.set({ eq: savedEq });
-            });
-
-            const zeroMark = document.createElement("div");
-            zeroMark.className = "eq-zero-mark";
-
-            const lbl = document.createElement("span");
-            lbl.textContent = LABELS[i];
-
-            div.appendChild(slider);
-            div.appendChild(zeroMark);
-            div.appendChild(lbl);
-            eqBandsContainer.appendChild(div);
-        });
-    }
-
-    const initAudioEngine = () => {
-        if (audioInitialized) return;
-        audioInitialized = true; // Bug 6 Fix: Set flag immediately to stop rapid duplicate calls
-        
-        try {
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            if (audioContext.state === "suspended") {
-                audioContext.resume();
-            }
-            
-            player.crossOrigin = "anonymous";
-            const track = audioContext.createMediaElementSource(player);
-            
-            preampNode = audioContext.createGain();
-            preampNode.gain.value = savedEq.preamp;
-            let prev = preampNode;
-            track.connect(preampNode);
-            
-            FREQS.forEach((f, i) => {
-                const eq = audioContext.createBiquadFilter();
-                eq.type = (i === 0) ? "lowshelf" : (i === FREQS.length - 1) ? "highshelf" : "peaking";
-                eq.frequency.value = f;
-                eq.gain.value      = savedEq.bands[i];
-                if (eq.type === "peaking") eq.Q.value = 1.41;
-                eqNodes.push(eq);
-                prev.connect(eq);
-                prev = eq;
-            });
-            prev.connect(audioContext.destination);
-        } catch (err) {
-            console.warn("AudioContext failed to initialize:", err);
-            audioInitialized = false; 
-        }
-    };
-
-    // Bug 6 Fix: One single global listener attached to pointerdown avoids double-bubbling
-    document.addEventListener("pointerdown", initAudioEngine, { once: true });
-
-    player.addEventListener("play", () => {
-        if (audioContext && audioContext.state === "suspended") audioContext.resume();
-    });
-
-    window.addEventListener("keydown", (e) => {
-        if (["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName)) return;
-
-        switch (e.key.toLowerCase()) {
-            case " ":
-            case "k":
-                e.preventDefault();
-                togglePlay();
-                showFeedback(player.paused ? "Paused" : "Playing");
-                break;
-            case "arrowleft":
-            case "j":
-                e.preventDefault();
-                player.currentTime = Math.max(0, player.currentTime - 10);
-                showFeedback("−10s");
-                break;
-            case "arrowright":
-            case "l":
-                e.preventDefault();
-                player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 10);
-                showFeedback("+10s");
-                break;
-            case "arrowup":
-                e.preventDefault();
-                player.volume      = Math.min(1, player.volume + 0.05);
-                player.muted       = false; // Bug 3 Fix
-                volumeSlider.value = player.volume;
-                showFeedback(`Vol: ${Math.round(player.volume * 100)}%`);
-                break;
-            case "arrowdown":
-                e.preventDefault();
-                player.volume      = Math.max(0, player.volume - 0.05);
-                player.muted       = false; // Bug 3 Fix
-                volumeSlider.value = player.volume;
-                showFeedback(`Vol: ${Math.round(player.volume * 100)}%`);
-                break;
-            case "f":
-                e.preventDefault();
-                toggleFS();
-                break;
-            case "m":
-                e.preventDefault();
-                player.muted       = !player.muted;
-                volumeSlider.value = player.muted ? 0 : player.volume;
-                showFeedback(player.muted ? "Muted" : "Unmuted");
-                break;
-            case "?":
-                e.preventDefault();
-                toggleShortcuts();
-                break;
-        }
-    });
-});
+  
