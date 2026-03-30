@@ -70,10 +70,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!videoSrc) { showError("No video source provided."); return; }
 
     const cleanUrl = videoSrc.split("?")[0];
+    
+    // Resume playback and handle backwards compatibility with old number saves
     chrome.storage.local.get([cleanUrl]).then(res => {
         if (res[cleanUrl]) {
+            const savedTime = typeof res[cleanUrl] === 'number' ? res[cleanUrl] : res[cleanUrl].time;
             const seekToSaved = () => {
-                if (player.duration !== Infinity) player.currentTime = res[cleanUrl];
+                if (player.duration !== Infinity && savedTime) player.currentTime = savedTime;
                 player.removeEventListener("loadedmetadata", seekToSaved);
             };
             if (player.readyState >= 1) seekToSaved();
@@ -85,7 +88,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     player.addEventListener("timeupdate", () => {
         const now = Date.now();
         if (now - lastSave > 5000 && !window.__isSkipping && player.duration !== Infinity) {
-            chrome.storage.local.set({ [cleanUrl]: player.currentTime });
+            // Save as an object with a timestamp so background.js can clear expired data
+            chrome.storage.local.set({ [cleanUrl]: { time: player.currentTime, ts: now } });
             lastSave = now;
         }
     });
@@ -257,14 +261,18 @@ document.addEventListener("DOMContentLoaded", async () => {
         progWrapper.classList.add("dragging");
         updateProgressFromEvent(e);
         const onMove = (ev) => updateProgressFromEvent(ev);
+        
+        // Bug 4 Fix: include pointercancel to guarantee listener removal
         const onUp   = () => {
             isDraggingProgress = false;
             progWrapper.classList.remove("dragging");
             window.removeEventListener("pointermove", onMove);
             window.removeEventListener("pointerup",   onUp);
+            window.removeEventListener("pointercancel", onUp);
         };
         window.addEventListener("pointermove", onMove);
         window.addEventListener("pointerup",   onUp);
+        window.addEventListener("pointercancel", onUp);
     });
 
     const togglePlay = () => player.paused ? player.play() : player.pause();
@@ -391,6 +399,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
             if (e.clientX > rect.left + rect.width / 2) {
                 player.volume       = Math.max(0, Math.min(1, player.volume - deltaY * 0.005));
+                player.muted        = false; // Bug 3 Fix: ensure mute unsets when modifying vol
                 volumeSlider.value  = player.volume;
                 showFeedback(`Vol: ${Math.round(player.volume * 100)}%`);
             } else {
@@ -410,6 +419,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (player.playbackRate === 2.0 && originalSpeed !== 2.0) {
             player.playbackRate = originalSpeed;
             showFeedback("1× Speed");
+            lastTapTime = 0; // Bug 8 Fix: Reset tap time to prevent accidental pausing upon release
             return;
         }
 
@@ -522,6 +532,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const initAudioEngine = () => {
         if (audioInitialized) return;
+        audioInitialized = true; // Bug 6 Fix: Set flag immediately to stop rapid duplicate calls
+        
         try {
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
             if (audioContext.state === "suspended") {
@@ -547,14 +559,14 @@ document.addEventListener("DOMContentLoaded", async () => {
                 prev = eq;
             });
             prev.connect(audioContext.destination);
-            audioInitialized = true;
         } catch (err) {
             console.warn("AudioContext failed to initialize:", err);
+            audioInitialized = false; 
         }
     };
 
-    document.addEventListener("click", initAudioEngine, { once: true });
-    playBtn.addEventListener("click", initAudioEngine, { once: true });
+    // Bug 6 Fix: One single global listener attached to pointerdown avoids double-bubbling
+    document.addEventListener("pointerdown", initAudioEngine, { once: true });
 
     player.addEventListener("play", () => {
         if (audioContext && audioContext.state === "suspended") audioContext.resume();
@@ -585,12 +597,14 @@ document.addEventListener("DOMContentLoaded", async () => {
             case "arrowup":
                 e.preventDefault();
                 player.volume      = Math.min(1, player.volume + 0.05);
+                player.muted       = false; // Bug 3 Fix
                 volumeSlider.value = player.volume;
                 showFeedback(`Vol: ${Math.round(player.volume * 100)}%`);
                 break;
             case "arrowdown":
                 e.preventDefault();
                 player.volume      = Math.max(0, player.volume - 0.05);
+                player.muted       = false; // Bug 3 Fix
                 volumeSlider.value = player.volume;
                 showFeedback(`Vol: ${Math.round(player.volume * 100)}%`);
                 break;
