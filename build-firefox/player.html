@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="blue">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>WebPlayer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0" rel="stylesheet" />
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        /* Material 3 Dark Themes */
+        :root[data-theme="blue"] {
+            --md-sys-color-background:        #0E1116;
+            --md-sys-color-surface:           #1A1D24;
+            --md-sys-color-surface-container: rgba(26, 29, 36, 0.65);
+            --md-sys-color-primary:           #A8C7FA;
+            --md-sys-color-on-primary:        #062E6F;
+            --md-sys-color-on-surface:        #E3E3E3;
+            --md-sys-color-on-surface-variant:#C4C7C5;
+            --md-sys-color-error:             #F2B8B5;
+            --glow-color:                     rgba(168, 199, 250, 0.6);
+        }
+        :root[data-theme="purple"] {
+            --md-sys-color-background:        #140C1A;
+            --md-sys-color-surface:           #21162A;
+            --md-sys-color-surface-container: rgba(33, 22, 42, 0.65);
+            --md-sys-color-primary:           #D0BCFF;
+            --md-sys-color-on-primary:        #381E72;
+            --md-sys-color-on-surface:        #E6E0E9;
+            --md-sys-color-on-surface-variant:#CAC4D0;
+            --md-sys-color-error:             #F2B8B5;
+            --glow-color:                     rgba(208, 188, 255, 0.6);
+        }
+        :root[data-theme="emerald"] {
+            --md-sys-color-background:        #0D1A14;
+            --md-sys-color-surface:           #152920;
+            --md-sys-color-surface-container: rgba(21, 41, 32, 0.65);
+            --md-sys-color-primary:           #82C99E;
+            --md-sys-color-on-primary:        #00391C;
+            --md-sys-color-on-surface:        #E2E3E1;
+            --md-sys-color-on-surface-variant:#C1C9C3;
+            --md-sys-color-error:             #F2B8B5;
+            --glow-color:                     rgba(130, 201, 158, 0.6);
+        }
+        :root {
+            --md-elevation-3: 0px 4px 8px 3px rgba(0,0,0,0.15), 0px 1px 3px rgba(0,0,0,0.3);
+            --md-elevation-8: 0px 8px 16px 2px rgba(0,0,0,0.2), 0px 4px 24px 8px rgba(0,0,0,0.15);
+            --glass-border: 1px solid rgba(255, 255, 255, 0.08);
+            transition: --md-sys-color-primary 0.4s ease;
+        }
+
+        body {
+            background: var(--md-sys-color-background);
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center; min-height: 100vh;
+            color: var(--md-sys-color-on-surface);
+            font-family: 'Roboto', system-ui, sans-serif;
+            overflow: hidden;
+            transition: background 0.4s ease;
+        }
+
+        /* ── Video container ─────────────────────────────────────────────────── */
+        .video-container {
+            position: relative; width: 100vw; height: 100vh; background: #000;
+            display: flex; align-items: center; justify-content: center;
+            overflow: hidden; touch-action: none;
+        }
+        video { width: 100%; height: 100%; object-fit: contain; outline: none; display: block; }
+        .gesture-zone { position: absolute; inset: 0; z-index: 10; cursor: default; }
+
+        /* ── Title bar ───────────────────────────────────────────────────────── */
+        .title-bar {
+            position: absolute; top: 0; left: 0; right: 0; z-index: 30;
+            padding: 24px; background: linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, transparent 100%);
+            font-size: 1.25rem; font-weight: 500; opacity: 1; letter-spacing: 0.5px;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.8); transition: opacity 0.4s ease; pointer-events: none;
+        }
+        .video-container.idle .title-bar { opacity: 0; }
+
+        /* ── Buffering spinner (Modern double-ring) ──────────────────────────── */
+        #buffering-indicator {
+            position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+            pointer-events: none; opacity: 0; transition: opacity 0.3s ease; z-index: 15;
+            background: rgba(0,0,0,0.4); backdrop-filter: blur(2px);
+        }
+        #buffering-indicator.is-buffering { opacity: 1; }
+        .spinner-ring {
+            position: absolute; width: 64px; height: 64px; border-radius: 50%;
+            border: 4px solid transparent; border-top-color: var(--md-sys-color-primary);
+            animation: spin 1s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+            filter: drop-shadow(0 0 12px var(--glow-color));
+        }
+        .spinner-ring::after {
+            content: ''; position: absolute; top: 4px; left: 4px; right: 4px; bottom: 4px;
+            border-radius: 50%; border: 4px solid transparent; border-bottom-color: var(--md-sys-color-on-surface);
+            animation: spin-reverse 0.7s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes spin-reverse { to { transform: rotate(-360deg); } }
+
+        /* ── Floating Control Island (Glassmorphism) ─────────────────────────── */
+        .custom-controls-wrapper {
+            position: absolute; bottom: 32px; left: 50%; transform: translateX(-50%);
+            width: 95%; max-width: 1400px; z-index: 30; opacity: 1;
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease-out;
+            display: flex; flex-direction: column; gap: 8px;
+        }
+        .video-container.idle .custom-controls-wrapper { opacity: 0; transform: translate(-50%, 20px); pointer-events: none; }
+        
+        .custom-controls {
+            background: var(--md-sys-color-surface-container);
+            backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+            border: var(--glass-border); border-radius: 28px;
+            padding: 16px 28px; display: flex; flex-direction: column; gap: 14px;
+            box-shadow: var(--md-elevation-8); transition: background 0.4s ease;
+        }
+
+        /* ── Progress bar ────────────────────────────────────────────────────── */
+        .progress-wrapper {
+            position: relative; width: 100%; height: 6px; background: rgba(255,255,255,0.15);
+            border-radius: 4px; cursor: pointer; transition: height 0.2s, background 0.3s;
+            display: flex; align-items: center; box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
+        }
+        .progress-wrapper::before { content: ''; position: absolute; top: -20px; bottom: -20px; left: 0; right: 0; }
+        .progress-wrapper:hover { height: 8px; background: rgba(255,255,255,0.25); }
+        .progress-buffered {
+            position: absolute; left: 0; top: 0; bottom: 0; background: rgba(255,255,255,0.3);
+            border-radius: 4px; width: 0%; pointer-events: none; transition: width 0.1s linear;
+        }
+        .progress-played {
+            position: absolute; left: 0; top: 0; bottom: 0; background: var(--md-sys-color-primary);
+            border-radius: 4px; width: 0%; pointer-events: none;
+            box-shadow: 0 0 16px var(--glow-color); transition: background 0.4s;
+        }
+        .progress-thumb {
+            position: absolute; left: 0%; width: 18px; height: 18px; background: #FFF;
+            border-radius: 50%; transform: translateX(-50%) scale(0.6); opacity: 1;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4), 0 0 12px var(--glow-color);
+            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), left 0.1s linear; pointer-events: none;
+        }
+        .progress-wrapper:hover .progress-thumb, .progress-wrapper.dragging .progress-thumb {
+            transform: translateX(-50%) scale(1.1); box-shadow: 0 4px 12px rgba(0,0,0,0.5), 0 0 20px var(--glow-color);
+        }
+
+        /* ── Controls layout ─────────────────────────────────────────────────── */
+        .controls-row { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+        .controls-left, .controls-right { display: flex; align-items: center; gap: 8px; }
+        .time-display {
+            font-size: 0.9rem; font-variant-numeric: tabular-nums; 
+            color: var(--md-sys-color-on-surface-variant); margin-left: 12px; font-weight: 500;
+        }
+
+        button {
+            background: rgba(255,255,255,0.0); border: none; color: var(--md-sys-color-on-surface);
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            border-radius: 50%; width: 44px; height: 44px; transition: all 0.2s ease; flex-shrink: 0;
+        }
+        button:hover { background-color: rgba(255,255,255,0.12); transform: scale(1.05); }
+        button:active { transform: scale(0.95); }
+        .material-symbols-rounded { font-size: 28px; }
+
+        /* ── Volume ──────────────────────────────────────────────────────────── */
+        .volume-container { display: flex; align-items: center; gap: 0; }
+        .volume-slider {
+            width: 0; opacity: 0; height: 4px; cursor: pointer; accent-color: var(--md-sys-color-primary);
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s, margin-left 0.3s, background 0.4s;
+        }
+        .volume-container:hover .volume-slider { width: 90px; opacity: 1; margin-left: 8px; }
+        @media (pointer: coarse) { .volume-container { display: none; } } /* Hide volume slider on mobile/touch, rely on physical OS buttons */
+
+        /* ── Speed pills ─────────────────────────────────────────────────────── */
+        .speed-pills { display: flex; align-items: center; gap: 6px; margin: 0 8px; }
+        .speed-pill {
+            font-size: 0.85rem; font-weight: 600; padding: 0 16px; height: 36px; border-radius: 18px;
+            background: rgba(255,255,255,0.06); color: var(--md-sys-color-on-surface-variant);
+            transition: all 0.3s ease; border: 1px solid rgba(255,255,255,0.08); width: auto;
+        }
+        .speed-pill:hover { background: rgba(255,255,255,0.15); color: var(--md-sys-color-on-surface); }
+        .speed-pill.active {
+            background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); 
+            border-color: transparent; box-shadow: 0 0 16px var(--glow-color); text-shadow: none;
+        }
+
+        /* ── Quality dropdown ────────────────────────────────────────────────── */
+        .quality-container { position: relative; display: none; align-items: center; }
+        .quality-dropdown {
+            position: absolute; bottom: calc(100% + 24px); right: -10px;
+            background: var(--md-sys-color-surface-container); backdrop-filter: blur(24px);
+            border: var(--glass-border); border-radius: 16px; padding: 8px; flex-direction: column; gap: 4px;
+            z-index: 50; box-shadow: var(--md-elevation-8); min-width: 140px; display: none;
+            transition: background 0.4s ease;
+        }
+        .quality-dropdown.open { display: flex; animation: slideUp 0.2s cubic-bezier(0.4,0,0.2,1); }
+        .quality-option {
+            font-size: 0.9rem; font-weight: 500; padding: 10px 16px; border-radius: 10px; width: 100%; height: auto;
+            text-align: left; justify-content: flex-start; background: none; color: var(--md-sys-color-on-surface-variant);
+        }
+        .quality-option:hover { background: rgba(255,255,255,0.1); color: var(--md-sys-color-on-surface); transform: scale(1); }
+        .quality-option.active { color: var(--md-sys-color-primary); background: rgba(255,255,255,0.05); }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* ── Popovers (EQ, Theme) ────────────────────────────────────────────── */
+        .popover-card {
+            position: absolute; bottom: calc(100% + 24px); right: 0;
+            background: var(--md-sys-color-surface-container); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+            border: var(--glass-border); border-radius: 24px; padding: 24px; display: none; flex-direction: column; gap: 24px;
+            z-index: 40; box-shadow: var(--md-elevation-8); transform-origin: bottom right;
+            transition: background 0.4s;
+        }
+        .popover-card.active { display: flex; animation: slideUpScale 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+        @keyframes slideUpScale { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+
+        .eq-popover { width: min(420px, calc(100vw - 48px)); }
+        @media (max-width: 500px) { .eq-popover { right: auto; left: 0; transform-origin: bottom left; } }
+        
+        .popover-header { display: flex; justify-content: space-between; align-items: center; font-size: 1.25rem; font-weight: 600; color: var(--md-sys-color-on-surface); }
+        .popover-close { opacity: 0.7; transition: opacity 0.2s; background: none; color: var(--md-sys-color-on-surface); border-radius: 50%; width: 36px; height: 36px; padding: 0; }
+        .popover-close:hover { opacity: 1; background: rgba(255,255,255,0.1); }
+        
+        /* EQ Specific */
+        .eq-band input[type="range"] { accent-color: var(--md-sys-color-primary); cursor: pointer; transition: accent-color 0.4s; }
+        .preamp-row input { accent-color: var(--md-sys-color-error); cursor: pointer; }
+        .eq-sliders { display: flex; justify-content: space-around; height: 160px; align-items: flex-end; }
+        .eq-band { display: flex; flex-direction: column; align-items: center; gap: 12px; position: relative; }
+        .eq-band input[type="range"] { writing-mode: vertical-lr; direction: rtl; width: 24px; height: 110px; margin: 0; }
+        .eq-zero-mark { position: absolute; top: calc(50% - 12px); width: 16px; height: 2px; background: rgba(255,255,255,0.25); pointer-events: none; border-radius: 1px; }
+        .eq-band span { font-size: 0.75rem; color: var(--md-sys-color-on-surface-variant); font-weight: 600; }
+        .preamp-row { display: flex; align-items: center; gap: 16px; font-size: 0.95rem; font-weight: 500; background: rgba(255,255,255,0.05); padding: 12px 16px; border-radius: 12px; }
+
+        /* Theme Popover */
+        .theme-popover { width: 300px; right: 80px; }
+        .theme-grid { display: flex; gap: 16px; justify-content: center; }
+        .theme-btn {
+            width: 48px; height: 48px; border-radius: 50%; border: 3px solid transparent; outline: none; transition: all 0.2s;
+            box-shadow: var(--md-elevation-3); cursor: pointer; padding: 0;
+        }
+        .theme-btn:hover { transform: scale(1.1); }
+        .theme-btn.active { border-color: #FFF; box-shadow: 0 0 16px rgba(255,255,255,0.4); transform: scale(1.15); }
+        .theme-btn[data-value="blue"] { background: linear-gradient(135deg, #A8C7FA, #062E6F); }
+        .theme-btn[data-value="purple"] { background: linear-gradient(135deg, #D0BCFF, #381E72); }
+        .theme-btn[data-value="emerald"] { background: linear-gradient(135deg, #82C99E, #00391C); }
+
+        /* ── Feedback & Badges ───────────────────────────────────────────────── */
+        .feedback-overlay {
+            position: absolute; top: 18%; left: 50%; transform: translateX(-50%);
+            background: rgba(10, 10, 15, 0.75); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            padding: 12px 32px; border-radius: 32px; font-size: 1.15rem; font-weight: 600;
+            opacity: 0; pointer-events: none; transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 20; white-space: nowrap; border: var(--glass-border); box-shadow: var(--md-elevation-8);
+        }
+        .badges-container { position: absolute; top: 32px; right: 32px; z-index: 20; }
+        #skip-badge {
+            background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary);
+            padding: 10px 20px; border-radius: 24px; font-size: 0.95rem; font-weight: 600;
+            display: none; opacity: 0; transform: translateY(-10px);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 4px 16px var(--glow-color);
+        }
+        #skip-badge.showing { opacity: 1; transform: translateY(0); }
+
+        /* ── Ripple ──────────────────────────────────────────────────────────── */
+        .wp-ripple {
+            position: absolute; border-radius: 50%; background: var(--md-sys-color-primary);
+            transform: scale(0); opacity: 0.5; pointer-events: none;
+            animation: wp-ripple-anim 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            box-shadow: 0 0 20px var(--glow-color);
+        }
+        @keyframes wp-ripple-anim { to { transform: scale(4.5); opacity: 0; } }
+
+        /* ── Shortcuts modal ─────────────────────────────────────────────────── */
+        #shortcuts-modal {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: none;
+            align-items: center; justify-content: center; z-index: 200; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+        }
+        #shortcuts-modal.active { display: flex; animation: fadeIn 0.2s; }
+        @keyframes fadeIn { from { opacity: 0; backdrop-filter: blur(0); } to { opacity: 1; backdrop-filter: blur(6px); } }
+        
+        .shortcuts-box {
+            background: var(--md-sys-color-surface-container); border-radius: 28px; padding: 40px; width: 440px;
+            max-width: 90vw; box-shadow: var(--md-elevation-8); border: var(--glass-border); transition: background 0.4s;
+        }
+        .shortcuts-header {
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 1.4rem; font-weight: 600; margin-bottom: 32px; color: var(--md-sys-color-on-surface);
+        }
+        .shortcuts-grid { display: grid; grid-template-columns: auto 1fr; gap: 16px 32px; align-items: center; }
+        .shortcuts-grid kbd {
+            background: rgba(255,255,255,0.1); border-radius: 8px; padding: 6px 12px;
+            font-family: 'Roboto Mono', monospace; font-size: 0.9rem; font-weight: 500;
+            color: var(--md-sys-color-on-surface); text-align: center; box-shadow: inset 0 1px 2px rgba(255,255,255,0.05);
+        }
+        .shortcuts-grid span { font-size: 1rem; color: var(--md-sys-color-on-surface-variant); }
+        .shortcuts-hint { margin-top: 32px; font-size: 0.9rem; color: var(--md-sys-color-on-surface-variant); text-align: center; background: rgba(255,255,255,0.05); padding: 12px; border-radius: 12px; }
+
+        /* ── Mobile Responsiveness ───────────────────────────────────────────── */
+        @media (max-width: 850px) {
+            .controls-row { flex-wrap: wrap; justify-content: center; gap: 12px; }
+            .controls-left, .controls-right { flex-wrap: wrap; justify-content: center; }
+            .time-display { width: 100%; text-align: center; margin: 0; order: -1; }
+            #shortcuts-btn, #theme-toggle-btn, #eq-toggle-btn { display: none; } /* Hide complex menus on tiny screens to save space */
+            .speed-pills { display: none; }
+            .custom-controls { padding: 12px 16px; }
+            button { width: 40px; height: 40px; }
+        }
+
+        /* ── Error box ───────────────────────────────────────────────────────── */
+        #error-box {
+            position: absolute; top: 32px; z-index: 100; display: none; flex-direction: column; align-items: center; gap: 20px;
+            background: var(--md-sys-color-surface-container); border: var(--glass-border); color: var(--md-sys-color-error);
+            padding: 24px 40px; border-radius: 24px; box-shadow: var(--md-elevation-8); backdrop-filter: blur(16px);
+            font-size: 1.1rem; font-weight: 500; text-align: center; max-width: 80vw;
+        }
+        #error-retry {
+            background: var(--md-sys-color-error); color: #390000; font-weight: 600; padding: 12px 32px; border-radius: 24px; width: auto; height: auto; box-shadow: 0 4px 12px rgba(242, 184, 181, 0.4);
+        }
+        #error-retry:hover { transform: scale(1.05); background: #FFC9C6; }
+    </style>
+</head>
+<body>
+
+    <div id="error-box">
+        <span id="error-msg"></span>
+        <button id="error-retry">Retry</button>
+    </div>
+
+    <div class="video-container" id="video-container">
+        <div class="title-bar" id="title-bar"></div>
+        <video id="main-player" autoplay playsinline></video>
+        <div class="gesture-zone" id="gesture-zone"></div>
+        <div class="feedback-overlay" id="feedback-overlay"></div>
+
+        <div id="buffering-indicator"><div class="spinner-ring"></div></div>
+
+        <div class="badges-container"><div id="skip-badge"></div></div>
+
+        <div class="custom-controls-wrapper" id="custom-controls">
+            <div class="custom-controls">
+                <div class="progress-wrapper" id="progress-wrapper">
+                    <div class="progress-buffered" id="progress-buffered"></div>
+                    <div class="progress-played"   id="progress-played"></div>
+                    <div class="progress-thumb"    id="progress-thumb"></div>
+                </div>
+
+                <div class="controls-row">
+                    <div class="controls-left">
+                        <button id="play-pause-btn" title="Play / Pause (Space / K)">
+                            <span class="material-symbols-rounded" id="play-icon">play_arrow</span>
+                        </button>
+
+                        <div class="volume-container">
+                            <button id="mute-btn" title="Mute (M)">
+                                <span class="material-symbols-rounded" id="mute-icon">volume_up</span>
+                            </button>
+                            <input type="range" class="volume-slider" id="volume-slider" min="0" max="1" step="0.05" value="1">
+                        </div>
+
+                        <div class="time-display">
+                            <span id="time-current">0:00</span> / <span id="time-duration">0:00</span>
+                        </div>
+                    </div>
+
+                    <div class="controls-right">
+                        <div class="quality-container" id="quality-container">
+                            <button id="quality-btn" title="Quality">
+                                <span class="material-symbols-rounded" id="quality-icon">settings</span>
+                            </button>
+                            <div class="quality-dropdown" id="quality-dropdown"></div>
+                        </div>
+
+                        <div class="quality-container" id="cc-container">
+                            <button id="cc-btn" title="Subtitles/CC">
+                                <span class="material-symbols-rounded" id="cc-icon">closed_caption_disabled</span>
+                            </button>
+                            <div class="quality-dropdown" id="cc-dropdown"></div>
+                        </div>
+
+                        <div class="speed-pills" id="speed-pills">
+                            <button class="speed-pill" data-speed="0.5">0.5×</button>
+                            <button class="speed-pill active" data-speed="1">1×</button>
+                            <button class="speed-pill" data-speed="1.5">1.5×</button>
+                            <button class="speed-pill" data-speed="2">2×</button>
+                        </div>
+
+                        <button id="theme-toggle-btn" title="Themes">
+                            <span class="material-symbols-rounded">palette</span>
+                        </button>
+                        
+                        <!-- Theme Popover -->
+                        <div class="popover-card theme-popover" id="theme-popover">
+                            <div class="popover-header">
+                                <span>Appearance</span>
+                                <button class="popover-close" id="theme-close-btn"><span class="material-symbols-rounded">close</span></button>
+                            </div>
+                            <div class="theme-grid">
+                                <button class="theme-btn active" data-value="blue" title="Blue"></button>
+                                <button class="theme-btn" data-value="purple" title="Amethyst"></button>
+                                <button class="theme-btn" data-value="emerald" title="Emerald"></button>
+                            </div>
+                        </div>
+
+                        <button id="eq-toggle-btn" title="Equalizer">
+                            <span class="material-symbols-rounded">tune</span>
+                        </button>
+
+                        <button id="shortcuts-btn" title="Keyboard shortcuts (?)">
+                            <span class="material-symbols-rounded">keyboard</span>
+                        </button>
+
+                        <button id="rotate-btn" title="Rotate (R)">
+                            <span class="material-symbols-rounded">screen_rotation</span>
+                        </button>
+
+                        <button id="pip-btn" title="Picture in picture">
+                            <span class="material-symbols-rounded">picture_in_picture_alt</span>
+                        </button>
+
+                        <button id="fs-btn" title="Fullscreen (F)">
+                            <span class="material-symbols-rounded" id="fs-icon">fullscreen</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="popover-card eq-popover" id="eq-popover">
+                <div class="popover-header">
+                    <span>10-Band Equalizer</span>
+                    <button class="popover-close" id="eq-close-btn"><span class="material-symbols-rounded">close</span></button>
+                </div>
+                <div class="preamp-row">
+                    <label style="flex:1">Preamp (<span id="preamp-label">1.0</span>×)</label>
+                    <input type="range" id="eq-preamp" min="0.1" max="3" step="0.1" value="1.0" style="flex:2">
+                </div>
+                <div class="eq-sliders" id="eq-bands-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="shortcuts-modal">
+        <div class="shortcuts-box">
+            <div class="shortcuts-header">
+                <span>Keyboard Shortcuts</span>
+                <button id="shortcuts-close" class="popover-close"><span class="material-symbols-rounded">close</span></button>
+            </div>
+            <div class="shortcuts-grid">
+                <kbd>Space / K</kbd> <span>Play / Pause</span>
+                <kbd>← / →</kbd>     <span>Seek ±10s</span>
+                <kbd>↑ / ↓</kbd>     <span>Volume ±5%</span>
+                <kbd>M</kbd>         <span>Toggle mute</span>
+                <kbd>F</kbd>         <span>Toggle fullscreen</span>
+                <kbd>R</kbd>         <span>Rotate video</span>
+                <kbd>?</kbd>         <span>Show / hide this help</span>
+            </div>
+            <p class="shortcuts-hint">Double-tap left/right to seek ±10s on touch screens.</p>
+        </div>
+    </div>
+
+    <script src="player.js"></script>
+</body>
+</html>
