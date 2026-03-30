@@ -11,28 +11,28 @@
 
         /* Material 3 Dark Theme Colors */
         :root {
-            --md-sys-color-background: #121212;
-            --md-sys-color-surface: #1E1E1E;
+            --md-sys-color-background:        #121212;
+            --md-sys-color-surface:           #1E1E1E;
             --md-sys-color-surface-container: #2A2A2A;
-            --md-sys-color-primary: #A8C7FA; /* Material Blue Accent */
-            --md-sys-color-on-primary: #062E6F;
-            --md-sys-color-on-surface: #E3E3E3;
-            --md-sys-color-on-surface-variant: #C4C7C5;
-            --md-sys-color-error: #F2B8B5;
+            --md-sys-color-primary:           #A8C7FA;
+            --md-sys-color-on-primary:        #062E6F;
+            --md-sys-color-on-surface:        #E3E3E3;
+            --md-sys-color-on-surface-variant:#C4C7C5;
+            --md-sys-color-error:             #F2B8B5;
             --md-elevation-3: 0px 4px 8px 3px rgba(0,0,0,0.15), 0px 1px 3px rgba(0,0,0,0.3);
             --md-elevation-8: 0px 8px 10px 1px rgba(0,0,0,0.14), 0px 3px 14px 2px rgba(0,0,0,0.12), 0px 5px 5px -3px rgba(0,0,0,0.2);
         }
 
         body {
-            background: var(--md-sys-color-background); 
+            background: var(--md-sys-color-background);
             display: flex; flex-direction: column;
             align-items: center; justify-content: center; min-height: 100vh;
-            color: var(--md-sys-color-on-surface); 
-            font-family: 'Roboto', system-ui, sans-serif; 
+            color: var(--md-sys-color-on-surface);
+            font-family: 'Roboto', system-ui, sans-serif;
             overflow: hidden;
         }
 
-        /* ── Video container & Essentials ────────────────────────────────── */
+        /* ── Video container ─────────────────────────────────────────────────── */
         .video-container {
             position: relative; width: 100vw; height: 100vh; background: #000;
             display: flex; align-items: center; justify-content: center;
@@ -41,7 +41,7 @@
         video { width: 100%; height: 100%; object-fit: contain; outline: none; display: block; }
         .gesture-zone { position: absolute; inset: 0; z-index: 10; cursor: default; }
 
-        /* ── Title bar ─────────────────────────────────────────────────────── */
+        /* ── Title bar ───────────────────────────────────────────────────────── */
         .title-bar {
             position: absolute; top: 0; left: 0; right: 0; z-index: 30;
             padding: 20px 24px;
@@ -51,7 +51,7 @@
         }
         .video-container.idle .title-bar { opacity: 0; }
 
-        /* ── Buffering spinner (Material Circular Progress) ──────────────── */
+        /* ── Buffering spinner ───────────────────────────────────────────────── */
         #buffering-indicator {
             position: absolute; inset: 0; display: flex; align-items: center;
             justify-content: center; pointer-events: none; opacity: 0;
@@ -61,12 +61,12 @@
         .spinner-ring {
             width: 48px; height: 48px; border-radius: 50%;
             border: 4px solid rgba(255,255,255,0.1);
-            border-top-color: var(--md-sys-color-primary); 
+            border-top-color: var(--md-sys-color-primary);
             animation: spin 1s cubic-bezier(0.5, 0, 0.5, 1) infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* ── Custom control bar ────────────────────────────────────────────── */
+        /* ── Custom control bar ──────────────────────────────────────────────── */
         .custom-controls {
             position: absolute; bottom: 0; left: 0; right: 0;
             background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0) 100%);
@@ -75,11 +75,15 @@
         }
         .video-container.idle .custom-controls { opacity: 0; pointer-events: none; }
 
-        /* ── Progress bar (Material Slider) ────────────────────────────────── */
+        /* ── Progress bar — UI FIX: expanded hit target via ::before ────────── */
         .progress-wrapper {
             position: relative; width: 100%; height: 4px;
             background: rgba(255,255,255,0.2); border-radius: 2px;
             cursor: pointer; transition: height 0.2s; display: flex; align-items: center;
+        }
+        .progress-wrapper::before {
+            content: ''; position: absolute;
+            top: -12px; bottom: -12px; left: 0; right: 0;
         }
         .progress-wrapper:hover { height: 6px; }
         .progress-buffered { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(255,255,255,0.3); border-radius: 2px; width: 0%; pointer-events: none; }
@@ -92,55 +96,81 @@
         .progress-wrapper:hover .progress-thumb,
         .progress-wrapper.dragging .progress-thumb { opacity: 1; transform: translateX(-50%) scale(1.2); }
 
-        /* ── Controls layout & Material Buttons ────────────────────────────── */
+        /* ── Controls layout ─────────────────────────────────────────────────── */
         .controls-row { display: flex; align-items: center; justify-content: space-between; width: 100%; }
-        .controls-left, .controls-right { display: flex; align-items: center; gap: 16px; }
-        .time-display { font-size: 0.85rem; font-variant-numeric: tabular-nums; color: var(--md-sys-color-on-surface-variant); margin-left: 8px;}
+        .controls-left, .controls-right { display: flex; align-items: center; gap: 8px; }
+        .time-display { font-size: 0.85rem; font-variant-numeric: tabular-nums; color: var(--md-sys-color-on-surface-variant); margin-left: 8px; white-space: nowrap; }
 
         button {
             background: transparent; border: none; color: var(--md-sys-color-on-surface); cursor: pointer;
             display: flex; align-items: center; justify-content: center;
             border-radius: 50%; width: 40px; height: 40px;
-            transition: background-color 0.2s ease;
+            transition: background-color 0.2s ease; flex-shrink: 0;
         }
         button:hover { background-color: rgba(255,255,255,0.08); }
         .material-symbols-rounded { font-size: 28px; }
 
-        /* ── Volume Slider ─────────────────────────────────────────────────── */
+        /* ── Volume ──────────────────────────────────────────────────────────── */
         .volume-container { display: flex; align-items: center; gap: 0; }
         .volume-slider {
-            width: 0; opacity: 0; transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s;
+            width: 0; opacity: 0;
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s, margin-left 0.3s;
             accent-color: var(--md-sys-color-primary); cursor: pointer; height: 4px;
         }
         .volume-container:hover .volume-slider { width: 80px; opacity: 1; margin-left: 8px; }
-        @media (pointer: coarse) { .volume-slider { width: 80px !important; opacity: 1 !important; margin-left: 8px; } }
+        /* UI FIX: always show volume slider on touch devices */
+        @media (pointer: coarse) {
+            .volume-slider { width: 80px !important; opacity: 1 !important; margin-left: 8px !important; }
+        }
 
-        /* ── Speed Pills (Material Chips) ──────────────────────────────────── */
+        /* ── Speed pills ─────────────────────────────────────────────────────── */
         .speed-pills { display: flex; align-items: center; gap: 6px; }
         .speed-pill {
             font-size: 0.8rem; font-weight: 500; padding: 0 12px; height: 32px; border-radius: 16px; width: auto;
             background: rgba(255,255,255,0.08); color: var(--md-sys-color-on-surface-variant);
             transition: background 0.2s, color 0.2s; border: 1px solid rgba(255,255,255,0.1);
         }
-        .speed-pill:hover { background: rgba(255,255,255,0.12); }
-        .speed-pill.active { background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); border-color: transparent;}
+        .speed-pill:hover { background: rgba(255,255,255,0.12); color: var(--md-sys-color-on-surface); }
+        .speed-pill.active { background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); border-color: transparent; }
 
-        /* ── EQ Popover (Material Surface) ─────────────────────────────────── */
+        /* ── Quality dropdown — UI FIX: replaces unstyled native <select> ────── */
+        .quality-container { position: relative; display: none; align-items: center; }
+        .quality-dropdown {
+            position: absolute; bottom: calc(100% + 8px); right: 0;
+            background: var(--md-sys-color-surface-container);
+            border-radius: 12px; padding: 8px;
+            flex-direction: column; gap: 2px;
+            z-index: 50; box-shadow: var(--md-elevation-8); min-width: 120px;
+            display: none;
+        }
+        .quality-dropdown.open { display: flex; }
+        .quality-option {
+            font-size: 0.85rem; font-weight: 500; padding: 8px 16px; border-radius: 8px;
+            background: none; color: var(--md-sys-color-on-surface-variant);
+            width: 100%; height: auto; text-align: left; justify-content: flex-start;
+            white-space: nowrap;
+        }
+        .quality-option:hover { background: rgba(255,255,255,0.08); color: var(--md-sys-color-on-surface); }
+        .quality-option.active { color: var(--md-sys-color-primary); }
+
+        /* ── EQ Popover — UI FIX: responsive for narrow viewports ───────────── */
         .eq-popover {
             position: absolute; bottom: 90px; right: 24px;
-            background: var(--md-sys-color-surface-container); 
+            background: var(--md-sys-color-surface-container);
             border-radius: 16px; padding: 24px; display: none; flex-direction: column; gap: 20px;
-            z-index: 40; box-shadow: var(--md-elevation-8); width: 380px;
+            z-index: 40; box-shadow: var(--md-elevation-8);
+            width: min(380px, calc(100vw - 48px));
         }
         .eq-popover.active { display: flex; }
+        @media (max-width: 430px) {
+            .eq-popover { right: auto; left: 24px; }
+        }
         .eq-header {
             display: flex; justify-content: space-between; align-items: center;
             font-size: 1.1rem; font-weight: 500; color: var(--md-sys-color-on-surface);
         }
-        .eq-close { cursor: pointer; opacity: 0.7; transition: opacity 0.2s; }
-        .eq-close:hover { opacity: 1; }
-        
-        /* Modifying Sliders for MD */
+        .eq-close { cursor: pointer; opacity: 0.7; transition: opacity 0.2s; background: none; border: none; color: var(--md-sys-color-on-surface); width: auto; height: auto; border-radius: 0; }
+        .eq-close:hover { opacity: 1; background: none; }
         .eq-band input[type="range"] { accent-color: var(--md-sys-color-primary); }
         .preamp-row input { accent-color: var(--md-sys-color-error); }
         .eq-sliders { display: flex; justify-content: space-around; height: 140px; align-items: flex-end; }
@@ -150,29 +180,70 @@
         .eq-band span { font-size: 0.7rem; color: var(--md-sys-color-on-surface-variant); font-weight: 500; }
         .preamp-row { display: flex; align-items: center; gap: 16px; font-size: 0.9rem; }
 
-        /* ── Other Elements ────────────────────────────────────────────────── */
+        /* ── Feedback, badges ────────────────────────────────────────────────── */
         .feedback-overlay {
             position: absolute; top: 15%; left: 50%; transform: translateX(-50%);
             background: rgba(0,0,0,0.7); backdrop-filter: blur(8px);
             padding: 10px 24px; border-radius: 24px; font-size: 1rem; font-weight: 500;
             opacity: 0; pointer-events: none; transition: opacity 0.2s; z-index: 20;
+            white-space: nowrap;
         }
         .badges-container { position: absolute; top: 24px; right: 24px; z-index: 20; }
-        #skip-badge { background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); padding: 8px 16px; border-radius: 16px; font-size: 0.85rem; font-weight: 500; display: none; opacity: 0; transform: translateY(-10px); transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: var(--md-elevation-3); }
+        #skip-badge {
+            background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary);
+            padding: 8px 16px; border-radius: 16px; font-size: 0.85rem; font-weight: 500;
+            display: none; opacity: 0; transform: translateY(-10px);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: var(--md-elevation-3);
+        }
         #skip-badge.showing { opacity: 1; transform: translateY(0); }
 
-        /* ── Modals ────────────────────────────────────────────────────────── */
-        #shortcuts-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 200; backdrop-filter: blur(2px); }
+        /* ── Ripple ──────────────────────────────────────────────────────────── */
+        .wp-ripple {
+            position: absolute; border-radius: 50%;
+            background: var(--md-sys-color-primary);
+            transform: scale(0); opacity: 0.4;
+            animation: wp-ripple-anim 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            pointer-events: none;
+        }
+        @keyframes wp-ripple-anim { to { transform: scale(4); opacity: 0; } }
+
+        /* ── Shortcuts modal ─────────────────────────────────────────────────── */
+        #shortcuts-modal {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+            display: none; align-items: center; justify-content: center;
+            z-index: 200; backdrop-filter: blur(2px);
+        }
         #shortcuts-modal.active { display: flex; }
-        .shortcuts-box { background: var(--md-sys-color-surface-container); border-radius: 24px; padding: 32px; width: 400px; max-width: 90vw; box-shadow: var(--md-elevation-8); }
-        .shortcuts-header { display: flex; justify-content: space-between; align-items: center; font-size: 1.25rem; font-weight: 500; margin-bottom: 24px; color: var(--md-sys-color-on-surface); }
+        .shortcuts-box {
+            background: var(--md-sys-color-surface-container); border-radius: 24px;
+            padding: 32px; width: 400px; max-width: 90vw; box-shadow: var(--md-elevation-8);
+        }
+        .shortcuts-header {
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 1.25rem; font-weight: 500; margin-bottom: 24px;
+            color: var(--md-sys-color-on-surface);
+        }
         .shortcuts-grid { display: grid; grid-template-columns: auto 1fr; gap: 12px 24px; align-items: center; }
-        .shortcuts-grid kbd { background: rgba(255,255,255,0.1); border-radius: 6px; padding: 4px 10px; font-family: 'Roboto Mono', monospace; font-size: 0.85rem; color: var(--md-sys-color-on-surface); text-align: center; }
+        .shortcuts-grid kbd {
+            background: rgba(255,255,255,0.1); border-radius: 6px; padding: 4px 10px;
+            font-family: 'Roboto Mono', monospace; font-size: 0.85rem;
+            color: var(--md-sys-color-on-surface); text-align: center;
+        }
         .shortcuts-grid span { font-size: 0.95rem; color: var(--md-sys-color-on-surface-variant); }
         .shortcuts-hint { margin-top: 24px; font-size: 0.85rem; color: var(--md-sys-color-on-surface-variant); text-align: center; }
-        
-        #error-box { position: absolute; top: 24px; z-index: 100; display: none; flex-direction: column; align-items: center; gap: 16px; background: var(--md-sys-color-surface-container); color: var(--md-sys-color-error); padding: 20px 32px; border-radius: 16px; box-shadow: var(--md-elevation-8); }
-        #error-retry { background: var(--md-sys-color-error); color: #390000; font-weight: 500; padding: 8px 24px; border-radius: 20px; width: auto; height: auto; }
+
+        /* ── Error box ───────────────────────────────────────────────────────── */
+        #error-box {
+            position: absolute; top: 24px; z-index: 100; display: none;
+            flex-direction: column; align-items: center; gap: 16px;
+            background: var(--md-sys-color-surface-container);
+            color: var(--md-sys-color-error); padding: 20px 32px;
+            border-radius: 16px; box-shadow: var(--md-elevation-8);
+        }
+        #error-retry {
+            background: var(--md-sys-color-error); color: #390000;
+            font-weight: 500; padding: 8px 24px; border-radius: 20px; width: auto; height: auto;
+        }
     </style>
 </head>
 <body>
@@ -192,7 +263,7 @@
         <div id="buffering-indicator"><div class="spinner-ring"></div></div>
 
         <div class="badges-container">
-            <div id="skip-badge">Skipping…</div>
+            <div id="skip-badge"></div>
         </div>
 
         <div class="custom-controls" id="custom-controls">
@@ -204,12 +275,12 @@
 
             <div class="controls-row">
                 <div class="controls-left">
-                    <button id="play-pause-btn" title="Play (k / space)">
+                    <button id="play-pause-btn" title="Play / Pause (Space / K)">
                         <span class="material-symbols-rounded" id="play-icon">play_arrow</span>
                     </button>
 
                     <div class="volume-container">
-                        <button id="mute-btn" title="Mute (m)">
+                        <button id="mute-btn" title="Mute (M)">
                             <span class="material-symbols-rounded" id="mute-icon">volume_up</span>
                         </button>
                         <input type="range" class="volume-slider" id="volume-slider" min="0" max="1" step="0.05" value="1">
@@ -221,7 +292,13 @@
                 </div>
 
                 <div class="controls-right">
-                    <select id="quality-select" style="display:none;"></select>
+                    <!-- UI FIX: custom styled quality dropdown replaces native <select> -->
+                    <div class="quality-container" id="quality-container">
+                        <button id="quality-btn" title="Quality">
+                            <span class="material-symbols-rounded" id="quality-icon">hd</span>
+                        </button>
+                        <div class="quality-dropdown" id="quality-dropdown"></div>
+                    </div>
 
                     <div class="speed-pills" id="speed-pills">
                         <button class="speed-pill" data-speed="0.5">0.5×</button>
@@ -238,11 +315,16 @@
                         <span class="material-symbols-rounded">keyboard</span>
                     </button>
 
+                    <!-- Added: rotate button (was missing from standalone player) -->
+                    <button id="rotate-btn" title="Rotate (R)">
+                        <span class="material-symbols-rounded">screen_rotation</span>
+                    </button>
+
                     <button id="pip-btn" title="Picture in picture">
                         <span class="material-symbols-rounded">picture_in_picture_alt</span>
                     </button>
 
-                    <button id="fs-btn" title="Fullscreen (f)">
+                    <button id="fs-btn" title="Fullscreen (F)">
                         <span class="material-symbols-rounded" id="fs-icon">fullscreen</span>
                     </button>
                 </div>
@@ -266,17 +348,20 @@
         <div class="shortcuts-box">
             <div class="shortcuts-header">
                 <span>Keyboard Shortcuts</span>
-                <span class="material-symbols-rounded eq-close" id="shortcuts-close" style="cursor:pointer">close</span>
+                <button id="shortcuts-close" style="background:none;border:none;color:var(--md-sys-color-on-surface);cursor:pointer;width:auto;height:auto;border-radius:0;">
+                    <span class="material-symbols-rounded">close</span>
+                </button>
             </div>
             <div class="shortcuts-grid">
-                <kbd>Space</kbd> <span>Play / Pause</span>
+                <kbd>Space / K</kbd> <span>Play / Pause</span>
                 <kbd>← / →</kbd>     <span>Seek ±10s</span>
-                <kbd>↑ / ↓</kbd>         <span>Volume ±5%</span>
+                <kbd>↑ / ↓</kbd>     <span>Volume ±5%</span>
                 <kbd>M</kbd>         <span>Toggle mute</span>
                 <kbd>F</kbd>         <span>Toggle fullscreen</span>
-                <kbd>?</kbd>         <span>Show help</span>
+                <kbd>R</kbd>         <span>Rotate video</span>
+                <kbd>?</kbd>         <span>Show / hide this help</span>
             </div>
-            <p class="shortcuts-hint">Double-tap left/right screen to seek ±10s on touch.</p>
+            <p class="shortcuts-hint">Double-tap left/right to seek ±10s on touch screens.</p>
         </div>
     </div>
 

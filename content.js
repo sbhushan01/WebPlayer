@@ -38,14 +38,12 @@
         if (msg.action === "stream_detected" && msg.url && !interceptedUrls.has(msg.url) && !isSpawningPlayer) {
             interceptedUrls.add(msg.url);
             isSpawningPlayer = true;
-            
             chrome.runtime.sendMessage({
                 action:    "open_player",
                 videoSrc:  msg.url,
                 pageTitle: document.title,
                 pageUrl:   window.location.href
             });
-
             setTimeout(() => isSpawningPlayer = false, 5000);
         }
     });
@@ -64,7 +62,7 @@
     function addPlayerButton(video) {
         const btn = document.createElement("button");
 
-        const iconEl  = document.createElement("span");
+        const iconEl = document.createElement("span");
         iconEl.innerHTML = IC.launch;
         iconEl.style.cssText = "display:flex;align-items:center;flex-shrink:0;";
 
@@ -86,16 +84,16 @@
         `;
 
         btn.onmouseover = () => {
-            labelEl.style.maxWidth     = "180px";
-            labelEl.style.opacity      = "1";
-            labelEl.style.marginLeft   = "5px";
-            btn.style.background       = "rgba(74, 158, 255, 0.9)";
+            labelEl.style.maxWidth   = "180px";
+            labelEl.style.opacity    = "1";
+            labelEl.style.marginLeft = "5px";
+            btn.style.background     = "rgba(74, 158, 255, 0.9)";
         };
         btn.onmouseout = () => {
-            labelEl.style.maxWidth     = "0";
-            labelEl.style.opacity      = "0";
-            labelEl.style.marginLeft   = "0";
-            btn.style.background       = "rgba(20, 20, 30, 0.6)";
+            labelEl.style.maxWidth   = "0";
+            labelEl.style.opacity    = "0";
+            labelEl.style.marginLeft = "0";
+            btn.style.background     = "rgba(20, 20, 30, 0.6)";
         };
 
         getRootContainer()?.appendChild(btn);
@@ -103,8 +101,8 @@
         let rafId = requestAnimationFrame(function loop() {
             try {
                 const r = video.getBoundingClientRect();
-                if (r.width <= 0 || !document.contains(video)) { 
-                    btn.style.display = "none"; 
+                if (r.width <= 0 || !document.contains(video)) {
+                    btn.style.display = "none";
                 } else {
                     btn.style.display = "";
                     btn.style.left    = `${r.left + window.scrollX + 10}px`;
@@ -184,18 +182,17 @@
                 position: absolute; top: 15%; left: 50%; transform: translateX(-50%);
                 background: rgba(0,0,0,0.6); padding: 8px 16px; border-radius: 20px;
                 font-weight: bold; opacity: 0; transition: 0.2s; color: white; pointer-events: none;
+                white-space: nowrap;
             }
-            .webplayer-gesture-zone { 
-                position: absolute; inset: 0; pointer-events: auto; 
-                touch-action: none; user-select: none; -webkit-user-select: none; 
+            .webplayer-gesture-zone {
+                position: absolute; inset: 0; pointer-events: auto;
+                touch-action: none; user-select: none; -webkit-user-select: none;
             }
             .wp-ripple {
                 position: absolute; border-radius: 50%; background: rgba(255, 255, 255, 0.4);
                 transform: scale(0); animation: wp-ripple-anim 0.4s linear; pointer-events: none;
             }
-            @keyframes wp-ripple-anim {
-                to { transform: scale(4); opacity: 0; }
-            }
+            @keyframes wp-ripple-anim { to { transform: scale(4); opacity: 0; } }
         `;
         shadow.appendChild(styles);
 
@@ -249,6 +246,14 @@
             setTimeout(() => feedbackOverlay.style.opacity = "0", 800);
         };
 
+        // Speed sync helper
+        const setPlaybackRate = (rate) => {
+            video.playbackRate = rate;
+            uiWrapper.querySelectorAll(".speed-pill").forEach(p =>
+                p.classList.toggle("active", parseFloat(p.dataset.speed) === rate)
+            );
+        };
+
         let tapTimeout;
         const cleanup = () => {
             clearTimeout(tapTimeout);
@@ -269,13 +274,13 @@
             return `${m}:${s}`;
         };
 
-        const prog  = uiWrapper.querySelector("#wp-progress");
-        const tCur  = uiWrapper.querySelector("#wp-time-cur");
-        const tDur  = uiWrapper.querySelector("#wp-time-dur");
+        const prog = uiWrapper.querySelector("#wp-progress");
+        const tCur = uiWrapper.querySelector("#wp-time-cur");
+        const tDur = uiWrapper.querySelector("#wp-time-dur");
 
         video.addEventListener("timeupdate", () => {
             if (!isFinite(video.duration)) return;
-            prog.value    = (video.currentTime / video.duration) * 100;
+            prog.value     = (video.currentTime / video.duration) * 100;
             tCur.innerText = formatTime(video.currentTime);
             tDur.innerText = formatTime(video.duration);
         });
@@ -287,10 +292,14 @@
         const playBtn = uiWrapper.querySelector("#wp-play");
         video.addEventListener("play",  () => playBtn.innerHTML = IC.pause);
         video.addEventListener("pause", () => playBtn.innerHTML = IC.play);
-        playBtn.addEventListener("click", () => video.paused ? video.play() : video.pause());
+        playBtn.addEventListener("click", () => {
+            // BUG FIX: capture state before toggle
+            const wasPaused = video.paused;
+            wasPaused ? video.play() : video.pause();
+        });
 
         uiWrapper.querySelector("#wp-skip-back").addEventListener("click", () => { video.currentTime -= 10; showFeedback("−10s"); });
-        uiWrapper.querySelector("#wp-skip-fwd").addEventListener("click", () => { safeSeekForward(video, 10); showFeedback("+10s"); });
+        uiWrapper.querySelector("#wp-skip-fwd").addEventListener("click",  () => { safeSeekForward(video, 10); showFeedback("+10s"); });
         uiWrapper.querySelector("#wp-pip").addEventListener("click", async () => {
             document.pictureInPictureElement ? await document.exitPictureInPicture() : await video.requestPictureInPicture();
         });
@@ -301,11 +310,7 @@
         });
 
         uiWrapper.querySelectorAll(".speed-pill").forEach(pill => {
-            pill.addEventListener("click", () => {
-                uiWrapper.querySelectorAll(".speed-pill").forEach(p => p.classList.remove("active"));
-                pill.classList.add("active");
-                video.playbackRate = parseFloat(pill.dataset.speed);
-            });
+            pill.addEventListener("click", () => setPlaybackRate(parseFloat(pill.dataset.speed)));
         });
 
         let rot = 0;
@@ -321,14 +326,13 @@
 
         gestureZone.addEventListener("contextmenu", e => e.preventDefault());
 
-        gestureZone.addEventListener("pointerdown", e => { 
+        gestureZone.addEventListener("pointerdown", e => {
             isPointerDown = true;
             gestureZone.setPointerCapture(e.pointerId);
             startX = e.clientX; startY = e.clientY; lastY = e.clientY; swipeDir = null;
-            
             originalSpeed = video.playbackRate;
             longPressTimer = setTimeout(() => {
-                video.playbackRate = 2.0;
+                setPlaybackRate(2.0); // BUG FIX: sync pills
                 showFeedback("2× Speed");
             }, 500);
         });
@@ -339,12 +343,12 @@
             const diffY = e.clientY - startY;
 
             if (!swipeDir) {
-                if (Math.abs(diffX) > 20) { swipeDir = "horizontal"; clearTimeout(longPressTimer); }
-                else if (Math.abs(diffY) > 20) { swipeDir = "vertical"; clearTimeout(longPressTimer); }
+                if (Math.abs(diffX) > 20)      { swipeDir = "horizontal"; clearTimeout(longPressTimer); }
+                else if (Math.abs(diffY) > 20) { swipeDir = "vertical";   clearTimeout(longPressTimer); }
             }
 
             if (swipeDir === "vertical") {
-                const rect = gestureZone.getBoundingClientRect();
+                const rect   = gestureZone.getBoundingClientRect();
                 const deltaY = e.clientY - lastY;
                 lastY = e.clientY;
 
@@ -352,8 +356,8 @@
                     video.volume = Math.max(0, Math.min(1, video.volume - deltaY * 0.005));
                     showFeedback(`Vol: ${Math.round(video.volume * 100)}%`);
                 } else {
-                    currentBrightness = Math.max(0.1, Math.min(2.5, currentBrightness - deltaY * 0.01));
-                    video.style.filter = `brightness(${currentBrightness})`;
+                    currentBrightness       = Math.max(0.1, Math.min(2.5, currentBrightness - deltaY * 0.01));
+                    video.style.filter      = `brightness(${currentBrightness})`;
                     showFeedback(`Brightness: ${Math.round(currentBrightness * 100)}%`);
                 }
             }
@@ -365,9 +369,11 @@
             gestureZone.releasePointerCapture(e.pointerId);
             clearTimeout(longPressTimer);
 
+            // BUG FIX: use setPlaybackRate to restore and sync pills
             if (video.playbackRate === 2.0 && originalSpeed !== 2.0) {
-                video.playbackRate = originalSpeed;
-                showFeedback("1× Speed");
+                setPlaybackRate(originalSpeed);
+                showFeedback(`${originalSpeed}× Speed`);
+                lastTapTime = 0;
                 return;
             }
 
@@ -380,18 +386,20 @@
 
             if (!swipeDir) {
                 const now = Date.now();
-                if (now - lastTapTime < 300) {
+                if (now - lastTapTime < 200) { // UI FIX: 300→200ms
                     clearTimeout(tapTimeout);
                     const rect = gestureZone.getBoundingClientRect();
-                    
+
                     const ripple = document.createElement("div");
                     ripple.className = "wp-ripple";
-                    ripple.style.left = `${e.clientX - rect.left - 25}px`;
-                    ripple.style.top = `${e.clientY - rect.top - 25}px`;
-                    ripple.style.width = ripple.style.height = "50px";
+                    ripple.style.left   = `${e.clientX - rect.left - 25}px`;
+                    ripple.style.top    = `${e.clientY - rect.top  - 25}px`;
+                    ripple.style.width  = ripple.style.height = "50px";
                     gestureZone.appendChild(ripple);
                     setTimeout(() => ripple.remove(), 400);
 
+                    // BUG FIX: capture paused state BEFORE toggling, not after
+                    const wasPaused = video.paused;
                     if (e.clientX < rect.left + rect.width * 0.33) {
                         video.currentTime = Math.max(0, video.currentTime - 10);
                         showFeedback("−10s");
@@ -399,8 +407,8 @@
                         safeSeekForward(video, 10);
                         showFeedback("+10s");
                     } else {
-                        video.paused ? video.play() : video.pause();
-                        showFeedback(video.paused ? "Paused" : "Playing");
+                        wasPaused ? video.play() : video.pause();
+                        showFeedback(wasPaused ? "Playing" : "Paused");
                     }
                     lastTapTime = 0;
                 } else {
@@ -408,7 +416,7 @@
                     tapTimeout = setTimeout(() => {
                         video.paused ? video.play() : video.pause();
                         lastTapTime = 0;
-                    }, 300);
+                    }, 200); // UI FIX: 300→200ms
                 }
             }
         });
@@ -416,7 +424,7 @@
 
     findVideos();
     const observer = new MutationObserver(() => { setTimeout(findVideos, 300); });
-    
+
     if (document.body) {
         observer.observe(document.body, { childList: true, subtree: true });
     } else {
