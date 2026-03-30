@@ -64,21 +64,28 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 });
                 const playerUrl = chrome.runtime.getURL(`player.html?${params}`);
 
-                chrome.tabs.create({ url: playerUrl }, (tab) => {
-                    if (chrome.runtime.lastError) {
-                        console.error("[WebPlayer] Failed to open tab:", chrome.runtime.lastError.message);
-                        chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [ruleId] });
-                        return;
-                    }
-
-                    function cleanupListener(tabId) {
-                        if (tabId === tab.id) {
+                try {
+                    chrome.tabs.create({ url: playerUrl }, (tab) => {
+                        // Check for both runtime errors and silent failures (undefined tab)
+                        if (chrome.runtime.lastError || !tab) {
+                            console.error("[WebPlayer] Failed to open tab:", chrome.runtime.lastError?.message);
                             chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [ruleId] });
-                            chrome.tabs.onRemoved.removeListener(cleanupListener);
+                            return;
                         }
-                    }
-                    chrome.tabs.onRemoved.addListener(cleanupListener);
-                });
+
+                        function cleanupListener(tabId) {
+                            if (tabId === tab.id) {
+                                chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [ruleId] });
+                                chrome.tabs.onRemoved.removeListener(cleanupListener);
+                            }
+                        }
+                        chrome.tabs.onRemoved.addListener(cleanupListener);
+                    });
+                } catch (err) {
+                    console.error("[WebPlayer] Exception while creating tab:", err);
+                    // Catch synchronous errors to prevent orphaned rules
+                    chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [ruleId] });
+                }
             }
         );
     }
