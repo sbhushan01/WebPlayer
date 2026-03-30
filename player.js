@@ -28,6 +28,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     const qualityDropdown = document.getElementById("quality-dropdown");
     const qualityIcon     = document.getElementById("quality-icon");
 
+    const ccContainer     = document.getElementById("cc-container");
+    const ccBtn           = document.getElementById("cc-btn");
+    const ccDropdown      = document.getElementById("cc-dropdown");
+    const ccIcon          = document.getElementById("cc-icon");
+
     const themeToggleBtn  = document.getElementById("theme-toggle-btn");
     const themePopover    = document.getElementById("theme-popover");
     const themeCloseBtn   = document.getElementById("theme-close-btn");
@@ -141,9 +146,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         return loadedScripts[path];
     }
 
-    // ── Custom quality dropdown ───────────────────────────────────────────────
     function populateQuality(levels) {
-        // levels: [{ label, value }], value -1 = Auto
         qualityContainer.style.display = "flex";
         qualityDropdown.innerHTML = "";
         levels.forEach(({ label, value }) => {
@@ -153,24 +156,88 @@ document.addEventListener("DOMContentLoaded", async () => {
             btn.dataset.value = value;
             qualityDropdown.appendChild(btn);
         });
-        qualityDropdown.addEventListener("click", (e) => {
-            const btn = e.target.closest(".quality-option");
-            if (!btn) return;
-            qualityDropdown.querySelectorAll(".quality-option").forEach(b => b.classList.remove("active"));
-            btn.classList.add("active");
-            const val = parseInt(btn.dataset.value);
-            if (currentHls) currentHls.currentLevel = val;
-            // Update button label / icon
-            qualityIcon.textContent = val === -1 ? "hd" : "settings";
-            qualityDropdown.classList.remove("open");
+    }
+
+    qualityDropdown.addEventListener("click", (e) => {
+        const btn = e.target.closest(".quality-option");
+        if (!btn) return;
+        qualityDropdown.querySelectorAll(".quality-option").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        const val = parseInt(btn.dataset.value);
+        if (currentHls) {
+            currentHls.currentLevel = val;
+        } else if (currentDash) {
+            if (val === -1) {
+                currentDash.updateSettings({ streaming: { abr: { autoSwitchBitrate: { video: true } } } });
+            } else {
+                currentDash.updateSettings({ streaming: { abr: { autoSwitchBitrate: { video: false } } } });
+                currentDash.setQualityFor('video', val);
+            }
+        }
+        qualityIcon.textContent = val === -1 ? "hd" : "settings";
+        qualityDropdown.classList.remove("open");
+    });
+
+    function populateCC(tracks) {
+        ccContainer.style.display = "flex";
+        ccDropdown.innerHTML = "";
+        
+        const offBtn = document.createElement("button");
+        offBtn.className = "quality-option active";
+        offBtn.textContent = "Off";
+        offBtn.dataset.value = "-1";
+        ccDropdown.appendChild(offBtn);
+
+        tracks.forEach(({ label, value }) => {
+            if (!label) label = `Track ${value}`;
+            const btn = document.createElement("button");
+            btn.className = "quality-option";
+            btn.textContent = label;
+            btn.dataset.value = value;
+            ccDropdown.appendChild(btn);
         });
     }
+
+    ccDropdown.addEventListener("click", (e) => {
+        const btn = e.target.closest(".quality-option");
+        if (!btn) return;
+        ccDropdown.querySelectorAll(".quality-option").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        const val = parseInt(btn.dataset.value);
+        
+        if (currentHls) {
+            currentHls.subtitleTrack = val;
+        } else if (currentDash) {
+            if (val === -1) {
+                currentDash.setTextTrack(-1);
+            } else {
+                const dashTracks = currentDash.getTracksFor('text');
+                currentDash.setTextTrack(dashTracks[val] || dashTracks.find(t=>t.index === val));
+            }
+        } else {
+            for(let i=0; i<player.textTracks.length; i++) {
+                player.textTracks[i].mode = (i === val) ? "showing" : "hidden";
+            }
+        }
+
+        ccIcon.textContent = val === -1 ? "closed_caption_disabled" : "closed_caption";
+        ccDropdown.classList.remove("open");
+    });
 
     qualityBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         qualityDropdown.classList.toggle("open");
+        ccDropdown.classList.remove("open");
     });
-    document.addEventListener("click", () => qualityDropdown.classList.remove("open"));
+    ccBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        ccDropdown.classList.toggle("open");
+        qualityDropdown.classList.remove("open");
+    });
+    document.addEventListener("click", () => {
+        qualityDropdown.classList.remove("open");
+        ccDropdown.classList.remove("open");
+    });
 
     // ── Theme ─────────────────────────────────────────────────────────────────
     const currentTheme = localStorage.getItem("wp_theme") || "blue";
@@ -195,6 +262,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
         bufferEl.classList.add("is-buffering");
         qualityContainer.style.display = "none";
+        ccContainer.style.display = "none";
 
         const cleanSrc = src.split("?")[0].toLowerCase();
         try {
@@ -215,6 +283,10 @@ document.addEventListener("DOMContentLoaded", async () => {
                                 ];
                                 populateQuality(levels);
                             }
+                            if (d.subtitleTracks && d.subtitleTracks.length > 0) {
+                                const tracks = d.subtitleTracks.map((t, i) => ({ label: t.name || t.lang, value: i }));
+                                populateCC(tracks);
+                            }
                         });
                     } else { showError("HLS not supported in this browser."); }
                 }
@@ -223,9 +295,31 @@ document.addEventListener("DOMContentLoaded", async () => {
                 if (window.dashjs) {
                     currentDash = dashjs.MediaPlayer().create();
                     currentDash.initialize(player, src, true);
+                    
+                    currentDash.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, () => {
+                        const bitrates = currentDash.getBitrateInfoListFor("video");
+                        if (bitrates && bitrates.length > 1) {
+                            const levels = [
+                                { label: "Auto", value: -1 },
+                                ...bitrates.map((b, i) => ({ label: `${b.height}p`, value: i }))
+                            ];
+                            populateQuality(levels);
+                        }
+                        const textTracks = currentDash.getTracksFor("text");
+                        if (textTracks && textTracks.length > 0) {
+                            const tracks = textTracks.map((t, i) => ({ label: t.lang || t.id, value: i }));
+                            populateCC(tracks);
+                        }
+                    });
                 } else { showError("DASH not supported in this browser."); }
             } else {
                 player.src = src;
+                player.addEventListener("loadedmetadata", () => {
+                    if (player.textTracks && player.textTracks.length > 0) {
+                        const tracks = Array.from(player.textTracks).map((t, i) => ({ label: t.label || t.language || `Track ${i+1}`, value: i }));
+                        populateCC(tracks);
+                    }
+                });
             }
         } catch (err) {
             showError(`Failed to load stream: ${err.message}`);
@@ -470,6 +564,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         eqPopover.classList.remove("active");
         themePopover.classList.remove("active");
         qualityDropdown.classList.remove("open");
+        ccDropdown.classList.remove("open");
     };
 
     themeToggleBtn.addEventListener("click", (e) => {
