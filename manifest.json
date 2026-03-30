@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "WebPlayer",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "Intercepts video streams and launches them in a custom, feature-rich web player.",
   "browser_specific_settings": {
     "gecko": {
@@ -28,8 +28,7 @@
     "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://sponsor.ajay.app;"
   },
   "background": {
-    "service_worker": "background.js",
-    "scripts": ["background.js"]
+    "service_worker": "background.js"
   },
   "content_scripts": [
     {

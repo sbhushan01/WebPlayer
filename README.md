@@ -3,7 +3,7 @@
 **WebPlayer** is a feature-rich browser extension that injects a custom, ad-free media player UI directly into web videos. It upgrades the standard web video experience with advanced streaming support, native gesture controls, an audiophile-grade equalizer, and automatic sponsor skipping.
 
 **Author:** Sushant Bhushan  
-**Version:** 1.5.0
+**Version:** 1.6.0
 
 ---
 
@@ -54,7 +54,7 @@
 ### Firefox
 1. Open Firefox and navigate to `about:debugging#/runtime/this-firefox`.
 2. Click **Load Temporary Add-on...**
-3. Select the `manifest.json` file from your project folder.
+3. Select the `manifest.json` file from your project folder. *(Note: Installation via `about:addons` is blocked by Mozilla for unsigned/unpackaged add-ons).*
 
 ---
 
@@ -65,23 +65,19 @@
 
 ---
 
-## ⚙️ Technical Improvements (v1.5.0)
+## ⚙️ Technical Improvements (v1.6.0)
 
-* **Standalone vs Overlay Feature Parity:** The injected overlay player now has full feature parity with the standalone player, including the Quality selector and CC/Subtitles dropdown.
-* **Stream Detection Prompt:** Instead of forcefully redirecting, HLS/DASH streams detected in the content script now show a sleek `Stream Detected` prompt, allowing users to choose whether to launch WebPlayer.
-* **Double-Tap Bug Fix:** Fixed a critical bug where double-tapping the right side of the screen in the standalone player threw an undefined error `safeSeekForward`, replacing it with robust inline logic.
-* **Improved Context Handling:** Added missing try/catch blocks to `port.postMessage` to prevent "Extension context invalidated" runtime errors when the extension updates.
-* **UI Refresh:** Several smaller UI polishes to ensure absolute consistency across dropdowns, speed pills, and typography across both players.
+* **Mobile UI Polish:** Improved hit regions for playback controls and scrub bars to make touching interactions much easier on mobile devices.
+* **Viewport Rescaling Fix:** Added `maximum-scale=1` and `user-scalable=no` meta tags to `player.html` which fixes accidental layout zooming when double-tapping to seek on iOS/Android browsers.
+* **Firefox Manifest V3 Compliance:** Added the strictly enforced `background.scripts` fallback to the `manifest.json` configuration, resolving the "Corrupted Add-on" install bug occurring on Firefox Beta / Nightly.
 
 ---
 
-## ⚙️ Technical Improvements (v1.4.0)
+## ⚙️ Technical Improvements (v1.5.0)
 
-* **Keyboard Shortcuts Implemented:** Added a full `keydown` listener for Space/K (play-pause), ←/→ (seek), ↑/↓ (volume), M (mute), F (fullscreen), R (rotate), and ? (help modal).
-* **Play/Pause Feedback Race Condition Fixed:** Feedback labels now capture the paused state *before* toggling it.
-* **EQ Persistence Implemented:** EQ band gains and preamp values are now saved to `chrome.storage.sync` on every interaction.
-* **Buffering Spinner Can No Longer Get Stuck:** Added `canplay` and `pause` listeners to dismiss the spinner permanently.
-* **Custom Quality Dropdown:** Replaced the unstyled native `<select>` with a Material Design dropdown.
-* **Skip Badge Shows Segment Category:** The skip notification displays the exact SponsorBlock category.
-* **Progress Bar Hit Target Expanded:** Added a 12px invisible click area making it much easier to grab.
-* **EQ Responsive on Narrow Viewports:** The EQ popover is clamped and repositioned on mobile screens to prevent overflow.
+* **Standalone vs Overlay Feature Parity:** The injected overlay player now has full feature parity with the standalone player, including the Quality selector and CC/Subtitles dropdown.
+* **Stream Detection Prompt:** Instead of forcefully redirecting, HLS/DASH streams detected in the content script now show a sleek `Stream Detected` prompt.
+* **Double-Tap Bug Fix:** Fixed a critical bug where double-tapping the right side of the screen in the standalone player threw an undefined error `safeSeekForward`.
+* **Improved Context Handling:** Added missing try/catch blocks to prevent "Extension context invalidated" runtime errors when the extension updates.
+
+---

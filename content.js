@@ -243,27 +243,27 @@
             .wp-progress-row { display: flex; align-items: center; gap: 12px; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; font-weight: 500; color: #C4C7C5; }
             input[type=range] { 
                 -webkit-appearance: none; appearance: none; flex: 1; 
-                background: rgba(255,255,255,0.15); height: 6px; border-radius: 4px; 
+                background: rgba(255,255,255,0.15); height: 8px; border-radius: 4px; 
                 cursor: pointer; outline: none; margin: 16px 0; 
             }
             input[type=range]::-webkit-slider-thumb {
                 -webkit-appearance: none; appearance: none;
-                width: 18px; height: 18px; border-radius: 50%; background: #A8C7FA; 
+                width: 20px; height: 20px; border-radius: 50%; background: #A8C7FA; 
                 cursor: pointer; box-shadow: 0 0 8px rgba(0,0,0,0.4); transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             }
             input[type=range]:active::-webkit-slider-thumb { transform: scale(1.3); }
             input[type=range]::-moz-range-thumb {
-                width: 18px; height: 18px; border-radius: 50%; background: #A8C7FA; 
+                width: 20px; height: 20px; border-radius: 50%; background: #A8C7FA; 
                 cursor: pointer; border: none; box-shadow: 0 0 8px rgba(0,0,0,0.4); transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             }
             input[type=range]:active::-moz-range-thumb { transform: scale(1.3); }
             .wp-center-row { display: flex; justify-content: center; align-items: center; gap: 16px; margin-top: 4px; flex-wrap: wrap; }
-            button { background: rgba(255,255,255,0.0); border: none; color: #E3E3E3; cursor: pointer; padding: 6px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: all 0.2s ease; width: 40px; height: 40px; }
+            button { background: rgba(255,255,255,0.0); border: none; color: #E3E3E3; cursor: pointer; padding: 8px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: all 0.2s ease; width: 44px; height: 44px; }
             button:hover { background: rgba(255,255,255,0.12); transform: scale(1.05); }
             @media (max-width: 600px) {
-                .wp-center-row { gap: 8px; }
+                .wp-center-row { gap: 6px; }
                 .speed-pills { display: none !important; }
-                button { width: 36px; height: 36px; padding: 4px; }
+                button { width: 40px; height: 40px; padding: 6px; }
             }
             .speed-pills { display: flex; align-items: center; gap: 6px; margin: 0 8px; }
             .speed-pill { font-size: 13px; font-weight: 600; padding: 0 12px; height: 32px; border-radius: 16px; background: rgba(255,255,255,0.06); color: #C4C7C5; transition: all 0.3s ease; border: 1px solid rgba(255,255,255,0.08); width: auto; display: flex; align-items: center; }
