@@ -93,25 +93,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 const playerUrl = chrome.runtime.getURL(`player.html?${params}`);
 
                 try {
-                    if (sender && sender.tab && sender.tab.id) {
-                        chrome.tabs.update(sender.tab.id, { url: playerUrl }, (tab) => {
-                            if (chrome.runtime.lastError || !tab) {
-                                console.error("[WebPlayer] Failed to update tab:", chrome.runtime.lastError?.message);
-                                chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [ruleId] });
-                                return;
-                            }
-                            chrome.storage.session.set({ [tab.id.toString()]: ruleId });
-                        });
-                    } else {
-                        chrome.tabs.create({ url: playerUrl }, (tab) => {
-                            if (chrome.runtime.lastError || !tab) {
-                                console.error("[WebPlayer] Failed to open tab:", chrome.runtime.lastError?.message);
-                                chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [ruleId] });
-                                return;
-                            }
-                            chrome.storage.session.set({ [tab.id.toString()]: ruleId });
-                        });
-                    }
+                    chrome.tabs.create({ url: playerUrl }, (tab) => {
+                        if (chrome.runtime.lastError || !tab) {
+                            console.error("[WebPlayer] Failed to open tab:", chrome.runtime.lastError?.message);
+                            chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [ruleId] });
+                            return;
+                        }
+                        chrome.storage.session.set({ [tab.id.toString()]: ruleId });
+                    });
                 } catch (err) {
                     console.error("[WebPlayer] Exception while creating tab:", err);
                     chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [ruleId] });

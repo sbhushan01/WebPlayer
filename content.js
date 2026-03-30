@@ -34,60 +34,70 @@
     const interceptedUrls = new Set();
     let isSpawningPlayer = false;
 
-    chrome.runtime.onMessage.addListener((msg) => {
-        if (msg.action === "stream_detected" && msg.url && !interceptedUrls.has(msg.url)) {
-            interceptedUrls.add(msg.url);
-            
-            const prompt = document.createElement("div");
-            prompt.style.cssText = `
-                position: fixed; bottom: 20px; right: 20px; z-index: 2147483647;
-                background: rgba(20, 20, 30, 0.9); backdrop-filter: blur(8px);
-                border: 1px solid rgba(255,255,255,0.1); border-radius: 12px;
-                padding: 12px 20px; color: white; display: flex; align-items: center; gap: 12px;
-                box-shadow: 0 8px 24px rgba(0,0,0,0.3); font-family: system-ui, sans-serif;
-                animation: wp-slide-in 0.3s ease-out;
-            `;
-            prompt.innerHTML = `
-                <div style="display:flex; flex-direction:column;">
-                    <span style="font-weight: 600; font-size: 14px;">Stream Detected</span>
-                    <span style="font-size: 12px; color: #aaa;">HLS/DASH stream available</span>
-                </div>
-                <div style="display:flex; gap: 8px;">
-                    <button id="wp-prompt-ignore" style="background: rgba(255,255,255,0.1); border: none; padding: 6px 12px; border-radius: 6px; color: white; cursor: pointer; font-size: 12px; transition: 0.2s;">Ignore</button>
-                    <button id="wp-prompt-launch" style="background: #4A9EFF; border: none; padding: 6px 12px; border-radius: 6px; color: white; cursor: pointer; font-size: 12px; font-weight: bold; transition: 0.2s;">Launch Player</button>
-                </div>
-            `;
-            
-            if (!document.getElementById("wp-prompt-style")) {
-                const s = document.createElement("style");
-                s.id = "wp-prompt-style";
-                s.textContent = "@keyframes wp-slide-in { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }";
-                getRootContainer()?.appendChild(s);
-            }
-            
-            getRootContainer()?.appendChild(prompt);
-            
-            const closePrompt = () => {
-                prompt.style.opacity = "0";
-                prompt.style.transform = "translateY(20px)";
-                prompt.style.transition = "all 0.3s ease-in";
-                setTimeout(() => prompt.remove(), 300);
-            };
-            
-            prompt.querySelector("#wp-prompt-ignore").onclick = closePrompt;
-            prompt.querySelector("#wp-prompt-launch").onclick = () => {
-                closePrompt();
-                chrome.runtime.sendMessage({
-                    action:    "open_player",
-                    videoSrc:  msg.url,
-                    pageTitle: document.title,
-                    pageUrl:   window.location.href
-                });
-            };
-            
-            setTimeout(closePrompt, 15000);
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id) {
+        try {
+            chrome.runtime.onMessage.addListener((msg) => {
+                if (msg.action === "stream_detected" && msg.url && !interceptedUrls.has(msg.url)) {
+                    interceptedUrls.add(msg.url);
+                    
+                    const prompt = document.createElement("div");
+                    prompt.style.cssText = `
+                        position: fixed; bottom: 20px; right: 20px; z-index: 2147483647;
+                        background: rgba(20, 20, 30, 0.9); backdrop-filter: blur(8px);
+                        border: 1px solid rgba(255,255,255,0.1); border-radius: 12px;
+                        padding: 12px 20px; color: white; display: flex; align-items: center; gap: 12px;
+                        box-shadow: 0 8px 24px rgba(0,0,0,0.3); font-family: system-ui, sans-serif;
+                        animation: wp-slide-in 0.3s ease-out;
+                    `;
+                    prompt.innerHTML = `
+                        <div style="display:flex; flex-direction:column;">
+                            <span style="font-weight: 600; font-size: 14px;">Stream Detected</span>
+                            <span style="font-size: 12px; color: #aaa;">HLS/DASH stream available</span>
+                        </div>
+                        <div style="display:flex; gap: 8px;">
+                            <button id="wp-prompt-ignore" style="background: rgba(255,255,255,0.1); border: none; padding: 6px 12px; border-radius: 6px; color: white; cursor: pointer; font-size: 12px; transition: 0.2s;">Ignore</button>
+                            <button id="wp-prompt-launch" style="background: #4A9EFF; border: none; padding: 6px 12px; border-radius: 6px; color: white; cursor: pointer; font-size: 12px; font-weight: bold; transition: 0.2s;">Launch Player</button>
+                        </div>
+                    `;
+                    
+                    if (!document.getElementById("wp-prompt-style")) {
+                        const s = document.createElement("style");
+                        s.id = "wp-prompt-style";
+                        s.textContent = "@keyframes wp-slide-in { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }";
+                        getRootContainer()?.appendChild(s);
+                    }
+                    
+                    getRootContainer()?.appendChild(prompt);
+                    
+                    const closePrompt = () => {
+                        prompt.style.opacity = "0";
+                        prompt.style.transform = "translateY(20px)";
+                        prompt.style.transition = "all 0.3s ease-in";
+                        setTimeout(() => prompt.remove(), 300);
+                    };
+                    
+                    prompt.querySelector("#wp-prompt-ignore").onclick = closePrompt;
+                    prompt.querySelector("#wp-prompt-launch").onclick = () => {
+                        closePrompt();
+                        try {
+                            chrome.runtime.sendMessage({
+                                action:    "open_player",
+                                videoSrc:  msg.url,
+                                pageTitle: document.title,
+                                pageUrl:   window.location.href
+                            });
+                        } catch (e) {
+                            console.warn("[WebPlayer] Cannot send launch message:", e);
+                        }
+                    };
+                    
+                    setTimeout(closePrompt, 15000);
+                }
+            });
+        } catch (e) {
+            console.warn("[WebPlayer] Message listener initialization error:", e);
         }
-    });
+    }
 
     function findVideos() {
         try {
@@ -257,6 +267,18 @@
                 animation: wp-ripple-anim 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards; box-shadow: 0 0 20px rgba(168, 199, 250, 0.6);
             }
             @keyframes wp-ripple-anim { to { transform: scale(4.5); opacity: 0; } }
+            .quality-container { position: relative; display: flex; align-items: center; }
+            .quality-dropdown { 
+                position: absolute; bottom: calc(100% + 16px); right: -10px; 
+                background: rgba(26, 29, 36, 0.95); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+                border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 8px; flex-direction: column; gap: 4px; 
+                z-index: 50; box-shadow: 0px 8px 16px 2px rgba(0,0,0,0.2); min-width: 140px; display: none; 
+            }
+            .quality-dropdown.open { display: flex; animation: wp-slideUp 0.2s cubic-bezier(0.4,0,0.2,1); }
+            @keyframes wp-slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+            .quality-option { font-size: 13px; font-weight: 500; padding: 10px 16px; border-radius: 10px; width: 100%; text-align: left; background: none; color: #C4C7C5; border: none; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: flex-start; }
+            .quality-option:hover { background: rgba(255,255,255,0.1); color: #E3E3E3; }
+            .quality-option.active { color: #A8C7FA; background: rgba(255,255,255,0.05); }
         `;
         shadow.appendChild(styles);
 
@@ -271,6 +293,18 @@
                 <button id="wp-skip-back">${IC.skipBack}</button>
                 <button id="wp-play">${IC.play}</button>
                 <button id="wp-skip-fwd">${IC.skipFwd}</button>
+                <div class="quality-container" id="wp-quality-container" style="display:none;">
+                    <button id="wp-quality-btn" title="Quality">
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94L14.4 2.81c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41L9.25 5.35C8.66 5.59 8.12 5.92 7.63 6.29L5.24 5.33c-.22-.08-.47 0-.59.22L2.73 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.08.62-.08.94s.03.64.08.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .43-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.49-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+                    </button>
+                    <div class="quality-dropdown" id="wp-quality-dropdown"></div>
+                </div>
+                <div class="quality-container" id="wp-cc-container" style="display:none;">
+                    <button id="wp-cc-btn" title="Subtitles/CC">
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M19 4H5c-1.11 0-2 .9-2 2v12c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 7H9.5v-.5h-2v3h2V13H11v1.5c0 .28-.22.5-.5.5h-3c-.28 0-.5-.22-.5-.5v-4c0-.28.22-.5.5-.5h3c.28 0 .5.22.5.5V11zm7 0h-1.5v-.5h-2v3h2V13H18v1.5c0 .28-.22.5-.5.5h-3c-.28 0-.5-.22-.5-.5v-4c0-.28.22-.5.5-.5h3c.28 0 .5.22.5.5V11z"/></svg>
+                    </button>
+                    <div class="quality-dropdown" id="wp-cc-dropdown"></div>
+                </div>
                 <div class="speed-pills" id="wp-speed-pills">
                     <button class="speed-pill" data-speed="0.5">0.5×</button>
                     <button class="speed-pill active" data-speed="1">1×</button>
@@ -293,6 +327,111 @@
         shadow.appendChild(gestureZone);
         shadow.appendChild(uiWrapper);
         shadow.appendChild(feedbackOverlay);
+
+        const ytPlayer = document.querySelector(".html5-video-player") || video.closest('.html5-video-player');
+        const qDropdown = uiWrapper.querySelector("#wp-quality-dropdown");
+        const qContainer = uiWrapper.querySelector("#wp-quality-container");
+        const ccDropdown = uiWrapper.querySelector("#wp-cc-dropdown");
+        const ccContainer = uiWrapper.querySelector("#wp-cc-container");
+
+        if (ytPlayer && ytPlayer.getAvailableQualityLevels) {
+            const updateQualityMenu = () => {
+                const levels = ytPlayer.getAvailableQualityLevels();
+                if (levels && levels.length > 0) {
+                    qContainer.style.display = "flex";
+                    qDropdown.innerHTML = "";
+                    levels.forEach(l => {
+                        const btn = document.createElement("button");
+                        btn.className = "quality-option" + (l === "auto" ? " active" : "");
+                        btn.textContent = l === "auto" ? "Auto" : l;
+                        btn.dataset.value = l;
+                        qDropdown.appendChild(btn);
+                    });
+                }
+            };
+            updateQualityMenu();
+            video.addEventListener("loadedmetadata", updateQualityMenu);
+            qDropdown.addEventListener("click", e => {
+                const btn = e.target.closest(".quality-option");
+                if (!btn) return;
+                qDropdown.querySelectorAll(".quality-option").forEach(b => b.classList.remove("active"));
+                btn.classList.add("active");
+                ytPlayer.setPlaybackQualityRange(btn.dataset.value);
+                qDropdown.classList.remove("open");
+            });
+        }
+
+        const updateCCMenu = () => {
+            let tracks = [];
+            if (video.textTracks && video.textTracks.length > 0) {
+                tracks = Array.from(video.textTracks).map((t, i) => ({ label: t.label || t.language || `Track ${i + 1}`, value: i, type: "native" }));
+            } else if (ytPlayer && ytPlayer.getOption) {
+                const ytTracks = ytPlayer.getOption('captions', 'tracklist') || [];
+                tracks = ytTracks.map((t, i) => ({ label: t.displayName || t.languageCode, value: i, type: "yt", ytTrack: t }));
+            }
+
+            if (tracks.length > 0) {
+                ccContainer.style.display = "flex";
+                ccDropdown.innerHTML = `<button class="quality-option active" data-value="-1">Off</button>`;
+                tracks.forEach((t) => {
+                    const btn = document.createElement("button");
+                    btn.className = "quality-option";
+                    btn.textContent = t.label;
+                    btn.dataset.value = t.value;
+                    btn.dataset.type = t.type;
+                    if (t.type === "yt") btn.dataset.yt = JSON.stringify(t.ytTrack);
+                    ccDropdown.appendChild(btn);
+                });
+            } else {
+                ccContainer.style.display = "none";
+            }
+        };
+        updateCCMenu();
+        video.addEventListener("loadedmetadata", updateCCMenu);
+        video.addEventListener("canplay", updateCCMenu);
+        
+        ccDropdown.addEventListener("click", e => {
+            const btn = e.target.closest(".quality-option");
+            if (!btn) return;
+            ccDropdown.querySelectorAll(".quality-option").forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            
+            const val = parseInt(btn.dataset.value);
+            const type = btn.dataset.type;
+            
+            if (val === -1) {
+                Array.from(video.textTracks || []).forEach(t => t.mode = "disabled");
+                if (ytPlayer && ytPlayer.unloadModule) ytPlayer.unloadModule("captions");
+            } else {
+                if (type === "native") {
+                    Array.from(video.textTracks || []).forEach((t, i) => t.mode = i === val ? "showing" : "disabled");
+                } else if (type === "yt") {
+                    if (ytPlayer && ytPlayer.setOption) {
+                        try {
+                            const tObj = JSON.parse(btn.dataset.yt);
+                            ytPlayer.loadModule("captions");
+                            ytPlayer.setOption("captions", "track", tObj);
+                        } catch(err) {}
+                    }
+                }
+            }
+            ccDropdown.classList.remove("open");
+        });
+
+        uiWrapper.querySelector("#wp-quality-btn")?.addEventListener("click", e => {
+            e.stopPropagation();
+            qDropdown.classList.toggle("open");
+            ccDropdown.classList.remove("open");
+        });
+        uiWrapper.querySelector("#wp-cc-btn")?.addEventListener("click", e => {
+            e.stopPropagation();
+            ccDropdown.classList.toggle("open");
+            qDropdown.classList.remove("open");
+        });
+        uiWrapper.addEventListener("click", e => {
+            if (!e.target.closest("#wp-quality-container") && !e.target.closest("#wp-quality-btn")) qDropdown.classList.remove("open");
+            if (!e.target.closest("#wp-cc-container") && !e.target.closest("#wp-cc-btn")) ccDropdown.classList.remove("open");
+        });
 
         let hideTimer;
         const showControls = () => {
