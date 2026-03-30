@@ -685,7 +685,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     gestureZone.addEventListener("contextmenu", e => e.preventDefault());
 
     gestureZone.addEventListener("dblclick", (e) => {
-        if (e.pointerType === "mouse") toggleFS();
+        e.preventDefault();
+        const rect = gestureZone.getBoundingClientRect();
+        if (e.clientX < rect.left + rect.width * 0.33) {
+            player.currentTime = Math.max(0, player.currentTime - 10);
+            showFeedback("−10s");
+        } else if (e.clientX > rect.left + rect.width * 0.66) {
+            safeSeekForward(10);
+            showFeedback("+10s");
+        } else {
+            toggleFS();
+        }
     });
 
     gestureZone.addEventListener("pointerdown", (e) => {

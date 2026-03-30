@@ -641,7 +641,17 @@
         gestureZone.addEventListener("contextmenu", e => e.preventDefault());
 
         gestureZone.addEventListener("dblclick", e => {
-            if (e.pointerType === "mouse") uiWrapper.querySelector("#wp-fs").click();
+            e.preventDefault();
+            const rect = gestureZone.getBoundingClientRect();
+            if (e.clientX < rect.left + rect.width * 0.33) {
+                video.currentTime = Math.max(0, video.currentTime - 10);
+                showFeedback("−10s");
+            } else if (e.clientX > rect.left + rect.width * 0.66) {
+                safeSeekForward(video, 10);
+                showFeedback("+10s");
+            } else {
+                uiWrapper.querySelector("#wp-fs")?.click();
+            }
         });
 
         gestureZone.addEventListener("pointerdown", e => {
