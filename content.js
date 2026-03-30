@@ -114,6 +114,7 @@
 
         btn.addEventListener("click", e => {
             e.preventDefault();
+            e.stopPropagation();
             cancelAnimationFrame(rafId); btn.remove(); buttonRegistry.delete(video);
             injectCustomPlayer(video);
         });
@@ -143,6 +144,13 @@
 
         const shadowHost = document.createElement("div");
         shadowHost.style.cssText = "position: absolute; pointer-events: none; z-index: 2147483647;";
+        
+        // Prevent events from bubbling to YouTube's player
+        const stopProp = e => e.stopPropagation();
+        ['pointerdown', 'pointerup', 'click', 'dblclick', 'contextmenu'].forEach(evt => {
+            shadowHost.addEventListener(evt, stopProp);
+        });
+        
         video.parentElement.appendChild(shadowHost);
 
         const syncOverlay = () => {
