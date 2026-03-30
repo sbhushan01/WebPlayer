@@ -26,7 +26,11 @@ chrome.runtime.onStartup.addListener(() => {
     setupAlarms();
     cleanupOldVideoProgress();
 });
-chrome.alarms.onAlarm.addListener(() => {});
+chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === "keepAlive") {
+        cleanupOldVideoProgress();
+    }
+});
 
 chrome.tabs.onRemoved.addListener(async (tabId) => {
     const tabKey = tabId.toString();
