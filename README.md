@@ -3,7 +3,7 @@
 **WebPlayer** is a feature-rich browser extension that injects a custom, ad-free media player UI directly into web videos. It upgrades the standard web video experience with advanced streaming support, native gesture controls, an audiophile-grade equalizer, and automatic sponsor skipping.
 
 **Author:** Sushant Bhushan  
-**Version:** 1.4.0
+**Version:** 1.5.0
 
 ---
 
@@ -65,18 +65,23 @@
 
 ---
 
+## ⚙️ Technical Improvements (v1.5.0)
+
+* **Standalone vs Overlay Feature Parity:** The injected overlay player now has full feature parity with the standalone player, including the Quality selector and CC/Subtitles dropdown.
+* **Stream Detection Prompt:** Instead of forcefully redirecting, HLS/DASH streams detected in the content script now show a sleek `Stream Detected` prompt, allowing users to choose whether to launch WebPlayer.
+* **Double-Tap Bug Fix:** Fixed a critical bug where double-tapping the right side of the screen in the standalone player threw an undefined error `safeSeekForward`, replacing it with robust inline logic.
+* **Improved Context Handling:** Added missing try/catch blocks to `port.postMessage` to prevent "Extension context invalidated" runtime errors when the extension updates.
+* **UI Refresh:** Several smaller UI polishes to ensure absolute consistency across dropdowns, speed pills, and typography across both players.
+
+---
+
 ## ⚙️ Technical Improvements (v1.4.0)
 
-* **Keyboard Shortcuts Implemented:** Added a full `keydown` listener for Space/K (play-pause), ←/→ (seek), ↑/↓ (volume), M (mute), F (fullscreen), R (rotate), and ? (help modal) — previously the modal was documented but none of the bindings were wired up.
-* **Play/Pause Feedback Race Condition Fixed:** Feedback labels ("Playing" / "Paused") now capture the paused state *before* toggling it, preventing cases where both the gesture handler and the async play promise disagreed on the current state.
-* **EQ Persistence Implemented:** EQ band gains and preamp values are now saved to `chrome.storage.sync` on every slider interaction and restored on next load — fulfilling the feature as documented.
-* **Buffering Spinner Can No Longer Get Stuck:** Added `canplay` and `pause` listeners to dismiss the spinner, preventing the permanent-spinner state that occurred when autoplay was blocked by the browser.
-* **Speed Pill Sync on Long-Press:** Introduced a `setPlaybackRate()` helper used everywhere playback rate changes, keeping the speed pill UI in sync with programmatic rate changes (long-press 2× and restore).
-* **`showError` Clears Spinner:** Error display now removes the `is-buffering` class, preventing the spinner from persisting behind the error message.
-* **Idle Timer + EQ Interaction:** The EQ popover's `pointermove` events now reset the idle timer; opening/closing the EQ also resets it, so the control bar never vanishes while the user is adjusting audio.
-* **Custom Quality Dropdown:** Replaced the unstyled native `<select>` with a Material Design pill-button dropdown that matches the rest of the player UI.
-* **Skip Badge Shows Segment Category:** The skip notification now displays the actual SponsorBlock category ("Sponsor Skipped", "Intro Skipped", etc.) instead of the temporally incorrect "Skipping…".
-* **Progress Bar Hit Target Expanded:** A CSS `::before` pseudo-element adds 12px of invisible click area above and below the 4px progress bar, making it much easier to grab on smaller screens.
-* **EQ Responsive on Narrow Viewports:** The EQ popover is now clamped to `min(380px, calc(100vw - 48px))` and repositioned on screens narrower than 430px to prevent overflow.
-* **Double-Tap Window Reduced to 200ms:** The gesture recognition threshold was reduced from 300ms to 200ms in both the standalone player and overlay mode, making seek and play/pause gestures feel more responsive.
-* **Rotate Button in Standalone Player:** The rotate control was present in the overlay mode but missing from `player.html`. It is now included in both, with an `R` keyboard shortcut.
+* **Keyboard Shortcuts Implemented:** Added a full `keydown` listener for Space/K (play-pause), ←/→ (seek), ↑/↓ (volume), M (mute), F (fullscreen), R (rotate), and ? (help modal).
+* **Play/Pause Feedback Race Condition Fixed:** Feedback labels now capture the paused state *before* toggling it.
+* **EQ Persistence Implemented:** EQ band gains and preamp values are now saved to `chrome.storage.sync` on every interaction.
+* **Buffering Spinner Can No Longer Get Stuck:** Added `canplay` and `pause` listeners to dismiss the spinner permanently.
+* **Custom Quality Dropdown:** Replaced the unstyled native `<select>` with a Material Design dropdown.
+* **Skip Badge Shows Segment Category:** The skip notification displays the exact SponsorBlock category.
+* **Progress Bar Hit Target Expanded:** Added a 12px invisible click area making it much easier to grab.
+* **EQ Responsive on Narrow Viewports:** The EQ popover is clamped and repositioned on mobile screens to prevent overflow.

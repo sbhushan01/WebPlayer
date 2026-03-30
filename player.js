@@ -691,7 +691,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             player.currentTime = Math.max(0, player.currentTime - 10);
             showFeedback("−10s");
         } else if (e.clientX > rect.left + rect.width * 0.66) {
-            safeSeekForward(10);
+            player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 10);
             showFeedback("+10s");
         } else {
             toggleFS();
