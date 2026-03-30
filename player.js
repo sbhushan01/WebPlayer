@@ -1,5 +1,4 @@
 document.addEventListener("DOMContentLoaded", async () => {
-    // ── Element references ──────────────────────────────────────────────────
     const player         = document.getElementById("main-player");
     const container      = document.getElementById("video-container");
     const bufferEl       = document.getElementById("buffering-indicator");
@@ -35,7 +34,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     const shortcutsBtn   = document.getElementById("shortcuts-btn");
     const shortcutsClose = document.getElementById("shortcuts-close");
 
-    // ── Media Session API ───────────────────────────────────────────────────
     if ("mediaSession" in navigator) {
         navigator.mediaSession.setActionHandler("play",         () => player.play());
         navigator.mediaSession.setActionHandler("pause",        () => player.pause());
@@ -43,7 +41,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         navigator.mediaSession.setActionHandler("seekforward",  (e) => player.currentTime = Math.min(player.duration, player.currentTime + (e.seekOffset || 10)));
     }
 
-    // ── URL Parsing ─────────────────────────────────────────────────────────
     const urlParams = new URLSearchParams(window.location.search);
     const videoSrc  = urlParams.get("src");
     const pageUrl   = urlParams.get("pageUrl") || "";
@@ -59,7 +56,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         document.getElementById("error-msg").textContent = msg;
         box.style.display = "flex";
     }
-    // UI: Retry button calls attachSource again to recover from transient errors.
     document.getElementById("error-retry").addEventListener("click", () => {
         document.getElementById("error-box").style.display = "none";
         bufferEl.classList.add("is-buffering");
@@ -68,7 +64,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (!videoSrc) { showError("No video source provided."); return; }
 
-    // ── Playback state persistence ──────────────────────────────────────────
     const cleanUrl = videoSrc.split("?")[0];
     chrome.storage.local.get([cleanUrl]).then(res => {
         if (res[cleanUrl]) {
@@ -91,7 +86,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
     player.addEventListener("ended", () => chrome.storage.local.remove([cleanUrl]));
 
-    // ── HLS / DASH engine ───────────────────────────────────────────────────
     let currentHls = null, currentDash = null;
     function destroyEngines() {
         if (currentHls)  { currentHls.destroy();  currentHls  = null; }
@@ -159,17 +153,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     attachSource(videoSrc);
 
-    // ── SponsorBlock ─────────────────────────────────────────────────────────
     window.__isSkipping = false;
 
     async function fetchSegments() {
         try {
-            // FIX: videoSrc is the raw stream URL and never contains ?v=.
-            // Use the pageUrl param (the originating YouTube page) instead.
             let videoId = null;
             for (const candidate of [pageUrl, videoSrc]) {
-                try { videoId = new URL(candidate).searchParams.get("v"); } catch {}
-                if (videoId && videoId.length === 11) break;
+                const match = /(?:v=|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/.exec(candidate);
+                if (match) {
+                    videoId = match[1];
+                    break;
+                }
             }
             if (!videoId) return [];
 
@@ -184,7 +178,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     fetchSegments().then(segs => { skipSegments = segs; });
     const skippedIds = new Set();
 
-    // UI: Animate the skip badge in/out instead of toggling display.
     function showSkipBadge() {
         skipBadge.style.display = "block";
         requestAnimationFrame(() => skipBadge.classList.add("showing"));
@@ -212,7 +205,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     });
 
-    // ── Progress bar ─────────────────────────────────────────────────────────
     const formatTime = (sec) => {
         if (!isFinite(sec)) return "0:00";
         const m = Math.floor(sec / 60);
@@ -235,8 +227,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     });
 
-    // FIX: Iterate all buffered TimeRanges and use the one that extends furthest
-    // beyond the current playhead, not blindly the last range.
     player.addEventListener("progress", () => {
         if (!isFinite(player.duration) || player.duration === 0) return;
         let maxEnd = 0;
@@ -272,7 +262,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         window.addEventListener("pointerup",   onUp);
     });
 
-    // ── Playback & volume ────────────────────────────────────────────────────
     const togglePlay = () => player.paused ? player.play() : player.pause();
     playBtn.addEventListener("click", togglePlay);
     player.addEventListener("play",  () => playIconPath.setAttribute("d", "M6 19h4V5H6v14zm8-14v14h4V5h-4z"));
@@ -280,7 +269,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     player.addEventListener("waiting", () => bufferEl.classList.add("is-buffering"));
     player.addEventListener("playing", () => bufferEl.classList.remove("is-buffering"));
-    // FIX: Remove spinner if the stream errors, otherwise it stays forever.
     player.addEventListener("error",   () => bufferEl.classList.remove("is-buffering"));
 
     volumeSlider.addEventListener("input", (e) => {
@@ -292,7 +280,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         volumeSlider.value  = player.muted ? 0 : player.volume;
     });
 
-    // ── Speed pills ──────────────────────────────────────────────────────────
     speedPillsEl.querySelectorAll(".speed-pill").forEach(pill => {
         pill.addEventListener("click", () => {
             speedPillsEl.querySelectorAll(".speed-pill").forEach(p => p.classList.remove("active"));
@@ -301,7 +288,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     });
 
-    // ── Fullscreen ───────────────────────────────────────────────────────────
     const toggleFS = async () => {
         if (document.fullscreenElement || document.webkitFullscreenElement) {
             (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
@@ -321,7 +307,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.addEventListener("fullscreenchange",       onFSChange);
     document.addEventListener("webkitfullscreenchange", onFSChange);
 
-    // ── PiP ──────────────────────────────────────────────────────────────────
     pipBtn.addEventListener("click", async () => {
         try {
             document.pictureInPictureElement
@@ -330,7 +315,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         } catch {}
     });
 
-    // ── Idle / controls hide ──────────────────────────────────────────────────
     let idleTimer;
     const resetIdle = () => {
         container.classList.remove("idle");
@@ -346,17 +330,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     player.addEventListener("play",  resetIdle);
     player.addEventListener("pause", () => container.classList.remove("idle"));
 
-    // ── EQ Popover ───────────────────────────────────────────────────────────
     eqToggleBtn.addEventListener("click", () => eqPopover.classList.toggle("active"));
     eqCloseBtn.addEventListener("click",  () => eqPopover.classList.remove("active"));
 
-    // ── Shortcuts modal ───────────────────────────────────────────────────────
     const toggleShortcuts = () => shortcutsModal.classList.toggle("active");
     shortcutsBtn.addEventListener("click",   toggleShortcuts);
     shortcutsClose.addEventListener("click", () => shortcutsModal.classList.remove("active"));
     shortcutsModal.addEventListener("click", (e) => { if (e.target === shortcutsModal) shortcutsModal.classList.remove("active"); });
 
-    // ── Feedback overlay ──────────────────────────────────────────────────────
     let feedbackTimer;
     const showFeedback = (text) => {
         feedbackOverlay.textContent = text;
@@ -365,31 +346,44 @@ document.addEventListener("DOMContentLoaded", async () => {
         feedbackTimer = setTimeout(() => feedbackOverlay.style.opacity = 0, 800);
     };
 
-    // ── Gesture zone ──────────────────────────────────────────────────────────
+    // Robust gesture zone logic
     gestureZone.style.touchAction = "none";
+    gestureZone.style.userSelect = "none";
+    gestureZone.style.webkitUserSelect = "none";
 
     let startX = 0, startY = 0, lastY = 0, swipeDir = null;
-    let isPointerDown = false, lastTapTime = 0, tapTimeout;
-    let currentBrightness = 1.0;
+    let isPointerDown = false, lastTapTime = 0, tapTimeout, longPressTimer;
+    let currentBrightness = 1.0, originalSpeed = 1.0;
+
+    gestureZone.addEventListener("contextmenu", e => e.preventDefault());
 
     gestureZone.addEventListener("pointerdown", (e) => {
         isPointerDown = true;
         gestureZone.setPointerCapture(e.pointerId);
         startX = e.clientX; startY = e.clientY; lastY = e.clientY; swipeDir = null;
+
+        originalSpeed = player.playbackRate;
+        longPressTimer = setTimeout(() => {
+            player.playbackRate = 2.0;
+            showFeedback("2× Speed");
+        }, 500);
     });
 
     gestureZone.addEventListener("pointermove", (e) => {
         if (!isPointerDown) return;
         const diffX = e.clientX - startX;
         const diffY = e.clientY - startY;
+
         if (!swipeDir) {
-            if (Math.abs(diffX) > 20) swipeDir = "horizontal";
-            else if (Math.abs(diffY) > 20) swipeDir = "vertical";
+            if (Math.abs(diffX) > 20) { swipeDir = "horizontal"; clearTimeout(longPressTimer); }
+            else if (Math.abs(diffY) > 20) { swipeDir = "vertical"; clearTimeout(longPressTimer); }
         }
+
         if (swipeDir === "vertical") {
             const rect  = gestureZone.getBoundingClientRect();
             const deltaY = e.clientY - lastY;
             lastY = e.clientY;
+
             if (e.clientX > rect.left + rect.width / 2) {
                 player.volume       = Math.max(0, Math.min(1, player.volume - deltaY * 0.005));
                 volumeSlider.value  = player.volume;
@@ -406,6 +400,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (!isPointerDown) return;
         isPointerDown = false;
         gestureZone.releasePointerCapture(e.pointerId);
+        clearTimeout(longPressTimer);
+
+        if (player.playbackRate === 2.0 && originalSpeed !== 2.0) {
+            player.playbackRate = originalSpeed;
+            showFeedback("1× Speed");
+            return;
+        }
 
         const diffX = e.clientX - startX;
         if (swipeDir === "horizontal" && Math.abs(diffX) > 40) {
@@ -418,9 +419,31 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (!swipeDir) {
             const now = Date.now();
             if (now - lastTapTime < 300) {
-                // Double tap
                 clearTimeout(tapTimeout);
                 const rect = gestureZone.getBoundingClientRect();
+                
+                const ripple = document.createElement("div");
+                ripple.className = "wp-ripple";
+                ripple.style.position = "absolute";
+                ripple.style.borderRadius = "50%";
+                ripple.style.background = "rgba(255, 255, 255, 0.4)";
+                ripple.style.transform = "scale(0)";
+                ripple.style.pointerEvents = "none";
+                ripple.style.animation = "wp-ripple-anim 0.4s linear";
+                
+                ripple.style.left = `${e.clientX - rect.left - 25}px`;
+                ripple.style.top = `${e.clientY - rect.top - 25}px`;
+                ripple.style.width = ripple.style.height = "50px";
+                gestureZone.appendChild(ripple);
+                setTimeout(() => ripple.remove(), 400);
+
+                if (!document.getElementById('wp-ripple-style')) {
+                    const style = document.createElement('style');
+                    style.id = 'wp-ripple-style';
+                    style.textContent = `@keyframes wp-ripple-anim { to { transform: scale(4); opacity: 0; } }`;
+                    document.head.appendChild(style);
+                }
+
                 if (e.clientX < rect.left + rect.width * 0.33) {
                     player.currentTime = Math.max(0, player.currentTime - 10);
                     showFeedback("−10s");
@@ -428,8 +451,6 @@ document.addEventListener("DOMContentLoaded", async () => {
                     player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 10);
                     showFeedback("+10s");
                 } else {
-                    // FIX: Centre double-tap was undocumentedly toggling fullscreen.
-                    // Changed to toggle play/pause, which is the standard convention.
                     togglePlay();
                     showFeedback(player.paused ? "Paused" : "Playing");
                 }
@@ -444,8 +465,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     });
 
-    // ── Audio EQ setup ────────────────────────────────────────────────────────
-    let audioContext, preampNode, eqNodes = [], mediaNodeCreated = false;
+    let audioContext, preampNode, eqNodes = [], audioInitialized = false;
     const FREQS  = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
     const LABELS = ["31", "62", "125", "250", "500", "1K",  "2K",  "4K",  "8K",  "16K"];
 
@@ -482,7 +502,6 @@ document.addEventListener("DOMContentLoaded", async () => {
                 chrome.storage.sync.set({ eq: savedEq });
             });
 
-            // UI: Visual zero-line marker so users know what "flat" looks like.
             const zeroMark = document.createElement("div");
             zeroMark.className = "eq-zero-mark";
 
@@ -496,34 +515,46 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     }
 
-    player.addEventListener("play", () => {
-        if (audioContext && audioContext.state === "suspended") audioContext.resume();
-        if (audioContext) return;
+    const initAudioEngine = () => {
+        if (audioInitialized) return;
         try {
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            if (!mediaNodeCreated) {
-                const track = audioContext.createMediaElementSource(player);
-                mediaNodeCreated = true;
-                preampNode = audioContext.createGain();
-                preampNode.gain.value = savedEq.preamp;
-                let prev = preampNode;
-                track.connect(preampNode);
-                FREQS.forEach((f, i) => {
-                    const eq = audioContext.createBiquadFilter();
-                    eq.type = (i === 0) ? "lowshelf" : (i === FREQS.length - 1) ? "highshelf" : "peaking";
-                    eq.frequency.value = f;
-                    eq.gain.value      = savedEq.bands[i];
-                    if (eq.type === "peaking") eq.Q.value = 1.41;
-                    eqNodes.push(eq);
-                    prev.connect(eq);
-                    prev = eq;
-                });
-                prev.connect(audioContext.destination);
+            if (audioContext.state === "suspended") {
+                audioContext.resume();
             }
-        } catch {}
+            
+            player.crossOrigin = "anonymous";
+            const track = audioContext.createMediaElementSource(player);
+            
+            preampNode = audioContext.createGain();
+            preampNode.gain.value = savedEq.preamp;
+            let prev = preampNode;
+            track.connect(preampNode);
+            
+            FREQS.forEach((f, i) => {
+                const eq = audioContext.createBiquadFilter();
+                eq.type = (i === 0) ? "lowshelf" : (i === FREQS.length - 1) ? "highshelf" : "peaking";
+                eq.frequency.value = f;
+                eq.gain.value      = savedEq.bands[i];
+                if (eq.type === "peaking") eq.Q.value = 1.41;
+                eqNodes.push(eq);
+                prev.connect(eq);
+                prev = eq;
+            });
+            prev.connect(audioContext.destination);
+            audioInitialized = true;
+        } catch (err) {
+            console.warn("AudioContext failed to initialize:", err);
+        }
+    };
+
+    document.addEventListener("click", initAudioEngine, { once: true });
+    playBtn.addEventListener("click", initAudioEngine, { once: true });
+
+    player.addEventListener("play", () => {
+        if (audioContext && audioContext.state === "suspended") audioContext.resume();
     });
 
-    // ── Keyboard shortcuts ────────────────────────────────────────────────────
     window.addEventListener("keydown", (e) => {
         if (["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName)) return;
 
@@ -568,7 +599,6 @@ document.addEventListener("DOMContentLoaded", async () => {
                 volumeSlider.value = player.muted ? 0 : player.volume;
                 showFeedback(player.muted ? "Muted" : "Unmuted");
                 break;
-            // UI: Press ? to open the keyboard shortcuts reference.
             case "?":
                 e.preventDefault();
                 toggleShortcuts();
