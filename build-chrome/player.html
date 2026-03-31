@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta name="theme-color" content="#1A1D24">
     <title>WebPlayer</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0" rel="stylesheet" />
@@ -300,11 +301,12 @@
             .time-display { font-size: 0.8rem; white-space: nowrap; margin-left: 6px; }
             #shortcuts-btn { display: none; } /* Hide complex menus on tiny screens to save space */
             .speed-pills { display: none; }
-            .custom-controls { padding: 10px 14px; gap: 10px; border-radius: 20px; }
-            .custom-controls-wrapper { bottom: 16px; }
-            button { width: 36px; height: 36px; flex-shrink: 0; }
-            .material-symbols-rounded { font-size: 24px; }
-            .progress-wrapper { height: 4px; }
+            .custom-controls { padding: 12px 14px; gap: 12px; border-radius: 20px; }
+            .custom-controls-wrapper { bottom: 16px; width: 100%; padding: 0 10px; }
+            button { width: 44px; height: 44px; flex-shrink: 0; margin: 0 2px; }
+            .material-symbols-rounded { font-size: 28px; }
+            .progress-wrapper { height: 8px; }
+            .progress-thumb { transform: translateX(-50%) scale(0.9); }
         }
 
         /* ── Error box ───────────────────────────────────────────────────────── */

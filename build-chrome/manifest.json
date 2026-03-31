@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "WebPlayer",
-  "version": "1.6.1",
+  "version": "1.0.0",
   "description": "Intercepts video streams and launches them in a custom, feature-rich web player.",
   "browser_specific_settings": {
     "gecko": {
@@ -51,6 +51,7 @@
       "resources": [
         "player.html",
         "player.js",
+        "welcome.html",
         "libs/hls.min.js",
         "libs/dash.all.min.js"
       ],

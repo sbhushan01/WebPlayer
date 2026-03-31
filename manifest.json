@@ -43,6 +43,7 @@
       "resources": [
         "player.html",
         "player.js",
+        "welcome.html",
         "libs/hls.min.js",
         "libs/dash.all.min.js"
       ],

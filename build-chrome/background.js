@@ -18,9 +18,12 @@ function cleanupOldVideoProgress() {
     });
 }
 
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener((details) => {
     setupAlarms();
     cleanupOldVideoProgress();
+    if (details.reason === "install") {
+        chrome.tabs.create({ url: chrome.runtime.getURL("welcome.html") });
+    }
 });
 chrome.runtime.onStartup.addListener(() => {
     setupAlarms();
