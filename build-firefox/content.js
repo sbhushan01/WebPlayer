@@ -261,7 +261,7 @@
         styles.textContent = `
             * { box-sizing: border-box; font-family: system-ui, sans-serif; }
             .webplayer-ui-wrapper {
-                position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+                position: absolute; bottom: max(30px, calc(14px + env(safe-area-inset-bottom))); left: 50%; transform: translateX(-50%);
                 background: rgba(26, 29, 36, 0.65); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
                 padding: 16px 24px; border-radius: 28px; display: flex; flex-direction: column; gap: 12px; opacity: 0;
                 transition: opacity 0.4s ease, transform 0.4s ease; pointer-events: auto; border: 1px solid rgba(255,255,255,0.08);
@@ -290,7 +290,7 @@
             button { background: rgba(255,255,255,0.0); border: none; color: #E3E3E3; cursor: pointer; padding: 8px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: all 0.2s ease; width: 44px; height: 44px; }
             button:hover { background: rgba(255,255,255,0.12); transform: scale(1.05); }
             @media (max-width: 600px) {
-                .webplayer-ui-wrapper { bottom: 16px; padding: 12px 16px; border-radius: 20px; gap: 10px; width: calc(100% - 20px); }
+                .webplayer-ui-wrapper { bottom: max(16px, calc(8px + env(safe-area-inset-bottom))); padding: 12px 16px; border-radius: 20px; gap: 10px; width: calc(100% - 20px); }
                 .wp-center-row { flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; gap: 8px; padding-bottom: 2px; scrollbar-width: none; }
                 .wp-center-row::-webkit-scrollbar { display: none; }
                 .speed-pills { display: none !important; }
@@ -561,8 +561,9 @@
             switch (e.key) {
                 case " ": case "k": case "K":
                     e.preventDefault();
-                    video.paused ? safePlay(video) : safePause(video);
-                    showFeedback(video.paused ? "Paused" : "Playing");
+                    { const wasPaused = video.paused;
+                    wasPaused ? safePlay(video) : safePause(video);
+                    showFeedback(wasPaused ? "Playing" : "Paused"); }
                     break;
                 case "ArrowLeft":
                     e.preventDefault();
@@ -834,7 +835,7 @@
                     tapTimeout = setTimeout(() => {
                         if (e.pointerType === "mouse") {
                             const wasPaused = video.paused;
-                            wasPaused ? safePlay(video) : video.pause();
+                            wasPaused ? safePlay(video) : safePause(video);
                             showFeedback(wasPaused ? "Playing" : "Paused");
                         } else {
                             showControls();
