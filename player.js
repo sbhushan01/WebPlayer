@@ -154,30 +154,39 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (!videoSrc) { showError("No video source provided.", "Missing Source"); return; }
 
+    // ── Chrome API availability check ─────────────────────────────────────────
+    const hasChromeStorage = typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local;
+    const hasChromeRuntime = typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL;
+
     // ── Playback persistence ──────────────────────────────────────────────────
     const cleanUrl = videoSrc.split("?")[0];
 
-    chrome.storage.local.get([cleanUrl]).then(res => {
-        if (res[cleanUrl]) {
-            const savedTime = typeof res[cleanUrl] === "number" ? res[cleanUrl] : res[cleanUrl].time;
-            const seekToSaved = () => {
-                if (player.duration !== Infinity && savedTime) player.currentTime = savedTime;
-                player.removeEventListener("loadedmetadata", seekToSaved);
-            };
-            if (player.readyState >= 1) seekToSaved();
-            else player.addEventListener("loadedmetadata", seekToSaved);
-        }
-    });
+    if (hasChromeStorage) {
+        try {
+            chrome.storage.local.get([cleanUrl]).then(res => {
+                if (res[cleanUrl]) {
+                    const savedTime = typeof res[cleanUrl] === "number" ? res[cleanUrl] : res[cleanUrl].time;
+                    const seekToSaved = () => {
+                        if (player.duration !== Infinity && savedTime) player.currentTime = savedTime;
+                        player.removeEventListener("loadedmetadata", seekToSaved);
+                    };
+                    if (player.readyState >= 1) seekToSaved();
+                    else player.addEventListener("loadedmetadata", seekToSaved);
+                }
+            }).catch(() => {});
+        } catch (_) {}
+    }
 
     let lastSave = 0;
     player.addEventListener("timeupdate", () => {
+        if (!hasChromeStorage) return;
         const now = Date.now();
         if (now - lastSave > 5000 && !window.__isSkipping && player.duration !== Infinity) {
-            chrome.storage.local.set({ [cleanUrl]: { time: player.currentTime, ts: now } });
+            try { chrome.storage.local.set({ [cleanUrl]: { time: player.currentTime, ts: now } }); } catch (_) {}
             lastSave = now;
         }
     });
-    player.addEventListener("ended", () => chrome.storage.local.remove([cleanUrl]));
+    player.addEventListener("ended", () => { if (hasChromeStorage) try { chrome.storage.local.remove([cleanUrl]); } catch (_) {} });
 
     // ── Stream engines ────────────────────────────────────────────────────────
     let currentHls = null, currentDash = null;
@@ -204,7 +213,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (!loadedScripts[path]) {
             loadedScripts[path] = new Promise((resolve, reject) => {
                 const s = document.createElement("script");
-                s.src = chrome.runtime.getURL(path);
+                s.src = hasChromeRuntime ? chrome.runtime.getURL(path) : path;
                 s.onload  = resolve;
                 s.onerror = () => { delete loadedScripts[path]; reject(new Error(`Failed to load ${path}`)); };
                 document.head.appendChild(s);
@@ -656,23 +665,35 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     let pendingSeekPct = 0;
+    const getPointerX = (e) => {
+        // Support both pointer and touch events
+        if (e.touches && e.touches.length > 0) return e.touches[0].clientX;
+        if (e.changedTouches && e.changedTouches.length > 0) return e.changedTouches[0].clientX;
+        return e.clientX;
+    };
     const updateProgressFromEvent = (e) => {
         if (!isFinite(player.duration)) return;
         const rect = progWrapper.getBoundingClientRect();
-        pendingSeekPct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        pendingSeekPct = Math.max(0, Math.min(1, (getPointerX(e) - rect.left) / rect.width));
         progPlayed.style.width = `${pendingSeekPct * 100}%`;
         progThumb.style.left   = `${pendingSeekPct * 100}%`;
+        timeCur.textContent = formatTime(pendingSeekPct * player.duration);
     };
 
     progWrapper.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
         isDraggingProgress = true;
         seekPreview.classList.remove("visible");
         progWrapper.classList.add("dragging");
+        // Capture pointer to prevent gesture zone from stealing events
+        try { progWrapper.setPointerCapture(e.pointerId); } catch (_) {}
         updateProgressFromEvent(e);
-        const onMove = (ev) => updateProgressFromEvent(ev);
-        const onUp   = () => {
+        const onMove = (ev) => { ev.preventDefault(); updateProgressFromEvent(ev); };
+        const onUp   = (ev) => {
             isDraggingProgress = false;
             progWrapper.classList.remove("dragging");
+            try { progWrapper.releasePointerCapture(ev.pointerId); } catch (_) {}
             if (isFinite(player.duration)) {
                 player.currentTime = pendingSeekPct * player.duration;
             }
@@ -684,6 +705,31 @@ document.addEventListener("DOMContentLoaded", async () => {
         window.addEventListener("pointerup",   onUp);
         window.addEventListener("pointercancel", onUp);
     });
+
+    // Touch event fallback for mobile devices where pointer events may not fire reliably
+    progWrapper.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        isDraggingProgress = true;
+        seekPreview.classList.remove("visible");
+        progWrapper.classList.add("dragging");
+        updateProgressFromEvent(e);
+    }, { passive: false });
+    progWrapper.addEventListener("touchmove", (e) => {
+        if (!isDraggingProgress) return;
+        e.preventDefault();
+        e.stopPropagation();
+        updateProgressFromEvent(e);
+    }, { passive: false });
+    progWrapper.addEventListener("touchend", (e) => {
+        if (!isDraggingProgress) return;
+        e.preventDefault();
+        isDraggingProgress = false;
+        progWrapper.classList.remove("dragging");
+        if (isFinite(player.duration)) {
+            player.currentTime = pendingSeekPct * player.duration;
+        }
+    }, { passive: false });
 
     // ── Playback rate helper — keeps speed pills in sync ──────────────────────
     const speedMicroSlider = document.getElementById("speed-micro-slider");
@@ -1150,7 +1196,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     let isAudioInitialized = false;
 
     // B10: EQ storage with sync → local fallback on quota error
-    const eqStorage = (chrome.storage.sync || chrome.storage.local);
+    const eqStorage = hasChromeStorage ? (chrome.storage.sync || chrome.storage.local) : null;
     let activePresetName = null;
     const EQ_PRESETS = {
         "Flat":        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -1163,6 +1209,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const eqPresetsContainer = document.getElementById("eq-presets");
 
     const saveEqSettings = () => {
+        if (!eqStorage) return;
         const data = {
             [EQ_STORAGE_KEY]: {
                 preamp: preampGain ? preampGain.gain.value : 1.0,
@@ -1171,8 +1218,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
         };
         try {
-            eqStorage.set(data).catch?.(() => chrome.storage.local.set(data));
-        } catch (_) { chrome.storage.local.set(data); }
+            eqStorage.set(data).catch?.(() => { try { chrome.storage.local.set(data); } catch (_) {} });
+        } catch (_) { try { chrome.storage.local.set(data); } catch (_e) {} }
     };
 
     const updatePresetHighlight = (name) => {
@@ -1230,7 +1277,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             preampGain.connect(window.audioContext.destination);
 
             // BUG FIX: load saved EQ settings and build sliders with restored values
-            eqStorage.get([EQ_STORAGE_KEY], (res) => {
+            const _loadEqCb = (res) => {
                 const saved      = res[EQ_STORAGE_KEY] || {};
                 const savedBands = saved.bands  || new Array(frequencies.length).fill(0);
                 const savedPreamp = saved.preamp ?? 1.0;
@@ -1272,7 +1319,9 @@ document.addEventListener("DOMContentLoaded", async () => {
                         eqBandsContainer.appendChild(div);
                     });
                 }
-            });
+            };
+            if (eqStorage) { try { eqStorage.get([EQ_STORAGE_KEY], _loadEqCb); } catch (_) { _loadEqCb({}); } }
+            else { _loadEqCb({}); }
 
         } catch (err) {
             console.warn("[WebPlayer] Equalizer could not be initialized:", err);
