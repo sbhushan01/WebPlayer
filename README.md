@@ -3,7 +3,7 @@
 **WebPlayer** is a feature-rich browser extension that injects a custom, ad-free media player UI directly into web videos. It upgrades the standard web video experience with advanced streaming support, native gesture controls, an audiophile-grade equalizer, and automatic sponsor skipping.
 
 **Author:** Sushant Bhushan  
-**Version:** 1.6.1
+**Version:** 1.0.0
 
 ---
 
@@ -49,9 +49,7 @@ Because Chrome and Firefox have mutually exclusive Manifest V3 requirements, thi
 
 ### 1. Compile the Extension
 Open your terminal in the extension folder and run:
-```bash
-node build.js
-```
+`node build.js`
 This generates two output folders: `build-chrome` and `build-firefox`.
 
 ### 2. Install on Chrome / Edge / Brave
@@ -64,7 +62,6 @@ This generates two output folders: `build-chrome` and `build-firefox`.
 1. Open Firefox and navigate to `about:debugging#/runtime/this-firefox`.
 2. Click **Load Temporary Add-on...**
 3. Select the `manifest.json` file inside the **`build-firefox`** folder. 
-   *(Note: Installing via `about:addons` is strictly blocked by Mozilla for unsigned/unpackaged add-ons and will result in a "corrupt" error).*
 
 ---
 
@@ -72,12 +69,3 @@ This generates two output folders: `build-chrome` and `build-firefox`.
 
 1. **Overlay Mode:** Navigate to any webpage with a `<video>` element. A **"▶ Launch WebPlayer"** button will appear over qualifying videos. Click it to inject the custom gesture zone and controls directly over the existing video.
 2. **Standalone Mode:** For raw stream URLs (`.m3u8` / `.mpd`), the background worker automatically intercepts the network request, prompts you, and can open the stream in a dedicated full-window WebPlayer tab with the 10-band EQ panel.
-
----
-
-## ⚙️ Recent Updates (v1.6.1)
-
-* **Background Memory Fix:** Fixed an issue where `background.js` was tracking progress data but had an empty alarm listener, preventing the 30-minute stale data cleanup function from ever firing. State logic is now correctly pruned on a schedule.
-* **Cross-Browser Build Script:** Introduced `build.js` to automatically resolve the Chrome vs Firefox Manifest V3 dispute over `background.scripts`. 
-* **Mobile UX Overhaul:** Dramatically improved touch targets for seek bars (`8px` height, `20px` thumbs) and UI buttons (min. `40-44px` hitting areas) per strict mobile UX guidelines.
-* **Viewport Zoom Lock:** Implemented `maximum-scale=1` and `user-scalable=no` meta tags on the player to prevent frustrating zoom shifts when double-tapping on mobile interfaces.
