@@ -2,8 +2,9 @@
 <html lang="en" data-theme="blue">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#1A1D24">
+    <meta name="description" content="WebPlayer — feature-rich video player for HLS, DASH, and native streams.">
     <title>WebPlayer</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0" rel="stylesheet" />
@@ -102,7 +103,7 @@
 
         /* ── Floating Control Island (Glassmorphism) ─────────────────────────── */
         .custom-controls-wrapper {
-            position: absolute; bottom: 32px; left: 50%; transform: translateX(-50%);
+            position: absolute; bottom: max(32px, calc(16px + env(safe-area-inset-bottom))); left: 50%; transform: translateX(-50%);
             width: 95%; max-width: 1400px; z-index: 30; opacity: 1;
             transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease-out;
             display: flex; flex-direction: column; gap: 8px;
@@ -266,7 +267,7 @@
         /* EQ Specific */
         .eq-band input[type="range"] { accent-color: var(--md-sys-color-primary); cursor: pointer; transition: accent-color 0.4s; }
         .preamp-row input { accent-color: var(--md-sys-color-error); cursor: pointer; }
-        .eq-sliders { display: flex; justify-content: space-around; height: 160px; align-items: flex-end; }
+        .eq-sliders { display: flex; justify-content: space-around; height: 160px; align-items: flex-end; overflow-x: auto; }
         .eq-band { display: flex; flex-direction: column; align-items: center; gap: 12px; position: relative; }
         .eq-band input[type="range"] { writing-mode: vertical-lr; direction: rtl; width: 24px; height: 110px; margin: 0; }
         .eq-zero-mark { position: absolute; top: calc(50% - 12px); width: 16px; height: 2px; background: rgba(255,255,255,0.25); pointer-events: none; border-radius: 1px; }
@@ -345,16 +346,30 @@
         .shortcuts-grid span { font-size: 1rem; color: var(--md-sys-color-on-surface-variant); }
         .shortcuts-hint { margin-top: 32px; font-size: 0.9rem; color: var(--md-sys-color-on-surface-variant); text-align: center; background: rgba(255,255,255,0.05); padding: 12px; border-radius: 12px; }
 
+        /* ── Mobile Speed Cycle Chip ─────────────────────────────────────────── */
+        #speed-cycle-chip {
+            display: none; font-size: 0.85rem; font-weight: 700; padding: 0 14px; height: 36px;
+            border-radius: 18px; background: rgba(255,255,255,0.08); color: var(--md-sys-color-on-surface);
+            border: 1px solid rgba(255,255,255,0.12); transition: all 0.25s ease; width: auto;
+            font-variant-numeric: tabular-nums; min-width: 52px; text-align: center;
+        }
+        #speed-cycle-chip:hover { background: rgba(255,255,255,0.15); }
+        #speed-cycle-chip:active { transform: scale(0.92); }
+
+        /* ── EQ Reset button hover ───────────────────────────────────────────── */
+        #eq-reset-btn:hover { background: rgba(255,255,255,0.12) !important; }
+
         /* ── Mobile Responsiveness ───────────────────────────────────────────── */
         @media (max-width: 850px) {
             .controls-row { overflow-x: auto; padding-bottom: 2px; gap: 8px; justify-content: flex-start; scrollbar-width: none; }
             .controls-row::-webkit-scrollbar { display: none; }
             .controls-left, .controls-right { flex-wrap: nowrap; flex-shrink: 0; }
             .time-display { font-size: 0.8rem; white-space: nowrap; margin-left: 6px; }
-            #shortcuts-btn { display: none; } /* Hide complex menus on tiny screens to save space */
+            #shortcuts-btn { display: none; }
             .speed-pills { display: none; }
+            #speed-cycle-chip { display: flex; align-items: center; justify-content: center; }
             .custom-controls { padding: 12px 14px; gap: 12px; border-radius: 20px; }
-            .custom-controls-wrapper { bottom: 16px; width: 100%; padding: 0 10px; }
+            .custom-controls-wrapper { bottom: max(16px, calc(8px + env(safe-area-inset-bottom))); width: 100%; padding: 0 10px; }
             button { width: 44px; height: 44px; flex-shrink: 0; margin: 0 2px; }
             .material-symbols-rounded { font-size: 28px; }
             .progress-wrapper { height: 8px; }
@@ -507,6 +522,8 @@
                             </div>
                         </div>
 
+                        <button id="speed-cycle-chip" title="Playback speed" aria-label="Playback speed">1×</button>
+
                         <button id="theme-toggle-btn" title="Themes" aria-label="Themes">
                             <span class="material-symbols-rounded">palette</span>
                         </button>
@@ -558,7 +575,7 @@
                     <input type="range" id="eq-preamp" min="0.1" max="3" step="0.1" value="1.0" style="flex:2">
                 </div>
                 <div class="eq-sliders" id="eq-bands-container"></div>
-                <button id="eq-reset-btn" style="margin-top: 8px; width: 100%; height: auto; padding: 10px; border-radius: 12px; background: rgba(255,255,255,0.06); color: var(--md-sys-color-on-surface-variant); font-size: 0.85rem; font-weight: 600; border: 1px solid rgba(255,255,255,0.08); transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.12)'" onmouseout="this.style.background='rgba(255,255,255,0.06)'">Reset EQ</button>
+                <button id="eq-reset-btn" style="margin-top: 8px; width: 100%; height: auto; padding: 10px; border-radius: 12px; background: rgba(255,255,255,0.06); color: var(--md-sys-color-on-surface-variant); font-size: 0.85rem; font-weight: 600; border: 1px solid rgba(255,255,255,0.08); transition: all 0.2s;">Reset EQ</button>
             </div>
         </div>
     </div>

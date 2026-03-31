@@ -184,6 +184,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     function destroyEngines() {
         if (currentHls)  { currentHls.destroy();  currentHls  = null; }
         if (currentDash) { currentDash.reset();   currentDash = null; }
+        // B4 fix: Reset EQ AudioContext so it reconnects on next play
+        if (window.audioContext?.state !== "closed") {
+            try { window.audioContext?.close(); } catch (_) {}
+        }
+        window.audioContext = null;
+        isAudioInitialized = false;
+        eqFilters.length = 0;
+        mediaElementSource = null;
+        preampGain = null;
     }
     window.addEventListener("beforeunload", () => {
         destroyEngines();
@@ -689,6 +698,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         // Sync micro-slider if open
         speedMicroRange.value = rate;
         speedMicroLabel.textContent = `${rate.toFixed(2)}×`;
+        // Sync mobile speed cycle chip
+        const chip = document.getElementById("speed-cycle-chip");
+        if (chip) chip.textContent = `${parseFloat(rate.toFixed(2))}×`;
     };
 
     // ── Play / Pause ──────────────────────────────────────────────────────────
@@ -779,13 +791,37 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     });
 
+    // ── Mobile speed cycle chip (M1) ──────────────────────────────────────────
+    const speedCycleChip = document.getElementById("speed-cycle-chip");
+    const SPEED_CYCLE_STEPS = [0.5, 1, 1.25, 1.5, 2];
+    if (speedCycleChip) {
+        speedCycleChip.addEventListener("click", () => {
+            const current = player.playbackRate;
+            // Find next step in cycle
+            let nextIdx = 0;
+            for (let i = 0; i < SPEED_CYCLE_STEPS.length; i++) {
+                if (Math.abs(SPEED_CYCLE_STEPS[i] - current) < 0.01) {
+                    nextIdx = (i + 1) % SPEED_CYCLE_STEPS.length;
+                    break;
+                }
+                // If current speed isn't in the cycle, snap to nearest next
+                if (SPEED_CYCLE_STEPS[i] > current) { nextIdx = i; break; }
+                nextIdx = 0; // wrap around
+            }
+            const newRate = SPEED_CYCLE_STEPS[nextIdx];
+            setPlaybackRate(newRate);
+            showFeedback(`${newRate}× Speed`);
+        });
+    }
+
     // ── Fullscreen ────────────────────────────────────────────────────────────
     const toggleFS = async () => {
         try {
             if (document.fullscreenElement || document.webkitFullscreenElement) {
                 // U5: Unlock orientation when exiting fullscreen
                 try { screen.orientation?.unlock?.(); } catch (_) {}
-                await (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+                const exitFn = document.exitFullscreen || document.webkitExitFullscreen;
+                if (exitFn) await exitFn.call(document);
             } else {
                 const req = container.requestFullscreen || container.webkitRequestFullscreen;
                 if (req) await req.call(container);
@@ -827,7 +863,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         container.classList.remove("idle");
         clearTimeout(idleTimer);
         idleTimer = setTimeout(() => {
-            if (!player.paused && !isDraggingProgress && !eqPopover.classList.contains("active")) {
+            if (!player.paused && !isDraggingProgress &&
+                !eqPopover.classList.contains("active") &&
+                !themePopover.classList.contains("active") &&
+                !shortcutsModal.classList.contains("active") &&
+                !speedMicroSlider.classList.contains("open")) {
                 container.classList.add("idle");
             }
         }, 3000);
@@ -907,12 +947,12 @@ document.addEventListener("DOMContentLoaded", async () => {
             case "ArrowLeft":
                 e.preventDefault();
                 player.currentTime = Math.max(0, player.currentTime - 10);
-                showFeedback("−10s");
+                showFeedback("−10s", "left");
                 break;
             case "ArrowRight":
                 e.preventDefault();
                 player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 10);
-                showFeedback("+10s");
+                showFeedback("+10s", "right");
                 break;
             case "ArrowUp":
                 e.preventDefault();
