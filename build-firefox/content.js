@@ -303,12 +303,15 @@
             .speed-pill:hover { background: rgba(255,255,255,0.15); color: #E3E3E3; transform: scale(1); }
             .speed-pill.active { background: linear-gradient(135deg, #A8C7FA, #062E6F); color: #062E6F; border-color: transparent; box-shadow: 0 0 16px rgba(168, 199, 250, 0.6); }
             .webplayer-feedback {
-                position: absolute; top: 18%; left: 50%; transform: translateX(-50%);
+                position: absolute; top: 18%;
                 background: rgba(10, 10, 15, 0.75); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
                 padding: 12px 32px; border-radius: 32px; font-size: 1.15rem; font-weight: 600;
-                opacity: 0; pointer-events: none; transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                opacity: 0; pointer-events: none; transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1), left 0.15s ease, right 0.15s ease;
                 z-index: 20; white-space: nowrap; border: 1px solid rgba(255,255,255,0.08); box-shadow: 0px 8px 16px 2px rgba(0,0,0,0.2); color: white;
+                left: 50%; transform: translateX(-50%);
             }
+            .webplayer-feedback.feedback-left  { left: 15%; right: auto; transform: none; }
+            .webplayer-feedback.feedback-right { left: auto; right: 15%; transform: none; }
             .webplayer-gesture-zone {
                 position: absolute; inset: 0; pointer-events: auto;
                 touch-action: none; user-select: none; -webkit-user-select: none;
@@ -497,8 +500,12 @@
         uiWrapper.addEventListener("pointermove", showControls);
         showControls();
 
-        const showFeedback = (text) => {
-            feedbackOverlay.innerText = text; feedbackOverlay.style.opacity = "1";
+        const showFeedback = (text, position) => {
+            feedbackOverlay.innerText = text;
+            feedbackOverlay.classList.remove("feedback-left", "feedback-right");
+            if (position === "left")  feedbackOverlay.classList.add("feedback-left");
+            if (position === "right") feedbackOverlay.classList.add("feedback-right");
+            feedbackOverlay.style.opacity = "1";
             setTimeout(() => feedbackOverlay.style.opacity = "0", 800);
         };
 
@@ -754,11 +761,11 @@
                 if (e.clientX > rect.left + rect.width / 2) {
                     video.volume = Math.max(0, Math.min(1, video.volume - deltaY * 0.005));
                     video.muted = false;
-                    showFeedback(`Vol: ${Math.round(video.volume * 100)}%`);
+                    showFeedback(`Vol: ${Math.round(video.volume * 100)}%`, "right");
                 } else {
                     currentBrightness       = Math.max(0.1, Math.min(2.5, currentBrightness - deltaY * 0.01));
                     video.style.filter      = `brightness(${currentBrightness})`;
-                    showFeedback(`Brightness: ${Math.round(currentBrightness * 100)}%`);
+                    showFeedback(`Brightness: ${Math.round(currentBrightness * 100)}%`, "left");
                 }
             }
         });
@@ -791,11 +798,14 @@
                     clearTimeout(tapTimeout);
                     const rect = gestureZone.getBoundingClientRect();
 
+                    // #5: Percentage-based ripple sizing
                     const ripple = document.createElement("div");
                     ripple.className = "wp-ripple";
-                    ripple.style.left   = `${e.clientX - rect.left - 25}px`;
-                    ripple.style.top    = `${e.clientY - rect.top  - 25}px`;
-                    ripple.style.width  = ripple.style.height = "50px";
+                    const rippleSize = Math.max(36, Math.min(gestureZone.clientWidth, gestureZone.clientHeight) * 0.08);
+                    const half = rippleSize / 2;
+                    ripple.style.left   = `${e.clientX - rect.left - half}px`;
+                    ripple.style.top    = `${e.clientY - rect.top  - half}px`;
+                    ripple.style.width  = ripple.style.height = `${rippleSize}px`;
                     gestureZone.appendChild(ripple);
                     setTimeout(() => ripple.remove(), 400);
 

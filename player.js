@@ -83,31 +83,76 @@ document.addEventListener("DOMContentLoaded", async () => {
     const urlParams  = new URLSearchParams(window.location.search);
     const videoSrc   = urlParams.get("src");
     const pageUrl    = urlParams.get("pageUrl") || "";
-    const titleText  = urlParams.get("title")   || "WebPlayer";
+    const titleParam = urlParams.get("title")   || "";
 
-    if (titleText) { document.title = titleText; titleBar.textContent = titleText; }
-    // U4: Update tab title to reflect stream domain
-    try {
-        const srcHost = new URL(videoSrc).hostname;
-        document.title = `WebPlayer — ${srcHost}`;
-    } catch (_) {}
-
-    // ── Error display ─────────────────────────────────────────────────────────
-    function showError(msg) {
-        const box = document.getElementById("error-box");
-        document.getElementById("error-msg").textContent = msg;
-        box.style.display = "flex";
-        bufferEl.classList.remove("is-buffering"); // BUG FIX: clear spinner on error
+    // #11: Smarter dynamic tab title — prefer explicit title, else extract filename, else hostname
+    {
+        let displayTitle = "WebPlayer";
+        if (titleParam && titleParam !== "WebPlayer") {
+            displayTitle = titleParam;
+        } else if (videoSrc) {
+            try {
+                const u = new URL(videoSrc);
+                const pathSegments = u.pathname.split("/").filter(Boolean);
+                const lastSeg = pathSegments[pathSegments.length - 1] || "";
+                // Strip extension for readability
+                const name = lastSeg.replace(/\.(m3u8|mpd|mp4|webm|mkv|avi|mov|flv|ts)(\?.*)?$/i, "");
+                if (name && name.length > 1 && name.length < 120) {
+                    displayTitle = decodeURIComponent(name);
+                } else {
+                    displayTitle = u.hostname;
+                }
+            } catch (_) {}
+        }
+        document.title = `WebPlayer — ${displayTitle}`;
+        titleBar.textContent = displayTitle;
     }
 
+    // ── Error display (#10) ────────────────────────────────────────────────────
+    const errorBox       = document.getElementById("error-box");
+    const errorTypeEl    = document.getElementById("error-type");
+    const errorMsgEl     = document.getElementById("error-msg");
+    const errorUrlBox    = document.getElementById("error-url-container");
+    const errorUrlEl     = document.getElementById("error-url");
+    const errorCopyBtn   = document.getElementById("error-copy-url");
+
+    function showError(msg, type, url) {
+        errorMsgEl.textContent  = msg;
+        errorTypeEl.textContent = type || "Error";
+        if (url) {
+            errorUrlEl.textContent = url;
+            errorUrlBox.classList.add("visible");
+        } else {
+            errorUrlBox.classList.remove("visible");
+        }
+        errorBox.style.display = "flex";
+        bufferEl.classList.remove("is-buffering");
+    }
+
+    errorCopyBtn.addEventListener("click", () => {
+        navigator.clipboard.writeText(errorUrlEl.textContent).then(() => {
+            errorCopyBtn.textContent = "Copied!";
+            setTimeout(() => { errorCopyBtn.textContent = "Copy URL"; }, 2000);
+        }).catch(() => {});
+    });
+
     document.getElementById("error-retry").addEventListener("click", () => {
-        if (!videoSrc) { showError("No video source provided."); return; }
-        document.getElementById("error-box").style.display = "none";
+        if (!videoSrc) { showError("No video source provided.", "Missing Source"); return; }
+        errorBox.style.display = "none";
         bufferEl.classList.add("is-buffering");
         attachSource(videoSrc);
     });
 
-    if (!videoSrc) { showError("No video source provided."); return; }
+    // Catch native video errors
+    player.addEventListener("error", () => {
+        const err = player.error;
+        const typeMap = { 1: "Aborted", 2: "Network Error", 3: "Decode Error", 4: "Source Not Supported" };
+        const errType = err ? (typeMap[err.code] || "Unknown Error") : "Playback Error";
+        const errMsg  = err?.message || "The video could not be played.";
+        showError(errMsg, errType, videoSrc);
+    });
+
+    if (!videoSrc) { showError("No video source provided.", "Missing Source"); return; }
 
     // ── Playback persistence ──────────────────────────────────────────────────
     const cleanUrl = videoSrc.split("?")[0];
@@ -373,17 +418,21 @@ document.addEventListener("DOMContentLoaded", async () => {
                         });
                         currentHls.on(Hls.Events.ERROR, (e, d) => {
                             if (d.fatal) {
-                                switch (d.type) {
-                                    case Hls.ErrorTypes.NETWORK_ERROR:
-                                        showError(`Network error: ${d.details || 'Failed to load stream'}`);
-                                        break;
-                                    case Hls.ErrorTypes.MEDIA_ERROR:
-                                        console.warn('[WebPlayer] HLS media error, attempting recovery...');
-                                        currentHls.recoverMediaError();
-                                        return; // don't destroy yet
-                                    default:
-                                        showError(`Stream error: ${d.details || 'Fatal playback error'}`);
+                                const typeMap = {
+                                    [Hls.ErrorTypes.NETWORK_ERROR]: "Network Error",
+                                    [Hls.ErrorTypes.MEDIA_ERROR]: "Decode Error",
+                                    [Hls.ErrorTypes.OTHER_ERROR]: "Stream Error"
+                                };
+                                if (d.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                                    console.warn('[WebPlayer] HLS media error, attempting recovery...');
+                                    currentHls.recoverMediaError();
+                                    return;
                                 }
+                                showError(
+                                    d.details || 'Fatal playback error',
+                                    typeMap[d.type] || "Stream Error",
+                                    src
+                                );
                                 currentHls.destroy();
                                 currentHls = null;
                             }
@@ -419,7 +468,11 @@ document.addEventListener("DOMContentLoaded", async () => {
                     });
                     currentDash.on(dashjs.MediaPlayer.events.ERROR, (e) => {
                         if (e.error) {
-                            showError(`DASH error: ${e.error.message || 'Stream playback failed'}`);
+                            showError(
+                                e.error.message || 'Stream playback failed',
+                                "DASH Error",
+                                src
+                            );
                         }
                     });
                 } else { showError("DASH not supported in this browser."); }
@@ -438,7 +491,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 });
             }
         } catch (err) {
-            showError(`Failed to load stream: ${err.message}`);
+            showError(`Failed to load stream: ${err.message}`, "Load Error", src);
             bufferEl.classList.remove("is-buffering");
         }
     }
@@ -540,6 +593,59 @@ document.addEventListener("DOMContentLoaded", async () => {
         progBuffered.style.width = `${(maxEnd / player.duration) * 100}%`;
     });
 
+    // ── Seek thumbnail preview (#3) ───────────────────────────────────────────
+    const seekPreview      = document.getElementById("seek-preview");
+    const seekPreviewCanvas = document.getElementById("seek-preview-canvas");
+    const seekPreviewTime  = document.getElementById("seek-preview-time");
+    const seekCtx          = seekPreviewCanvas.getContext("2d");
+    let seekPreviewTimer   = null;
+    let lastPreviewTime    = -1;
+
+    progWrapper.addEventListener("pointermove", (e) => {
+        if (isDraggingProgress || !isFinite(player.duration) || player.duration === 0) {
+            seekPreview.classList.remove("visible"); return;
+        }
+        const rect = progWrapper.getBoundingClientRect();
+        const pct  = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        const time = pct * player.duration;
+
+        // Position the preview tooltip
+        const leftPx = Math.max(85, Math.min(rect.width - 85, e.clientX - rect.left));
+        seekPreview.style.left = `${leftPx}px`;
+        seekPreviewTime.textContent = formatTime(time);
+        seekPreview.classList.add("visible");
+
+        // Debounced canvas thumbnail
+        clearTimeout(seekPreviewTimer);
+        seekPreviewTimer = setTimeout(() => {
+            if (Math.abs(time - lastPreviewTime) < 0.5) return; // skip if same spot
+            lastPreviewTime = time;
+            const savedTime = player.currentTime;
+            const wasPaused = player.paused;
+            // Seek, capture frame, restore
+            const onSeeked = () => {
+                try {
+                    seekCtx.drawImage(player, 0, 0, 320, 180);
+                } catch (_) {}
+                player.removeEventListener("seeked", onSeeked);
+                // Restore position only if not dragging
+                if (!isDraggingProgress) {
+                    player.currentTime = savedTime;
+                }
+            };
+            // Only do canvas preview if player is paused or we can safely seek
+            if (wasPaused && player.readyState >= 2) {
+                player.addEventListener("seeked", onSeeked, { once: true });
+                player.currentTime = time;
+            }
+        }, 200);
+    });
+    progWrapper.addEventListener("pointerleave", () => {
+        seekPreview.classList.remove("visible");
+        clearTimeout(seekPreviewTimer);
+        lastPreviewTime = -1;
+    });
+
     let pendingSeekPct = 0;
     const updateProgressFromEvent = (e) => {
         if (!isFinite(player.duration)) return;
@@ -551,6 +657,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     progWrapper.addEventListener("pointerdown", (e) => {
         isDraggingProgress = true;
+        seekPreview.classList.remove("visible");
         progWrapper.classList.add("dragging");
         updateProgressFromEvent(e);
         const onMove = (ev) => updateProgressFromEvent(ev);
@@ -570,11 +677,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     // ── Playback rate helper — keeps speed pills in sync ──────────────────────
+    const speedMicroSlider = document.getElementById("speed-micro-slider");
+    const speedMicroRange  = document.getElementById("speed-micro-range");
+    const speedMicroLabel  = document.getElementById("speed-micro-label");
+
     const setPlaybackRate = (rate) => {
         player.playbackRate = rate;
         speedPillsEl.querySelectorAll(".speed-pill").forEach(p =>
             p.classList.toggle("active", parseFloat(p.dataset.speed) === rate)
         );
+        // Sync micro-slider if open
+        speedMicroRange.value = rate;
+        speedMicroLabel.textContent = `${rate.toFixed(2)}×`;
     };
 
     // ── Play / Pause ──────────────────────────────────────────────────────────
@@ -620,9 +734,49 @@ document.addEventListener("DOMContentLoaded", async () => {
         updateVolIcon();
     });
 
-    // ── Speed pills ───────────────────────────────────────────────────────────
+    // ── Speed pills (#7: long-press for micro-slider) ──────────────────────────
+    let speedLongPressTimer = null;
     speedPillsEl.querySelectorAll(".speed-pill").forEach(pill => {
-        pill.addEventListener("click", () => setPlaybackRate(parseFloat(pill.dataset.speed)));
+        pill.addEventListener("pointerdown", (e) => {
+            speedLongPressTimer = setTimeout(() => {
+                speedLongPressTimer = null; // mark as consumed
+                const rate = parseFloat(pill.dataset.speed);
+                speedMicroRange.value = rate;
+                speedMicroLabel.textContent = `${rate.toFixed(2)}×`;
+                speedMicroSlider.classList.add("open");
+                resetIdle();
+            }, 500);
+        });
+        pill.addEventListener("pointerup", () => {
+            if (speedLongPressTimer !== null) {
+                clearTimeout(speedLongPressTimer);
+                speedLongPressTimer = null;
+                setPlaybackRate(parseFloat(pill.dataset.speed));
+            }
+        });
+        pill.addEventListener("pointercancel", () => {
+            if (speedLongPressTimer !== null) {
+                clearTimeout(speedLongPressTimer);
+                speedLongPressTimer = null;
+            }
+        });
+    });
+
+    speedMicroRange.addEventListener("input", (e) => {
+        const rate = parseFloat(e.target.value);
+        player.playbackRate = rate;
+        speedMicroLabel.textContent = `${rate.toFixed(2)}×`;
+        speedPillsEl.querySelectorAll(".speed-pill").forEach(p =>
+            p.classList.toggle("active", parseFloat(p.dataset.speed) === rate)
+        );
+        resetIdle();
+    });
+
+    // Close micro-slider on outside click
+    document.addEventListener("click", (e) => {
+        if (!e.target.closest("#speed-micro-slider") && !e.target.closest(".speed-pill")) {
+            speedMicroSlider.classList.remove("open");
+        }
     });
 
     // ── Fullscreen ────────────────────────────────────────────────────────────
@@ -719,16 +873,18 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (!e.target.closest(".quality-dropdown") && !e.target.closest("#audio-btn")) audioDropdown.classList.remove("open");
     });
 
-    // ── Shortcuts modal ───────────────────────────────────────────────────────
+    // ── Shortcuts side panel (#9) ─────────────────────────────────────────────
     const toggleShortcuts = () => shortcutsModal.classList.toggle("active");
     shortcutsBtn.addEventListener("click",   toggleShortcuts);
     shortcutsClose.addEventListener("click", () => shortcutsModal.classList.remove("active"));
-    shortcutsModal.addEventListener("click", (e) => { if (e.target === shortcutsModal) shortcutsModal.classList.remove("active"); });
 
-    // ── Feedback overlay ──────────────────────────────────────────────────────
+    // ── Feedback overlay (#4: directional positioning) ─────────────────────────
     let feedbackTimer;
-    const showFeedback = (text) => {
+    const showFeedback = (text, position) => {
         feedbackOverlay.textContent = text;
+        feedbackOverlay.classList.remove("feedback-left", "feedback-right");
+        if (position === "left")  feedbackOverlay.classList.add("feedback-left");
+        if (position === "right") feedbackOverlay.classList.add("feedback-right");
         feedbackOverlay.style.opacity = 1;
         clearTimeout(feedbackTimer);
         feedbackTimer = setTimeout(() => feedbackOverlay.style.opacity = 0, 800);
@@ -858,11 +1014,11 @@ document.addEventListener("DOMContentLoaded", async () => {
                 player.muted       = false;
                 volumeSlider.value = player.volume;
                 updateVolIcon();
-                showFeedback(`Vol: ${Math.round(player.volume * 100)}%`);
+                showFeedback(`Vol: ${Math.round(player.volume * 100)}%`, "right");
             } else {
                 currentBrightness       = Math.max(0.1, Math.min(2.5, currentBrightness - deltaY * 0.01));
                 player.style.filter     = `brightness(${currentBrightness})`;
-                showFeedback(`Brightness: ${Math.round(currentBrightness * 100)}%`);
+                showFeedback(`Brightness: ${Math.round(currentBrightness * 100)}%`, "left");
             }
         }
     });
@@ -896,11 +1052,14 @@ document.addEventListener("DOMContentLoaded", async () => {
                 clearTimeout(tapTimeout);
                 const rect = gestureZone.getBoundingClientRect();
 
+                // #5: Percentage-based ripple sizing
                 const ripple = document.createElement("div");
                 ripple.className = "wp-ripple";
-                ripple.style.left    = `${e.clientX - rect.left - 24}px`;
-                ripple.style.top     = `${e.clientY - rect.top  - 24}px`;
-                ripple.style.width   = ripple.style.height = "48px";
+                const rippleSize = Math.max(36, Math.min(gestureZone.clientWidth, gestureZone.clientHeight) * 0.08);
+                const half = rippleSize / 2;
+                ripple.style.left    = `${e.clientX - rect.left - half}px`;
+                ripple.style.top     = `${e.clientY - rect.top  - half}px`;
+                ripple.style.width   = ripple.style.height = `${rippleSize}px`;
                 gestureZone.appendChild(ripple);
                 setTimeout(() => ripple.remove(), 400);
 
@@ -952,17 +1111,59 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // B10: EQ storage with sync → local fallback on quota error
     const eqStorage = (chrome.storage.sync || chrome.storage.local);
+    let activePresetName = null;
+    const EQ_PRESETS = {
+        "Flat":        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        "Bass Boost":  [8, 6, 4, 2, 0, 0, 0, 0, 0, 0],
+        "Treble Boost":[0, 0, 0, 0, 0, 2, 4, 6, 8, 8],
+        "Podcast":     [-2, -1, 0, 4, 6, 6, 4, 2, 0, -2],
+        "Cinema":      [4, 3, 2, 0, -1, 0, 2, 4, 5, 3],
+        "Loudness":    [6, 4, 0, -2, -1, 0, 2, 4, 6, 8]
+    };
+    const eqPresetsContainer = document.getElementById("eq-presets");
+
     const saveEqSettings = () => {
         const data = {
             [EQ_STORAGE_KEY]: {
                 preamp: preampGain ? preampGain.gain.value : 1.0,
-                bands:  eqFilters.map(f => f.gain.value)
+                bands:  eqFilters.map(f => f.gain.value),
+                preset: activePresetName
             }
         };
         try {
             eqStorage.set(data).catch?.(() => chrome.storage.local.set(data));
         } catch (_) { chrome.storage.local.set(data); }
     };
+
+    const updatePresetHighlight = (name) => {
+        activePresetName = name;
+        eqPresetsContainer.querySelectorAll(".eq-preset-pill").forEach(p =>
+            p.classList.toggle("active", p.dataset.preset === name)
+        );
+    };
+
+    const applyPreset = (name) => {
+        const gains = EQ_PRESETS[name];
+        if (!gains) return;
+        gains.forEach((g, i) => {
+            if (eqFilters[i]) eqFilters[i].gain.value = g;
+        });
+        // Sync slider UI
+        const sliders = eqBandsContainer.querySelectorAll('input[type="range"]');
+        sliders.forEach((s, i) => { s.value = gains[i] ?? 0; });
+        updatePresetHighlight(name);
+        saveEqSettings();
+    };
+
+    // Build preset pills
+    Object.keys(EQ_PRESETS).forEach(name => {
+        const pill = document.createElement("button");
+        pill.className = "eq-preset-pill";
+        pill.textContent = name;
+        pill.dataset.preset = name;
+        pill.addEventListener("click", () => applyPreset(name));
+        eqPresetsContainer.appendChild(pill);
+    });
 
     const initAudioContext = () => {
         if (isAudioInitialized) return;
@@ -994,6 +1195,9 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const savedBands = saved.bands  || new Array(frequencies.length).fill(0);
                 const savedPreamp = saved.preamp ?? 1.0;
 
+                // Restore preset highlight
+                if (saved.preset) updatePresetHighlight(saved.preset);
+
                 // Restore preamp
                 preampGain.gain.value      = savedPreamp;
                 preampSlider.value         = savedPreamp;
@@ -1002,6 +1206,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     const val = parseFloat(e.target.value);
                     preampGain.gain.value   = val;
                     preampLabel.textContent = val.toFixed(1);
+                    updatePresetHighlight(null); // custom tweak clears preset
                     saveEqSettings();
                 });
 
@@ -1021,6 +1226,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                         `;
                         div.querySelector("input").addEventListener("input", (e) => {
                             eqFilters[i].gain.value = parseFloat(e.target.value);
+                            updatePresetHighlight(null); // manual adjustment clears preset
                             saveEqSettings();
                         });
                         eqBandsContainer.appendChild(div);
@@ -1035,7 +1241,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     };
 
-    // U11: EQ Reset button
+    // U11: EQ Reset button — now also resets preset to Flat
     const eqResetBtn = document.getElementById("eq-reset-btn");
     if (eqResetBtn) {
         eqResetBtn.addEventListener("click", () => {
@@ -1044,6 +1250,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             preampSlider.value = 1.0;
             preampLabel.textContent = "1.0";
             eqBandsContainer.querySelectorAll('input[type="range"]').forEach(s => { s.value = 0; });
+            updatePresetHighlight("Flat");
             saveEqSettings();
         });
     }
