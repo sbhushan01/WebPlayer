@@ -208,6 +208,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (window.audioContext?.state !== "closed") window.audioContext?.close();
     });
 
+    // CDN fallbacks for when local libs are unreachable
+    const CDN_FALLBACKS = {
+        "libs/hls.min.js":        "https://cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js",
+        "libs/dash.all.min.js":   "https://cdn.jsdelivr.net/npm/dashjs@latest/dist/dash.all.min.js"
+    };
+
     const loadedScripts = {};
     function loadScript(path) {
         if (!loadedScripts[path]) {
@@ -215,7 +221,21 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const s = document.createElement("script");
                 s.src = hasChromeRuntime ? chrome.runtime.getURL(path) : path;
                 s.onload  = resolve;
-                s.onerror = () => { delete loadedScripts[path]; reject(new Error(`Failed to load ${path}`)); };
+                s.onerror = () => {
+                    // Try CDN fallback before giving up
+                    const cdn = CDN_FALLBACKS[path];
+                    if (cdn) {
+                        console.warn(`[WebPlayer] Local ${path} failed, trying CDN fallback...`);
+                        const sf = document.createElement("script");
+                        sf.src = cdn;
+                        sf.onload  = resolve;
+                        sf.onerror = () => { delete loadedScripts[path]; reject(new Error(`Failed to load ${path} (CDN fallback also failed)`)); };
+                        document.head.appendChild(sf);
+                    } else {
+                        delete loadedScripts[path];
+                        reject(new Error(`Failed to load ${path}`));
+                    }
+                };
                 document.head.appendChild(s);
             });
         }
@@ -381,27 +401,44 @@ document.addEventListener("DOMContentLoaded", async () => {
     // ── Source attachment ─────────────────────────────────────────────────────
     async function attachSource(src) {
         destroyEngines();
-        const cleanSrcTest = src.split("?")[0].toLowerCase();
-        if (!cleanSrcTest.startsWith("blob:") && !cleanSrcTest.startsWith("data:")) {
-            player.crossOrigin = "anonymous";
-        }
         bufferEl.classList.add("is-buffering");
         qualityContainer.style.display = "none";
         ccContainer.style.display = "none";
         audioContainer.style.display = "none";
 
         const cleanSrc = src.split("?")[0].toLowerCase();
+        const isStream = cleanSrc.endsWith(".m3u8") || cleanSrc.endsWith(".mpd");
+
+        // Only set crossOrigin for direct/native playback; HLS.js and DASH.js
+        // manage their own XHR pipeline — the attribute can interfere with MediaSource.
+        if (!isStream && !cleanSrc.startsWith("blob:") && !cleanSrc.startsWith("data:")) {
+            player.crossOrigin = "anonymous";
+        }
+
         try {
             if (cleanSrc.endsWith(".m3u8")) {
                 if (player.canPlayType("application/vnd.apple.mpegurl")) {
+                    // Safari native HLS — set crossOrigin since browser handles fetch
+                    player.crossOrigin = "anonymous";
                     player.src = src;
+                    // Explicitly trigger play for native HLS
+                    player.addEventListener("loadedmetadata", () => safePlay(), { once: true });
                 } else {
                     await loadScript("libs/hls.min.js");
                     if (window.Hls && Hls.isSupported()) {
-                        currentHls = new Hls({ manifestLoadingMaxRetry: 4 });
+                        currentHls = new Hls({
+                            enableWorker: true,
+                            startLevel: -1,
+                            manifestLoadingMaxRetry: 6,
+                            levelLoadingMaxRetry: 6,
+                            fragLoadingMaxRetry: 6
+                        });
                         currentHls.loadSource(src);
                         currentHls.attachMedia(player);
                         currentHls.on(Hls.Events.MANIFEST_PARSED, (e, d) => {
+                            // Explicitly start playback — autoplay attr alone is
+                            // unreliable with MediaSource-based streaming
+                            safePlay();
                             if (d.levels.length > 1) {
                                 const levels = [
                                     { label: "Auto", value: -1 },
@@ -446,6 +483,11 @@ document.addEventListener("DOMContentLoaded", async () => {
                                     currentHls.recoverMediaError();
                                     return;
                                 }
+                                if (d.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                                    console.warn('[WebPlayer] HLS network error, attempting recovery...');
+                                    currentHls.startLoad();
+                                    return;
+                                }
                                 showError(
                                     d.details || 'Fatal playback error',
                                     typeMap[d.type] || "Stream Error",
@@ -464,6 +506,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                     currentDash.initialize(player, src, true);
                     
                     currentDash.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, () => {
+                        // Explicitly start playback for reliable autoplay
+                        safePlay();
                         const bitrates = currentDash.getBitrateInfoListFor("video");
                         if (bitrates && bitrates.length > 1) {
                             const levels = [
@@ -497,6 +541,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             } else {
                 player.src = src;
                 player.addEventListener("loadedmetadata", () => {
+                    safePlay();
                     if (player.textTracks && player.textTracks.length > 0) {
                         const tracks = Array.from(player.textTracks).map((t, i) => ({ label: t.label || t.language || `Track ${i+1}`, value: i }));
                         populateCC(tracks);

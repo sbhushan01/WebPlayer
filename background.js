@@ -69,7 +69,9 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
     const tabKey = tabId.toString();
     const data = await chrome.storage.session.get(tabKey);
     if (data[tabKey]) {
-        chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [data[tabKey]] });
+        // Handle both array (new) and single-ID (legacy) formats
+        const ruleIds = Array.isArray(data[tabKey]) ? data[tabKey] : [data[tabKey]];
+        chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: ruleIds });
         chrome.storage.session.remove(tabKey);
     }
 });
@@ -88,37 +90,50 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const videoUrl  = request.videoSrc;
         const urlFilter = domainFilter(videoUrl);
 
-        // Generate a random rule ID with a large space to prevent collisions
-        const ruleId = crypto.getRandomValues(new Uint32Array(1))[0] % 2000000000 + 1;
+        // Generate two rule IDs — one for the manifest domain, one broad wildcard
+        // HLS/DASH segments are often served from different CDN domains
+        const ruleId      = crypto.getRandomValues(new Uint32Array(1))[0] % 1000000000 + 1;
+        const broadRuleId = ruleId + 1000000000; // offset to avoid collision
+
+        const corsHeaders = [
+            { header: "Access-Control-Allow-Origin",      operation: "set",    value: "*"                  },
+            { header: "Access-Control-Allow-Methods",     operation: "set",    value: "GET, HEAD, OPTIONS"  },
+            { header: "Access-Control-Allow-Headers",     operation: "set",    value: "*"                  },
+            { header: "Access-Control-Expose-Headers",    operation: "set",    value: "*"                  },
+            { header: "Access-Control-Allow-Credentials", operation: "remove"                               },
+            { header: "X-Frame-Options",                  operation: "remove"                               },
+            { header: "Content-Security-Policy",          operation: "remove"                               }
+        ];
 
         chrome.declarativeNetRequest.updateSessionRules(
             {
                 addRules: [
+                    // Rule 1: Domain-specific (manifest host)
                     {
                         id: ruleId,
                         priority: 1,
-                        action: {
-                            type: "modifyHeaders",
-                            responseHeaders: [
-                                { header: "Access-Control-Allow-Origin",      operation: "set",    value: "*"                  },
-                                { header: "Access-Control-Allow-Methods",     operation: "set",    value: "GET, HEAD, OPTIONS"  },
-                                { header: "Access-Control-Allow-Headers",     operation: "set",    value: "*"                  },
-                                { header: "Access-Control-Expose-Headers",    operation: "set",    value: "*"                  },
-                                { header: "Access-Control-Allow-Credentials", operation: "remove"                               },
-                                { header: "X-Frame-Options",                  operation: "remove"                               },
-                                { header: "Content-Security-Policy",          operation: "remove"                               }
-                            ]
-                        },
+                        action: { type: "modifyHeaders", responseHeaders: corsHeaders },
                         condition: {
                             urlFilter: urlFilter,
                             resourceTypes: ["media", "xmlhttprequest", "other"]
+                        }
+                    },
+                    // Rule 2: Broad — catch CDN segment domains (.ts, .m4s, .m3u8, .mpd, etc.)
+                    {
+                        id: broadRuleId,
+                        priority: 1,
+                        action: { type: "modifyHeaders", responseHeaders: corsHeaders },
+                        condition: {
+                            regexFilter: ".*\\.(ts|m4s|m3u8|mpd|mp4|aac|vtt|srt|key)(\\?.*)?$",
+                            resourceTypes: ["media", "xmlhttprequest", "other"],
+                            isUrlFilterCaseSensitive: false
                         }
                     }
                 ]
             },
             () => {
                 if (chrome.runtime.lastError) {
-                    console.error("[WebPlayer] Failed to add DNR rule:", chrome.runtime.lastError.message);
+                    console.error("[WebPlayer] Failed to add DNR rules:", chrome.runtime.lastError.message);
                     return;
                 }
 
@@ -133,14 +148,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     chrome.tabs.create({ url: playerUrl }, (tab) => {
                         if (chrome.runtime.lastError || !tab) {
                             console.error("[WebPlayer] Failed to open tab:", chrome.runtime.lastError?.message);
-                            chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [ruleId] });
+                            chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [ruleId, broadRuleId] });
                             return;
                         }
-                        chrome.storage.session.set({ [tab.id.toString()]: ruleId });
+                        // Store both rule IDs for cleanup when the tab closes
+                        chrome.storage.session.set({ [tab.id.toString()]: [ruleId, broadRuleId] });
                     });
                 } catch (err) {
                     console.error("[WebPlayer] Exception while creating tab:", err);
-                    chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [ruleId] });
+                    chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [ruleId, broadRuleId] });
                 }
             }
         );
@@ -186,7 +202,9 @@ chrome.alarms.onAlarm.addListener((alarm) => {
         chrome.declarativeNetRequest.getSessionRules((rules) => {
             if (rules.length > 100) { // If accumulating too many rules, prune orphans
                 chrome.storage.session.get(null, (data) => {
-                    const validRuleIds = new Set(Object.values(data).map(Number).filter(Boolean));
+                    const validRuleIds = new Set(
+                        Object.values(data).flatMap(v => Array.isArray(v) ? v : [v]).map(Number).filter(Boolean)
+                    );
                     const orphanIds = rules.map(r => r.id).filter(id => !validRuleIds.has(id));
                     if (orphanIds.length) {
                         chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: orphanIds });
