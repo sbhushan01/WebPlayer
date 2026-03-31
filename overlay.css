@@ -3,7 +3,10 @@
 .webplayer-active .ytp-progress-bar-container,
 .webplayer-active .ytp-gradient-bottom,
 .webplayer-active .ytp-gradient-top,
-.webplayer-active .ytp-iv-video-content {
+.webplayer-active .ytp-iv-video-content,
+.webplayer-active ytm-custom-control,
+.webplayer-active ytm-player-overlay-container,
+.webplayer-active ytm-mobile-video-player-overlay {
     display: none !important;
     opacity: 0 !important;
     pointer-events: none !important;

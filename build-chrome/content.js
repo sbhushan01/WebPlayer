@@ -10,8 +10,10 @@
         globalStyles.textContent = `
             .webplayer-active .ytp-chrome-top, .webplayer-active .ytp-chrome-bottom,
             .webplayer-active .ytp-progress-bar-container, .webplayer-active .ytp-gradient-bottom,
-            .webplayer-active .ytp-gradient-top, .webplayer-active .ytp-iv-video-content {
-                display: none !important; opacity: 0 !important; pointer-events: none !important;
+            .webplayer-active .ytp-gradient-top, .webplayer-active .ytp-iv-video-content,
+            .webplayer-active ytm-custom-control, .webplayer-active ytm-player-overlay-container,
+            .webplayer-active ytm-mobile-video-player-overlay {
+                display: none !important; opacity: 0 !important; pointer-events: none !important; visibility: hidden !important;
             }
         `;
         const root = getRootContainer();
@@ -104,7 +106,7 @@
             document.querySelectorAll("video").forEach(video => {
                 if (buttonRegistry.has(video)) return;
                 const r = video.getBoundingClientRect();
-                if (r.width < 250 || r.height < 140) return;
+                if (r.width < 100 || r.height < 80) return;
                 addPlayerButton(video);
             });
         } catch (err) {}
@@ -163,11 +165,21 @@
             rafId = requestAnimationFrame(loop);
         });
 
-        btn.addEventListener("click", e => {
+        btn.addEventListener("pointerdown", e => {
             e.preventDefault();
             e.stopPropagation();
             cancelAnimationFrame(rafId); btn.remove(); buttonRegistry.delete(video);
             injectCustomPlayer(video);
+        });
+
+        // Also add click handler just to be safe on non-pointer environments
+        btn.addEventListener("click", e => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (buttonRegistry.has(video)) {
+                cancelAnimationFrame(rafId); btn.remove(); buttonRegistry.delete(video);
+                injectCustomPlayer(video);
+            }
         });
 
         buttonRegistry.set(video, { btn });
