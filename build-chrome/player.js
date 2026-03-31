@@ -427,7 +427,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     await loadScript("libs/hls.min.js");
                     if (window.Hls && Hls.isSupported()) {
                         currentHls = new Hls({
-                            enableWorker: true,
+                            enableWorker: false, // <-- CHANGED TO FALSE FOR MANIFEST V3 COMPATIBILITY
                             startLevel: -1,
                             manifestLoadingMaxRetry: 6,
                             levelLoadingMaxRetry: 6,
