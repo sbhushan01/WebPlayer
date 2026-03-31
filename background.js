@@ -7,10 +7,10 @@ function cleanupOldVideoProgress() {
         const now = Date.now();
         const keysToRemove = [];
         for (const [key, val] of Object.entries(items)) {
-            // Delete if it's a legacy number OR if it has expired
+            if (key === '_wp_pending_stream') continue; // B2: skip queue key
             if (typeof val === 'number') {
                 keysToRemove.push(key);
-            } else if (val && val.ts && (now - val.ts > 7 * 24 * 60 * 60 * 1000)) {
+            } else if (val && val.ts && (now - val.ts > 30 * 24 * 60 * 60 * 1000)) { // B7: 30-day TTL
                 keysToRemove.push(key);
             }
         }
@@ -33,6 +33,31 @@ chrome.runtime.onInstalled.addListener((details) => {
 chrome.runtime.onStartup.addListener(() => {
     setupAlarms();
     cleanupOldVideoProgress();
+    // B4: Also clean stale DNR rules on browser startup
+    chrome.declarativeNetRequest.getSessionRules((rules) => {
+        const ids = rules.map(r => r.id);
+        if (ids.length) chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: ids });
+    });
+    // B2: Re-fire any pending stream launch that was interrupted by SW termination
+    chrome.storage.local.get('_wp_pending_stream', (res) => {
+        const pending = res._wp_pending_stream;
+        if (pending && pending.tabId) {
+            chrome.tabs.get(pending.tabId, (tab) => {
+                if (chrome.runtime.lastError || !tab) {
+                    chrome.storage.local.remove('_wp_pending_stream');
+                    return;
+                }
+                chrome.tabs.sendMessage(pending.tabId, {
+                    action: 'stream_detected',
+                    url: pending.url,
+                    pageUrl: pending.pageUrl
+                }, () => {
+                    if (chrome.runtime.lastError) { /* tab may not have content script */ }
+                });
+                chrome.storage.local.remove('_wp_pending_stream');
+            });
+        }
+    });
 });
 chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === "keepAlive") {
@@ -134,6 +159,14 @@ chrome.webRequest.onHeadersReceived.addListener(
             recentlyInterceptedTabs.add(details.tabId);
             setTimeout(() => recentlyInterceptedTabs.delete(details.tabId), 5000);
 
+            // B2: Store pending stream in case SW dies before user confirms
+            chrome.storage.local.set({ _wp_pending_stream: {
+                url: details.url,
+                tabId: details.tabId,
+                pageUrl: details.initiator || "",
+                ts: Date.now()
+            }});
+
             chrome.tabs.sendMessage(details.tabId, {
                 action:  "stream_detected",
                 url:     details.url,
@@ -145,3 +178,21 @@ chrome.webRequest.onHeadersReceived.addListener(
     },
     { urls: ["<all_urls>"], types: ["xmlhttprequest", "media"] }
 );
+
+// B4: Guard against MAX_NUMBER_OF_DYNAMIC_RULES (5000 for session rules)
+// Periodically prune rules for tabs that no longer exist
+chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === "keepAlive") {
+        chrome.declarativeNetRequest.getSessionRules((rules) => {
+            if (rules.length > 100) { // If accumulating too many rules, prune orphans
+                chrome.storage.session.get(null, (data) => {
+                    const validRuleIds = new Set(Object.values(data).map(Number).filter(Boolean));
+                    const orphanIds = rules.map(r => r.id).filter(id => !validRuleIds.has(id));
+                    if (orphanIds.length) {
+                        chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: orphanIds });
+                    }
+                });
+            }
+        });
+    }
+});

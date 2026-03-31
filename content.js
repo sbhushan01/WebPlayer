@@ -116,7 +116,7 @@
         const btn = document.createElement("button");
 
         const iconEl = document.createElement("span");
-        iconEl.innerHTML = IC.launch;
+        setSVG(iconEl, IC.launch);
         iconEl.style.cssText = "display:flex;align-items:center;flex-shrink:0;";
 
         const labelEl = document.createElement("span");
@@ -151,43 +151,39 @@
 
         getRootContainer()?.appendChild(btn);
 
-        let rafId = requestAnimationFrame(function loop() {
+        // B6: Use IntersectionObserver + ResizeObserver + scroll instead of continuous rAF
+        let btnVisible = false;
+        const updateBtnPos = () => {
             try {
+                if (!document.contains(video)) { cleanupBtn(); return; }
                 const r = video.getBoundingClientRect();
-                if (r.width <= 0 || !document.contains(video)) {
-                    cancelAnimationFrame(rafId);
-                    btn.remove();
-                    buttonRegistry.delete(video);
-                    return;
-                } else {
-                    btn.style.display = "";
-                    btn.style.left    = `${r.left + window.scrollX + 10}px`;
-                    btn.style.top     = `${r.top  + window.scrollY + 10}px`;
-                }
-            } catch (_) {
-                cancelAnimationFrame(rafId);
-                btn.remove();
-                buttonRegistry.delete(video);
-                return;
-            }
-            rafId = requestAnimationFrame(loop);
-        });
+                if (r.width <= 0) { btn.style.display = "none"; return; }
+                btn.style.display = btnVisible ? "" : "none";
+                btn.style.left = `${r.left + window.scrollX + 10}px`;
+                btn.style.top  = `${r.top  + window.scrollY + 10}px`;
+            } catch (_) { cleanupBtn(); }
+        };
+        const cleanupBtn = () => {
+            btnIO.disconnect(); btnRO.disconnect();
+            window.removeEventListener("scroll", updateBtnPos, true);
+            btn.remove(); buttonRegistry.delete(video);
+        };
+        const btnIO = new IntersectionObserver(entries => {
+            btnVisible = entries[0]?.isIntersecting ?? false;
+            updateBtnPos();
+        }, { threshold: 0.1 });
+        const btnRO = new ResizeObserver(updateBtnPos);
+        btnIO.observe(video); btnRO.observe(video);
+        window.addEventListener("scroll", updateBtnPos, { capture: true, passive: true });
+        updateBtnPos();
 
         btn.addEventListener("pointerdown", e => {
-            e.preventDefault();
-            e.stopPropagation();
-            cancelAnimationFrame(rafId); btn.remove(); buttonRegistry.delete(video);
-            injectCustomPlayer(video);
+            e.preventDefault(); e.stopPropagation();
+            cleanupBtn(); injectCustomPlayer(video);
         });
-
-        // Also add click handler just to be safe on non-pointer environments
         btn.addEventListener("click", e => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (buttonRegistry.has(video)) {
-                cancelAnimationFrame(rafId); btn.remove(); buttonRegistry.delete(video);
-                injectCustomPlayer(video);
-            }
+            e.preventDefault(); e.stopPropagation();
+            if (buttonRegistry.has(video)) { cleanupBtn(); injectCustomPlayer(video); }
         });
 
         buttonRegistry.set(video, { btn });
@@ -200,16 +196,29 @@
         } catch (e) {}
     }
 
+    // B1: Track play() promise to prevent AbortError on rapid play/pause
+    let _playPromise = null;
     function safePlay(video) {
         try {
-            const p = video.play();
-            if (p && typeof p.catch === "function") {
-                p.catch(err => console.warn("[WebPlayer] Playback prevented:", err));
+            _playPromise = video.play();
+            if (_playPromise && typeof _playPromise.catch === "function") {
+                _playPromise.catch(() => {}).finally(() => { _playPromise = null; });
             }
-        } catch (err) {
-            console.warn("[WebPlayer] Playback synchronous error:", err);
-        }
+        } catch (err) { _playPromise = null; }
     }
+    async function safePause(video) {
+        if (_playPromise) { try { await _playPromise; } catch (_) {} _playPromise = null; }
+        video.pause();
+    }
+
+    // B8: Defensive SVG injection via DOMParser
+    const setSVG = (el, svgStr) => {
+        el.textContent = '';
+        try {
+            const doc = new DOMParser().parseFromString(svgStr, 'image/svg+xml');
+            el.appendChild(document.importNode(doc.documentElement, true));
+        } catch (_) { el.innerHTML = svgStr; }
+    };
 
     function injectCustomPlayer(video) {
         if (!video || !video.parentElement || video.dataset.customPlayerActive) return;
@@ -545,7 +554,7 @@
             switch (e.key) {
                 case " ": case "k": case "K":
                     e.preventDefault();
-                    video.paused ? safePlay(video) : video.pause();
+                    video.paused ? safePlay(video) : safePause(video);
                     showFeedback(video.paused ? "Paused" : "Playing");
                     break;
                 case "ArrowLeft":
@@ -647,12 +656,11 @@
         });
 
         const playBtn = uiWrapper.querySelector("#wp-play");
-        video.addEventListener("play",  () => playBtn.innerHTML = IC.pause);
-        video.addEventListener("pause", () => playBtn.innerHTML = IC.play);
+        video.addEventListener("play",  () => setSVG(playBtn, IC.pause));
+        video.addEventListener("pause", () => setSVG(playBtn, IC.play));
         playBtn.addEventListener("click", () => {
-            // BUG FIX: capture state before toggle
             const wasPaused = video.paused;
-            wasPaused ? safePlay(video) : video.pause();
+            wasPaused ? safePlay(video) : safePause(video);
         });
 
         uiWrapper.querySelector("#wp-skip-back").addEventListener("click", () => { video.currentTime = Math.max(0, video.currentTime - 10); showFeedback("−10s"); });
@@ -707,7 +715,7 @@
             // Fallback for native dblclick if pointer events miss the timing, 
             // but restrict to fullscreen to avoid duplicated seeks.
             const rect = gestureZone.getBoundingClientRect();
-            if (e.clientX > rect.left + rect.width * 0.33 && e.clientX < rect.left + rect.width * 0.66) {
+            if (e.clientX > rect.left + rect.width * 0.30 && e.clientX < rect.left + rect.width * 0.70) {
                 uiWrapper.querySelector("#wp-fs")?.click();
             }
         });
@@ -726,6 +734,10 @@
 
         gestureZone.addEventListener("pointermove", e => {
             if (!isPointerDown) return;
+            // U6: Ignore gestures near screen edges (top/bottom 12%)
+            const _edgeRect = gestureZone.getBoundingClientRect();
+            const _yRatio = (e.clientY - _edgeRect.top) / _edgeRect.height;
+            if (_yRatio < 0.12 || _yRatio > 0.88) return;
             const diffX = e.clientX - startX;
             const diffY = e.clientY - startY;
 
@@ -788,21 +800,21 @@
                     setTimeout(() => ripple.remove(), 400);
 
                     // BUG FIX: Double tap on sides targets seeking, double tap in middle toggles Play/Pause or Fullscreen
-                    if (e.clientX < rect.left + rect.width * 0.33) {
+                    if (e.clientX < rect.left + rect.width * 0.30) {
                         video.currentTime = Math.max(0, video.currentTime - 10);
                         showFeedback("−10s");
-                        lastTapTime = now; // Keep chain alive for triple taps
-                    } else if (e.clientX > rect.left + rect.width * 0.66) {
+                        lastTapTime = now;
+                    } else if (e.clientX > rect.left + rect.width * 0.70) {
                         safeSeekForward(video, 10);
                         showFeedback("+10s");
-                        lastTapTime = now; // Keep chain alive for triple taps
+                        lastTapTime = now;
                     } else {
                         // Double tap center toggles fullscreen for mouse, play/pause for touch
                         if (e.pointerType === "mouse") {
                             uiWrapper.querySelector("#wp-fs")?.click();
                         } else {
                             const wasPaused = video.paused;
-                            wasPaused ? safePlay(video) : video.pause();
+                            wasPaused ? safePlay(video) : safePause(video);
                             showFeedback(wasPaused ? "Playing" : "Paused");
                         }
                         lastTapTime = 0;
@@ -828,15 +840,24 @@
     }
 
     findVideos();
-    const observer = new MutationObserver(() => { setTimeout(findVideos, 300); });
+    // B3: Also watch for src attribute mutations (SPA reuse of video elements)
+    const observer = new MutationObserver((mutations) => {
+        let needsScan = false;
+        for (const m of mutations) {
+            if (m.type === 'childList') { needsScan = true; break; }
+            if (m.type === 'attributes' && m.target.tagName === 'VIDEO') { needsScan = true; break; }
+        }
+        if (needsScan) setTimeout(findVideos, 300);
+    });
+    const obsConfig = { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] };
 
     if (document.body) {
-        observer.observe(document.body, { childList: true, subtree: true });
+        observer.observe(document.body, obsConfig);
     } else {
-        observer.observe(document.documentElement, { childList: true, subtree: true });
+        observer.observe(document.documentElement, obsConfig);
         document.addEventListener("DOMContentLoaded", () => {
             observer.disconnect();
-            if (document.body) observer.observe(document.body, { childList: true, subtree: true });
+            if (document.body) observer.observe(document.body, obsConfig);
         }, { once: true });
     }
 })();

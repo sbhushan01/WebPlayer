@@ -10,7 +10,7 @@
 ## ✨ Key Features
 
 ### 🎛️ Audio & Playback Enhancements
-* **10-Band Graphic Equalizer & Preamp:** Full 10-band EQ (31Hz to 16kHz) with a Preamp/Boost slider. All settings are **persistently synced** via `chrome.storage.sync` — your EQ curve is restored automatically on every session.
+* **10-Band Graphic Equalizer & Preamp:** Full 10-band EQ (31Hz to 16kHz) with a Preamp/Boost slider and a **Reset** button. All settings are **persistently synced** via `chrome.storage.sync` (with `local` fallback) — your EQ curve is restored automatically on every session.
 * **Playback State Persistence:** Automatically saves your video progress every 5 seconds. If you close a stream and return later, the player resumes exactly where you left off. Stale data is automatically cleaned up in the background.
 * **SponsorBlock Integration:** Automatically fetches and skips sponsor, intro, outro, self-promo, and interaction segments via the SponsorBlock API. Skip badges display the exact segment category that was skipped.
 * **Media Session API Sync:** Full integration with your OS's native media controls and keyboard media keys.

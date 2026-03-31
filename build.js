@@ -53,5 +53,14 @@ function packExtension(browserType) {
     console.log(`✅ Packed extension for ${browserType.toUpperCase()} in /build-${browserType}`);
 }
 
+// U10: Auto-sync README version with manifest
+const readmePath = path.join(__dirname, 'README.md');
+if (fs.existsSync(readmePath)) {
+    let readme = fs.readFileSync(readmePath, 'utf8');
+    readme = readme.replace(/\*\*Version:\*\*\s*\S+/, `**Version:** ${manifest.version}`);
+    fs.writeFileSync(readmePath, readme);
+    console.log(`📝 README.md version synced to ${manifest.version}`);
+}
+
 ['chrome', 'firefox'].forEach(packExtension);
 console.log("\n📦 To create a ZIP, zip the CONTENTS of the build folders (not the folder itself).");
