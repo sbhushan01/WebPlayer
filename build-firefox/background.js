@@ -30,6 +30,7 @@ chrome.runtime.onInstalled.addListener((details) => {
         chrome.tabs.create({ url: chrome.runtime.getURL("welcome.html") });
     }
 });
+
 chrome.runtime.onStartup.addListener(() => {
     setupAlarms();
     cleanupOldVideoProgress();
@@ -59,6 +60,7 @@ chrome.runtime.onStartup.addListener(() => {
         }
     });
 });
+
 chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === "keepAlive") {
         cleanupOldVideoProgress();
@@ -124,7 +126,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                         priority: 1,
                         action: { type: "modifyHeaders", responseHeaders: corsHeaders },
                         condition: {
-                            regexFilter: ".*\\.(ts|m4s|m3u8|mpd|mp4|aac|vtt|srt|key)(\\?.*)?$",
+                            regexFilter: "\\.(ts|m4s|m3u8|mpd|mp4|aac|vtt|srt|key)(\\?.*)?$",
                             resourceTypes: ["media", "xmlhttprequest", "other"],
                             isUrlFilterCaseSensitive: false
                         }
