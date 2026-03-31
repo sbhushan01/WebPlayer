@@ -217,7 +217,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 currentDash.setTextTrack(-1);
             } else {
                 const dashTracks = currentDash.getTracksFor('text');
-                currentDash.setTextTrack(dashTracks[val] || dashTracks.find(t=>t.index === val));
+                currentDash.setTextTrack(val);
             }
         } else {
             for(let i=0; i<player.textTracks.length; i++) {
@@ -352,6 +352,23 @@ document.addEventListener("DOMContentLoaded", async () => {
                                 populateAudio(tracks, currentHls.audioTrack);
                             }
                         });
+                        currentHls.on(Hls.Events.ERROR, (e, d) => {
+                            if (d.fatal) {
+                                switch (d.type) {
+                                    case Hls.ErrorTypes.NETWORK_ERROR:
+                                        showError(`Network error: ${d.details || 'Failed to load stream'}`);
+                                        break;
+                                    case Hls.ErrorTypes.MEDIA_ERROR:
+                                        console.warn('[WebPlayer] HLS media error, attempting recovery...');
+                                        currentHls.recoverMediaError();
+                                        return; // don't destroy yet
+                                    default:
+                                        showError(`Stream error: ${d.details || 'Fatal playback error'}`);
+                                }
+                                currentHls.destroy();
+                                currentHls = null;
+                            }
+                        });
                     } else { showError("HLS not supported in this browser."); }
                 }
             } else if (cleanSrc.endsWith(".mpd")) {
@@ -379,6 +396,11 @@ document.addEventListener("DOMContentLoaded", async () => {
                             const activeTrack = currentDash.getCurrentTrackFor("audio");
                             const tracks = audioTracks.map((t, i) => ({ label: t.lang || t.id || `Audio ${i+1}`, value: i, id: t.id }));
                             populateAudio(tracks, activeTrack ? activeTrack.index : 0);
+                        }
+                    });
+                    currentDash.on(dashjs.MediaPlayer.events.ERROR, (e) => {
+                        if (e.error) {
+                            showError(`DASH error: ${e.error.message || 'Stream playback failed'}`);
                         }
                     });
                 } else { showError("DASH not supported in this browser."); }
@@ -468,8 +490,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     // ── Progress bar ──────────────────────────────────────────────────────────
     const formatTime = (sec) => {
         if (!isFinite(sec)) return "0:00";
-        const m = Math.floor(sec / 60);
+        const h = Math.floor(sec / 3600);
+        const m = Math.floor((sec % 3600) / 60);
         const s = Math.floor(sec % 60).toString().padStart(2, "0");
+        if (h > 0) return `${h}:${m.toString().padStart(2, "0")}:${s}`;
         return `${m}:${s}`;
     };
 
@@ -743,6 +767,11 @@ document.addEventListener("DOMContentLoaded", async () => {
             case "?":
                 toggleShortcuts();
                 break;
+            case "Escape":
+                // Close any open modals/popovers
+                if (shortcutsModal.classList.contains("active")) { shortcutsModal.classList.remove("active"); }
+                else { closeAllPopovers(); }
+                break;
             default:
                 return; // Don't call resetIdle for unbound keys
         }
@@ -757,6 +786,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     let startX = 0, startY = 0, lastY = 0, swipeDir = null;
     let isPointerDown = false, lastTapTime = 0, tapTimeout, longPressTimer;
     let currentBrightness = 1.0, originalSpeed = 1.0;
+    let isLongPressActive = false;
 
     gestureZone.addEventListener("contextmenu", e => e.preventDefault());
 
@@ -776,6 +806,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         startX = e.clientX; startY = e.clientY; lastY = e.clientY; swipeDir = null;
         originalSpeed = player.playbackRate;
         longPressTimer = setTimeout(() => {
+            isLongPressActive = true;
             setPlaybackRate(2.0); // BUG FIX: use setPlaybackRate to sync pills
             showFeedback("2× Speed");
         }, 500);
@@ -813,8 +844,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         gestureZone.releasePointerCapture(e.pointerId);
         clearTimeout(longPressTimer);
 
-        // BUG FIX: use setPlaybackRate to restore and sync pills
-        if (player.playbackRate === 2.0 && originalSpeed !== 2.0) {
+        // BUG FIX: use isLongPressActive flag to restore and sync pills
+        if (isLongPressActive) {
+            isLongPressActive = false;
             setPlaybackRate(originalSpeed);
             showFeedback(`${originalSpeed}× Speed`);
             lastTapTime = 0;
@@ -889,9 +921,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     const eqFilters = [];
     let isAudioInitialized = false;
 
-    // Save current EQ state to chrome.storage.sync
+    // Save current EQ state to chrome.storage (sync with local fallback)
+    const eqStorage = (chrome.storage.sync || chrome.storage.local);
     const saveEqSettings = () => {
-        chrome.storage.sync.set({
+        eqStorage.set({
             [EQ_STORAGE_KEY]: {
                 preamp: preampGain ? preampGain.gain.value : 1.0,
                 bands:  eqFilters.map(f => f.gain.value)
@@ -924,7 +957,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             preampGain.connect(window.audioContext.destination);
 
             // BUG FIX: load saved EQ settings and build sliders with restored values
-            chrome.storage.sync.get([EQ_STORAGE_KEY], (res) => {
+            eqStorage.get([EQ_STORAGE_KEY], (res) => {
                 const saved      = res[EQ_STORAGE_KEY] || {};
                 const savedBands = saved.bands  || new Array(frequencies.length).fill(0);
                 const savedPreamp = saved.preamp ?? 1.0;

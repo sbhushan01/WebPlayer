@@ -34,7 +34,7 @@
 
     const buttonRegistry = new WeakMap();
     const interceptedUrls = new Set();
-    let isSpawningPlayer = false;
+
 
     if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id) {
         try {
@@ -57,8 +57,8 @@
                             <span style="font-size: 12px; color: #aaa;">HLS/DASH stream available</span>
                         </div>
                         <div style="display:flex; gap: 8px;">
-                            <button id="wp-prompt-ignore" style="background: rgba(255,255,255,0.1); border: none; padding: 6px 12px; border-radius: 6px; color: white; cursor: pointer; font-size: 12px; transition: 0.2s;">Ignore</button>
-                            <button id="wp-prompt-launch" style="background: #4A9EFF; border: none; padding: 6px 12px; border-radius: 6px; color: white; cursor: pointer; font-size: 12px; font-weight: bold; transition: 0.2s;">Launch Player</button>
+                            <button class="wp-prompt-ignore" style="background: rgba(255,255,255,0.1); border: none; padding: 6px 12px; border-radius: 6px; color: white; cursor: pointer; font-size: 12px; transition: 0.2s;">Ignore</button>
+                            <button class="wp-prompt-launch" style="background: #4A9EFF; border: none; padding: 6px 12px; border-radius: 6px; color: white; cursor: pointer; font-size: 12px; font-weight: bold; transition: 0.2s;">Launch Player</button>
                         </div>
                     `;
                     
@@ -78,8 +78,8 @@
                         setTimeout(() => prompt.remove(), 300);
                     };
                     
-                    prompt.querySelector("#wp-prompt-ignore").onclick = closePrompt;
-                    prompt.querySelector("#wp-prompt-launch").onclick = () => {
+                    prompt.querySelector(".wp-prompt-ignore").onclick = closePrompt;
+                    prompt.querySelector(".wp-prompt-launch").onclick = () => {
                         closePrompt();
                         try {
                             chrome.runtime.sendMessage({
@@ -155,13 +155,21 @@
             try {
                 const r = video.getBoundingClientRect();
                 if (r.width <= 0 || !document.contains(video)) {
-                    btn.style.display = "none";
+                    cancelAnimationFrame(rafId);
+                    btn.remove();
+                    buttonRegistry.delete(video);
+                    return;
                 } else {
                     btn.style.display = "";
                     btn.style.left    = `${r.left + window.scrollX + 10}px`;
                     btn.style.top     = `${r.top  + window.scrollY + 10}px`;
                 }
-            } catch (_) {}
+            } catch (_) {
+                cancelAnimationFrame(rafId);
+                btn.remove();
+                buttonRegistry.delete(video);
+                return;
+            }
             rafId = requestAnimationFrame(loop);
         });
 
@@ -341,6 +349,7 @@
                     <div class="quality-dropdown" id="wp-cc-dropdown"></div>
                 </div>
                 <div class="speed-pills" id="wp-speed-pills">
+                    <button class="speed-pill" data-speed="0.25">0.25×</button>
                     <button class="speed-pill" data-speed="0.5">0.5×</button>
                     <button class="speed-pill active" data-speed="1">1×</button>
                     <button class="speed-pill" data-speed="1.5">1.5×</button>
@@ -592,8 +601,10 @@
 
         const formatTime = (sec) => {
             if (!isFinite(sec) || sec < 0) return "0:00";
-            const m = Math.floor(sec / 60);
+            const h = Math.floor(sec / 3600);
+            const m = Math.floor((sec % 3600) / 60);
             const s = Math.floor(sec % 60).toString().padStart(2, "0");
+            if (h > 0) return `${h}:${m.toString().padStart(2, "0")}:${s}`;
             return `${m}:${s}`;
         };
 
@@ -687,6 +698,7 @@
         let startX = 0, startY = 0, lastY = 0, swipeDir = null;
         let isPointerDown = false, lastTapTime = 0, longPressTimer = null;
         let currentBrightness = 1.0, originalSpeed = 1.0;
+        let isLongPressActive = false;
 
         gestureZone.addEventListener("contextmenu", e => e.preventDefault());
 
@@ -706,6 +718,7 @@
             startX = e.clientX; startY = e.clientY; lastY = e.clientY; swipeDir = null;
             originalSpeed = video.playbackRate;
             longPressTimer = setTimeout(() => {
+                isLongPressActive = true;
                 setPlaybackRate(2.0); // BUG FIX: sync pills
                 showFeedback("2× Speed");
             }, 500);
@@ -744,8 +757,9 @@
             gestureZone.releasePointerCapture(e.pointerId);
             clearTimeout(longPressTimer);
 
-            // BUG FIX: use setPlaybackRate to restore and sync pills
-            if (video.playbackRate === 2.0 && originalSpeed !== 2.0) {
+            // BUG FIX: use isLongPressActive flag to restore and sync pills
+            if (isLongPressActive) {
+                isLongPressActive = false;
                 setPlaybackRate(originalSpeed);
                 showFeedback(`${originalSpeed}× Speed`);
                 lastTapTime = 0;

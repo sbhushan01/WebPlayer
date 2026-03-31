@@ -21,6 +21,11 @@ function cleanupOldVideoProgress() {
 chrome.runtime.onInstalled.addListener((details) => {
     setupAlarms();
     cleanupOldVideoProgress();
+    // B9: Clean up stale DNR session rules from previous extension loads
+    chrome.declarativeNetRequest.getSessionRules((rules) => {
+        const ids = rules.map(r => r.id);
+        if (ids.length) chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: ids });
+    });
     if (details.reason === "install") {
         chrome.tabs.create({ url: chrome.runtime.getURL("welcome.html") });
     }
@@ -58,8 +63,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const videoUrl  = request.videoSrc;
         const urlFilter = domainFilter(videoUrl);
 
-        // Generate a random rule ID to prevent sleep/wake collisions
-        const ruleId = Math.floor(Math.random() * 1000000) + 1;
+        // Generate a random rule ID with a large space to prevent collisions
+        const ruleId = crypto.getRandomValues(new Uint32Array(1))[0] % 2000000000 + 1;
 
         chrome.declarativeNetRequest.updateSessionRules(
             {

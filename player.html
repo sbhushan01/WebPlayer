@@ -122,6 +122,7 @@
             position: relative; width: 100%; height: 6px; background: rgba(255,255,255,0.15);
             border-radius: 4px; cursor: pointer; transition: height 0.2s, background 0.3s;
             display: flex; align-items: center; box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
+            touch-action: none;
         }
         .progress-wrapper::before { content: ''; position: absolute; top: -20px; bottom: -20px; left: 0; right: 0; }
         .progress-wrapper:hover { height: 8px; background: rgba(255,255,255,0.25); }
@@ -349,12 +350,12 @@
 
                 <div class="controls-row">
                     <div class="controls-left">
-                        <button id="play-pause-btn" title="Play / Pause (Space / K)">
+                        <button id="play-pause-btn" title="Play / Pause (Space / K)" aria-label="Play">
                             <span class="material-symbols-rounded" id="play-icon">play_arrow</span>
                         </button>
 
                         <div class="volume-container">
-                            <button id="mute-btn" title="Mute (M)">
+                            <button id="mute-btn" title="Mute (M)" aria-label="Mute">
                                 <span class="material-symbols-rounded" id="mute-icon">volume_up</span>
                             </button>
                             <input type="range" class="volume-slider" id="volume-slider" min="0" max="1" step="0.05" value="1">
@@ -367,21 +368,21 @@
 
                     <div class="controls-right">
                         <div class="quality-container" id="quality-container">
-                            <button id="quality-btn" title="Quality">
+                            <button id="quality-btn" title="Quality" aria-label="Quality">
                                 <span class="material-symbols-rounded" id="quality-icon">settings</span>
                             </button>
                             <div class="quality-dropdown" id="quality-dropdown"></div>
                         </div>
 
                         <div class="quality-container" id="cc-container">
-                            <button id="cc-btn" title="Subtitles/CC">
+                            <button id="cc-btn" title="Subtitles/CC" aria-label="Subtitles">
                                 <span class="material-symbols-rounded" id="cc-icon">closed_caption_disabled</span>
                             </button>
                             <div class="quality-dropdown" id="cc-dropdown"></div>
                         </div>
 
                         <div class="quality-container" id="audio-container">
-                            <button id="audio-btn" title="Audio Track">
+                            <button id="audio-btn" title="Audio Track" aria-label="Audio Track">
                                 <span class="material-symbols-rounded" id="audio-icon">audiotrack</span>
                             </button>
                             <div class="quality-dropdown" id="audio-dropdown"></div>
@@ -389,13 +390,14 @@
 
 
                         <div class="speed-pills" id="speed-pills">
+                            <button class="speed-pill" data-speed="0.25">0.25×</button>
                             <button class="speed-pill" data-speed="0.5">0.5×</button>
                             <button class="speed-pill active" data-speed="1">1×</button>
                             <button class="speed-pill" data-speed="1.5">1.5×</button>
                             <button class="speed-pill" data-speed="2">2×</button>
                         </div>
 
-                        <button id="theme-toggle-btn" title="Themes">
+                        <button id="theme-toggle-btn" title="Themes" aria-label="Themes">
                             <span class="material-symbols-rounded">palette</span>
                         </button>
                         
@@ -412,23 +414,23 @@
                             </div>
                         </div>
 
-                        <button id="eq-toggle-btn" title="Equalizer">
+                        <button id="eq-toggle-btn" title="Equalizer" aria-label="Equalizer">
                             <span class="material-symbols-rounded">tune</span>
                         </button>
 
-                        <button id="shortcuts-btn" title="Keyboard shortcuts (?)">
+                        <button id="shortcuts-btn" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">
                             <span class="material-symbols-rounded">keyboard</span>
                         </button>
 
-                        <button id="rotate-btn" title="Rotate (R)">
+                        <button id="rotate-btn" title="Rotate (R)" aria-label="Rotate">
                             <span class="material-symbols-rounded">screen_rotation</span>
                         </button>
 
-                        <button id="pip-btn" title="Picture in picture">
+                        <button id="pip-btn" title="Picture in picture" aria-label="Picture in picture">
                             <span class="material-symbols-rounded">picture_in_picture_alt</span>
                         </button>
 
-                        <button id="fs-btn" title="Fullscreen (F)">
+                        <button id="fs-btn" title="Fullscreen (F)" aria-label="Fullscreen">
                             <span class="material-symbols-rounded" id="fs-icon">fullscreen</span>
                         </button>
                     </div>
