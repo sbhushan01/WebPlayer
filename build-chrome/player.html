@@ -122,6 +122,7 @@
             position: relative; width: 100%; height: 6px; background: rgba(255,255,255,0.15);
             border-radius: 4px; cursor: pointer; transition: height 0.2s, background 0.3s;
             display: flex; align-items: center; box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
+            touch-action: none;
         }
         .progress-wrapper::before { content: ''; position: absolute; top: -20px; bottom: -20px; left: 0; right: 0; }
         .progress-wrapper:hover { height: 8px; background: rgba(255,255,255,0.25); }
@@ -193,6 +194,9 @@
             transition: background 0.4s ease;
         }
         .quality-dropdown.open { display: flex; animation: slideUp 0.2s cubic-bezier(0.4,0,0.2,1); }
+        /* U9: ARIA listbox styling */
+        .quality-dropdown[role="listbox"] .quality-option { cursor: pointer; }
+        .quality-option[aria-selected="true"] { color: var(--md-sys-color-primary); background: rgba(255,255,255,0.05); }
         .quality-option {
             font-size: 0.9rem; font-weight: 500; padding: 10px 16px; border-radius: 10px; width: 100%; height: auto;
             text-align: left; justify-content: flex-start; background: none; color: var(--md-sys-color-on-surface-variant);
@@ -258,6 +262,8 @@
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 4px 16px var(--glow-color);
         }
         #skip-badge.showing { opacity: 1; transform: translateY(0); }
+        /* U12: Ensure skip badge has strong readability */
+        #skip-badge { text-shadow: 0 1px 2px rgba(0,0,0,0.3); letter-spacing: 0.3px; }
 
         /* ── Ripple ──────────────────────────────────────────────────────────── */
         .wp-ripple {
@@ -349,12 +355,12 @@
 
                 <div class="controls-row">
                     <div class="controls-left">
-                        <button id="play-pause-btn" title="Play / Pause (Space / K)">
+                        <button id="play-pause-btn" title="Play / Pause (Space / K)" aria-label="Play">
                             <span class="material-symbols-rounded" id="play-icon">play_arrow</span>
                         </button>
 
                         <div class="volume-container">
-                            <button id="mute-btn" title="Mute (M)">
+                            <button id="mute-btn" title="Mute (M)" aria-label="Mute">
                                 <span class="material-symbols-rounded" id="mute-icon">volume_up</span>
                             </button>
                             <input type="range" class="volume-slider" id="volume-slider" min="0" max="1" step="0.05" value="1">
@@ -367,35 +373,36 @@
 
                     <div class="controls-right">
                         <div class="quality-container" id="quality-container">
-                            <button id="quality-btn" title="Quality">
+                            <button id="quality-btn" title="Quality" aria-label="Quality">
                                 <span class="material-symbols-rounded" id="quality-icon">settings</span>
                             </button>
-                            <div class="quality-dropdown" id="quality-dropdown"></div>
+                            <div class="quality-dropdown" id="quality-dropdown" role="listbox"></div>
                         </div>
 
                         <div class="quality-container" id="cc-container">
-                            <button id="cc-btn" title="Subtitles/CC">
+                            <button id="cc-btn" title="Subtitles/CC" aria-label="Subtitles">
                                 <span class="material-symbols-rounded" id="cc-icon">closed_caption_disabled</span>
                             </button>
-                            <div class="quality-dropdown" id="cc-dropdown"></div>
+                            <div class="quality-dropdown" id="cc-dropdown" role="listbox"></div>
                         </div>
 
                         <div class="quality-container" id="audio-container">
-                            <button id="audio-btn" title="Audio Track">
+                            <button id="audio-btn" title="Audio Track" aria-label="Audio Track">
                                 <span class="material-symbols-rounded" id="audio-icon">audiotrack</span>
                             </button>
-                            <div class="quality-dropdown" id="audio-dropdown"></div>
+                            <div class="quality-dropdown" id="audio-dropdown" role="listbox"></div>
                         </div>
 
 
                         <div class="speed-pills" id="speed-pills">
+                            <button class="speed-pill" data-speed="0.25">0.25×</button>
                             <button class="speed-pill" data-speed="0.5">0.5×</button>
                             <button class="speed-pill active" data-speed="1">1×</button>
                             <button class="speed-pill" data-speed="1.5">1.5×</button>
                             <button class="speed-pill" data-speed="2">2×</button>
                         </div>
 
-                        <button id="theme-toggle-btn" title="Themes">
+                        <button id="theme-toggle-btn" title="Themes" aria-label="Themes">
                             <span class="material-symbols-rounded">palette</span>
                         </button>
                         
@@ -412,23 +419,23 @@
                             </div>
                         </div>
 
-                        <button id="eq-toggle-btn" title="Equalizer">
+                        <button id="eq-toggle-btn" title="Equalizer" aria-label="Equalizer">
                             <span class="material-symbols-rounded">tune</span>
                         </button>
 
-                        <button id="shortcuts-btn" title="Keyboard shortcuts (?)">
+                        <button id="shortcuts-btn" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">
                             <span class="material-symbols-rounded">keyboard</span>
                         </button>
 
-                        <button id="rotate-btn" title="Rotate (R)">
+                        <button id="rotate-btn" title="Rotate (R)" aria-label="Rotate">
                             <span class="material-symbols-rounded">screen_rotation</span>
                         </button>
 
-                        <button id="pip-btn" title="Picture in picture">
+                        <button id="pip-btn" title="Picture in picture" aria-label="Picture in picture">
                             <span class="material-symbols-rounded">picture_in_picture_alt</span>
                         </button>
 
-                        <button id="fs-btn" title="Fullscreen (F)">
+                        <button id="fs-btn" title="Fullscreen (F)" aria-label="Fullscreen">
                             <span class="material-symbols-rounded" id="fs-icon">fullscreen</span>
                         </button>
                     </div>
@@ -445,6 +452,7 @@
                     <input type="range" id="eq-preamp" min="0.1" max="3" step="0.1" value="1.0" style="flex:2">
                 </div>
                 <div class="eq-sliders" id="eq-bands-container"></div>
+                <button id="eq-reset-btn" style="margin-top: 8px; width: 100%; height: auto; padding: 10px; border-radius: 12px; background: rgba(255,255,255,0.06); color: var(--md-sys-color-on-surface-variant); font-size: 0.85rem; font-weight: 600; border: 1px solid rgba(255,255,255,0.08); transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.12)'" onmouseout="this.style.background='rgba(255,255,255,0.06)'">Reset EQ</button>
             </div>
         </div>
     </div>
@@ -465,6 +473,17 @@
                 <kbd>?</kbd>         <span>Show / hide this help</span>
             </div>
             <p class="shortcuts-hint">Double-tap left/right to seek ±10s on touch screens.</p>
+            <!-- U7: Gesture reference for touch users -->
+            <div class="shortcuts-hint" style="margin-top: 12px;">
+                <strong style="color: var(--md-sys-color-on-surface); display: block; margin-bottom: 8px;">Touch Gestures</strong>
+                <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; text-align: left; font-size: 0.85rem;">
+                    <span style="opacity: 0.7;">⇅ Swipe left</span> <span>Brightness</span>
+                    <span style="opacity: 0.7;">⇅ Swipe right</span> <span>Volume</span>
+                    <span style="opacity: 0.7;">⇆ Swipe</span> <span>Seek ±10s</span>
+                    <span style="opacity: 0.7;">Double-tap L/R</span> <span>Seek ±10s</span>
+                    <span style="opacity: 0.7;">Long press</span> <span>2× Speed</span>
+                </div>
+            </div>
         </div>
     </div>
 
