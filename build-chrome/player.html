@@ -125,7 +125,7 @@
             display: flex; align-items: center; box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
             touch-action: none;
         }
-        .progress-wrapper::before { content: ''; position: absolute; top: -20px; bottom: -20px; left: 0; right: 0; }
+        .progress-wrapper::before { content: ''; position: absolute; top: -24px; bottom: -24px; left: -8px; right: -8px; }
         .progress-wrapper:hover { height: 8px; background: rgba(255,255,255,0.25); }
         .progress-buffered {
             position: absolute; left: 0; top: 0; bottom: 0; background: rgba(255,255,255,0.3);
@@ -373,7 +373,11 @@
             button { width: 44px; height: 44px; flex-shrink: 0; margin: 0 2px; }
             .material-symbols-rounded { font-size: 28px; }
             .progress-wrapper { height: 8px; }
-            .progress-thumb { transform: translateX(-50%) scale(0.9); }
+            .progress-wrapper::before { top: -28px; bottom: -28px; left: -12px; right: -12px; }
+            .progress-thumb { transform: translateX(-50%) scale(1); width: 22px; height: 22px; }
+            .progress-wrapper:hover .progress-thumb, .progress-wrapper.dragging .progress-thumb {
+                transform: translateX(-50%) scale(1.3);
+            }
         }
 
         /* ── Error box ───────────────────────────────────────────────────────── */
