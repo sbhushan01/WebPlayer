@@ -261,9 +261,13 @@
             button { background: rgba(255,255,255,0.0); border: none; color: #E3E3E3; cursor: pointer; padding: 8px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: all 0.2s ease; width: 44px; height: 44px; }
             button:hover { background: rgba(255,255,255,0.12); transform: scale(1.05); }
             @media (max-width: 600px) {
-                .wp-center-row { gap: 6px; }
+                .webplayer-ui-wrapper { bottom: 16px; padding: 10px 16px; border-radius: 20px; gap: 8px; }
+                .wp-center-row { flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; gap: 6px; padding-bottom: 2px; scrollbar-width: none; }
+                .wp-center-row::-webkit-scrollbar { display: none; }
                 .speed-pills { display: none !important; }
-                button { width: 40px; height: 40px; padding: 6px; }
+                button { width: 36px; height: 36px; padding: 6px; flex-shrink: 0; }
+                .wp-progress-row { font-size: 12px; gap: 8px; }
+                input[type=range] { margin: 8px 0; height: 4px; }
             }
             .speed-pills { display: flex; align-items: center; gap: 6px; margin: 0 8px; }
             .speed-pill { font-size: 13px; font-weight: 600; padding: 0 12px; height: 32px; border-radius: 16px; background: rgba(255,255,255,0.06); color: #C4C7C5; transition: all 0.3s ease; border: 1px solid rgba(255,255,255,0.08); width: auto; display: flex; align-items: center; }

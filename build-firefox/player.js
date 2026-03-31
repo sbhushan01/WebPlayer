@@ -33,6 +33,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     const ccDropdown      = document.getElementById("cc-dropdown");
     const ccIcon          = document.getElementById("cc-icon");
 
+    const audioContainer  = document.getElementById("audio-container");
+    const audioBtn        = document.getElementById("audio-btn");
+    const audioDropdown   = document.getElementById("audio-dropdown");
+    const audioIcon       = document.getElementById("audio-icon");
+
     const themeToggleBtn  = document.getElementById("theme-toggle-btn");
     const themePopover    = document.getElementById("theme-popover");
     const themeCloseBtn   = document.getElementById("theme-close-btn");
@@ -224,19 +229,68 @@ document.addEventListener("DOMContentLoaded", async () => {
         ccDropdown.classList.remove("open");
     });
 
+    function populateAudio(tracks, currentTrackId) {
+        audioContainer.style.display = "flex";
+        audioDropdown.innerHTML = "";
+
+        tracks.forEach(({ label, value, id }) => {
+            if (!label) label = `Track ${value}`;
+            const btn = document.createElement("button");
+            const isActive = (id !== undefined && id === currentTrackId) || (id === undefined && value === currentTrackId);
+            btn.className = "quality-option" + (isActive ? " active" : "");
+            btn.textContent = label;
+            btn.dataset.value = value;
+            if (id !== undefined) btn.dataset.id = id;
+            audioDropdown.appendChild(btn);
+        });
+    }
+
+    audioDropdown.addEventListener("click", (e) => {
+        const btn = e.target.closest(".quality-option");
+        if (!btn) return;
+        audioDropdown.querySelectorAll(".quality-option").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        
+        if (currentHls) {
+            currentHls.audioTrack = parseInt(btn.dataset.value);
+        } else if (currentDash) {
+            const dashTracks = currentDash.getTracksFor('audio');
+            const targetIndex = parseInt(btn.dataset.value);
+            const track = dashTracks[targetIndex] || dashTracks.find(t => t.index === targetIndex);
+            if (track) currentDash.setCurrentTrack(track);
+        } else {
+            const tracks = Array.from(player.audioTracks || []);
+            const val = parseInt(btn.dataset.value);
+            for(let i = 0; i < tracks.length; i++) {
+                tracks[i].enabled = (i === val);
+            }
+        }
+
+        audioDropdown.classList.remove("open");
+    });
+
     qualityBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         qualityDropdown.classList.toggle("open");
         ccDropdown.classList.remove("open");
+        audioDropdown.classList.remove("open");
     });
     ccBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         ccDropdown.classList.toggle("open");
         qualityDropdown.classList.remove("open");
+        audioDropdown.classList.remove("open");
+    });
+    audioBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        audioDropdown.classList.toggle("open");
+        qualityDropdown.classList.remove("open");
+        ccDropdown.classList.remove("open");
     });
     document.addEventListener("click", () => {
         qualityDropdown.classList.remove("open");
         ccDropdown.classList.remove("open");
+        audioDropdown.classList.remove("open");
     });
 
     // ── Theme ─────────────────────────────────────────────────────────────────
@@ -263,6 +317,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         bufferEl.classList.add("is-buffering");
         qualityContainer.style.display = "none";
         ccContainer.style.display = "none";
+        audioContainer.style.display = "none";
 
         const cleanSrc = src.split("?")[0].toLowerCase();
         try {
@@ -288,6 +343,15 @@ document.addEventListener("DOMContentLoaded", async () => {
                                 populateCC(tracks);
                             }
                         });
+                        currentHls.on(Hls.Events.AUDIO_TRACK_LOADED, (e, d) => {
+                            // Can be used to sync active track
+                        });
+                        currentHls.on(Hls.Events.AUDIO_TRACKS_UPDATED, (e, d) => {
+                            if (d.audioTracks && d.audioTracks.length > 1) {
+                                const tracks = d.audioTracks.map((t, i) => ({ label: t.name || t.lang || `Audio ${i+1}`, value: i, id: t.id }));
+                                populateAudio(tracks, currentHls.audioTrack);
+                            }
+                        });
                     } else { showError("HLS not supported in this browser."); }
                 }
             } else if (cleanSrc.endsWith(".mpd")) {
@@ -310,6 +374,12 @@ document.addEventListener("DOMContentLoaded", async () => {
                             const tracks = textTracks.map((t, i) => ({ label: t.lang || t.id, value: i }));
                             populateCC(tracks);
                         }
+                        const audioTracks = currentDash.getTracksFor("audio");
+                        if (audioTracks && audioTracks.length > 1) {
+                            const activeTrack = currentDash.getCurrentTrackFor("audio");
+                            const tracks = audioTracks.map((t, i) => ({ label: t.lang || t.id || `Audio ${i+1}`, value: i, id: t.id }));
+                            populateAudio(tracks, activeTrack ? activeTrack.index : 0);
+                        }
                     });
                 } else { showError("DASH not supported in this browser."); }
             } else {
@@ -318,6 +388,11 @@ document.addEventListener("DOMContentLoaded", async () => {
                     if (player.textTracks && player.textTracks.length > 0) {
                         const tracks = Array.from(player.textTracks).map((t, i) => ({ label: t.label || t.language || `Track ${i+1}`, value: i }));
                         populateCC(tracks);
+                    }
+                    if (player.audioTracks && player.audioTracks.length > 1) {
+                        const tracks = Array.from(player.audioTracks).map((t, i) => ({ label: t.label || t.language || `Audio ${i+1}`, value: i, id: t.id }));
+                        const active = Array.from(player.audioTracks).findIndex(t => t.enabled) || 0;
+                        populateAudio(tracks, active);
                     }
                 });
             }
@@ -592,6 +667,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (!e.target.closest("#eq-popover") && !e.target.closest("#eq-toggle-btn")) eqPopover.classList.remove("active");
         if (!e.target.closest(".quality-dropdown") && !e.target.closest("#quality-btn")) qualityDropdown.classList.remove("open");
         if (!e.target.closest(".quality-dropdown") && !e.target.closest("#cc-btn")) ccDropdown.classList.remove("open");
+        if (!e.target.closest(".quality-dropdown") && !e.target.closest("#audio-btn")) audioDropdown.classList.remove("open");
     });
 
     // ── Shortcuts modal ───────────────────────────────────────────────────────
