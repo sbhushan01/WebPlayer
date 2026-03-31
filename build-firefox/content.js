@@ -489,12 +489,23 @@
             if (!e.target.closest("#wp-cc-container") && !e.target.closest("#wp-cc-btn")) ccDropdown.classList.remove("open");
         });
 
+        // ==========================================================
+        // BUG FIX: Hide controls logic now respects `video.paused`
+        // ==========================================================
         let hideTimer;
         const showControls = () => {
             uiWrapper.classList.add("wp-controls-visible");
             clearTimeout(hideTimer);
-            hideTimer = setTimeout(() => uiWrapper.classList.remove("wp-controls-visible"), 3000);
+            hideTimer = setTimeout(() => {
+                if (!video.paused) {
+                    uiWrapper.classList.remove("wp-controls-visible");
+                }
+            }, 3000);
         };
+
+        // Ensure pausing stops the controls from hiding
+        video.addEventListener("pause", showControls);
+        video.addEventListener("play", showControls);
 
         gestureZone.addEventListener("pointermove", showControls);
         uiWrapper.addEventListener("pointermove", showControls);
