@@ -326,7 +326,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
         } else {
             for (let i = 0; i < player.textTracks.length; i++) {
-                player.textTracks[i].mode = (val === -1) ? "disabled" : ((i === val) ? "showing" : "disabled");
+                player.textTracks[i].mode = (val === -1) ? "disabled" : ((i === val) ? "showing" : "hidden");
             }
         }
 
