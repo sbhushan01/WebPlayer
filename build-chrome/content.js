@@ -557,10 +557,10 @@
                 const options = Array.from(dropdown.querySelectorAll(".quality-option"));
                 if (!options.length) return;
                 const idx = options.indexOf(document.activeElement);
-                if (e.key === "ArrowDown" || e.key === "Down") {
+                if (e.key === "ArrowDown") {
                     e.preventDefault();
                     options[(idx + 1 + options.length) % options.length].focus();
-                } else if (e.key === "ArrowUp" || e.key === "Up") {
+                } else if (e.key === "ArrowUp") {
                     e.preventDefault();
                     options[(idx - 1 + options.length) % options.length].focus();
                 } else if (e.key === "Enter" || e.key === " ") {

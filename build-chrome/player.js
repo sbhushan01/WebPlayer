@@ -55,8 +55,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     const shortcutsClose  = document.getElementById("shortcuts-close");
 
     const EQ_STORAGE_KEY  = "wp_eq_settings";
-    const ARROW_DOWN_KEYS = new Set(["ArrowDown", "Down"]);
-    const ARROW_UP_KEYS = new Set(["ArrowUp", "Up"]);
 
     // B1: Track play() promise to prevent AbortError on rapid play/pause
     let _playPromise = null;
@@ -1027,7 +1025,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         rotationDeg = (rotationDeg + 90) % 360;
         player.style.transform  = `rotate(${rotationDeg}deg)`;
         player.style.transition = "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)";
-        rotateBtn.setAttribute("aria-pressed", rotationDeg % 360 !== 0 ? "true" : "false");
+        rotateBtn.setAttribute("aria-pressed", rotationDeg !== 0 ? "true" : "false");
     });
 
     // ── Idle (auto-hide controls) ─────────────────────────────────────────────
@@ -1106,10 +1104,10 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (!options.length) return;
             const activeElement = document.activeElement;
             const currentIndex = options.indexOf(activeElement);
-            if (ARROW_DOWN_KEYS.has(e.key)) {
+            if (e.key === "ArrowDown") {
                 e.preventDefault();
                 options[(currentIndex + 1 + options.length) % options.length].focus();
-            } else if (ARROW_UP_KEYS.has(e.key)) {
+            } else if (e.key === "ArrowUp") {
                 e.preventDefault();
                 options[(currentIndex - 1 + options.length) % options.length].focus();
             } else if (e.key === "Enter" || e.key === " ") {
