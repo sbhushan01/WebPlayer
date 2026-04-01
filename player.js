@@ -189,6 +189,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     player.addEventListener("ended", () => { if (hasChromeStorage) try { chrome.storage.local.remove([cleanUrl]); } catch (_) {} });
 
     // ── Stream engines ────────────────────────────────────────────────────────
+    // EQ state is declared early because destroyEngines() can run before first playback.
+    window.audioContext = null;
+    let mediaElementSource, preampGain;
+    const eqFilters = [];
+    let isAudioInitialized = false;
+
     let currentHls = null, currentDash = null;
     function destroyEngines() {
         if (currentHls)  { currentHls.destroy();  currentHls  = null; }
@@ -1270,10 +1276,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 
     // ── Web Audio API — Equalizer with persistence ────────────────────────────
-    window.audioContext = null;
-    let mediaElementSource, preampGain;
-    const eqFilters = [];
-    let isAudioInitialized = false;
 
     // B10: EQ storage with sync → local fallback on quota error
     const eqStorage = hasChromeStorage ? (chrome.storage.sync || chrome.storage.local) : null;
