@@ -35,6 +35,12 @@
     const buttonRegistry = new WeakMap();
     const interceptedUrls = new Set();
 
+    function clearPendingStream(url) {
+        if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) return;
+        try {
+            chrome.runtime.sendMessage({ action: "clear_pending_stream", url });
+        } catch (_) {}
+    }
 
     if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id) {
         try {
@@ -78,9 +84,13 @@
                         setTimeout(() => prompt.remove(), 300);
                     };
                     
-                    prompt.querySelector(".wp-prompt-ignore").onclick = closePrompt;
+                    prompt.querySelector(".wp-prompt-ignore").onclick = () => {
+                        clearPendingStream(msg.url);
+                        closePrompt();
+                    };
                     prompt.querySelector(".wp-prompt-launch").onclick = () => {
                         closePrompt();
+                        clearPendingStream(msg.url);
                         try {
                             chrome.runtime.sendMessage({
                                 action:    "open_player",
@@ -114,6 +124,8 @@
 
     function addPlayerButton(video) {
         const btn = document.createElement("button");
+        btn.title = "Launch WebPlayer";
+        btn.setAttribute("aria-label", "Launch WebPlayer");
 
         const iconEl = document.createElement("span");
         setSVG(iconEl, IC.launch);
@@ -148,6 +160,13 @@
             labelEl.style.marginLeft = "0";
             btn.style.background     = "rgba(20, 20, 30, 0.6)";
         };
+        btn.onfocus = btn.onmouseover;
+        btn.onblur = btn.onmouseout;
+        if (window.matchMedia?.("(pointer: coarse)")?.matches) {
+            labelEl.style.maxWidth = "180px";
+            labelEl.style.opacity = "1";
+            labelEl.style.marginLeft = "5px";
+        }
 
         getRootContainer()?.appendChild(btn);
 
@@ -222,6 +241,17 @@
 
     function injectCustomPlayer(video) {
         if (!video || !video.parentElement || video.dataset.customPlayerActive) return;
+        if (video.__wpOverlayAbortController) {
+            try { video.__wpOverlayAbortController.abort(); } catch (_) {}
+        }
+        const overlayController = new AbortController();
+        const overlaySignal = overlayController.signal;
+        video.__wpOverlayAbortController = overlayController;
+        const on = (target, type, handler, options = {}) => {
+            if (!target) return;
+            target.addEventListener(type, handler, { ...options, signal: overlaySignal });
+        };
+
         video.dataset.customPlayerActive = "true";
         video.dataset.originalControls   = video.controls;
         video.controls = false;
@@ -406,8 +436,8 @@
                 }
             };
             updateQualityMenu();
-            video.addEventListener("loadedmetadata", updateQualityMenu);
-            qDropdown.addEventListener("click", e => {
+            on(video, "loadedmetadata", updateQualityMenu);
+            on(qDropdown, "click", e => {
                 const btn = e.target.closest(".quality-option");
                 if (!btn) return;
                 qDropdown.querySelectorAll(".quality-option").forEach(b => b.classList.remove("active"));
@@ -443,10 +473,10 @@
             }
         };
         updateCCMenu();
-        video.addEventListener("loadedmetadata", updateCCMenu);
-        video.addEventListener("canplay", updateCCMenu);
+        on(video, "loadedmetadata", updateCCMenu);
+        on(video, "canplay", updateCCMenu);
         
-        ccDropdown.addEventListener("click", e => {
+        on(ccDropdown, "click", e => {
             const btn = e.target.closest(".quality-option");
             if (!btn) return;
             ccDropdown.querySelectorAll(".quality-option").forEach(b => b.classList.remove("active"));
@@ -474,17 +504,17 @@
             ccDropdown.classList.remove("open");
         });
 
-        uiWrapper.querySelector("#wp-quality-btn")?.addEventListener("click", e => {
+        on(uiWrapper.querySelector("#wp-quality-btn"), "click", e => {
             e.stopPropagation();
             qDropdown.classList.toggle("open");
             ccDropdown.classList.remove("open");
         });
-        uiWrapper.querySelector("#wp-cc-btn")?.addEventListener("click", e => {
+        on(uiWrapper.querySelector("#wp-cc-btn"), "click", e => {
             e.stopPropagation();
             ccDropdown.classList.toggle("open");
             qDropdown.classList.remove("open");
         });
-        uiWrapper.addEventListener("click", e => {
+        on(uiWrapper, "click", e => {
             if (!e.target.closest("#wp-quality-container") && !e.target.closest("#wp-quality-btn")) qDropdown.classList.remove("open");
             if (!e.target.closest("#wp-cc-container") && !e.target.closest("#wp-cc-btn")) ccDropdown.classList.remove("open");
         });
@@ -504,17 +534,17 @@
         };
 
         // Ensure pausing stops the controls from hiding
-        video.addEventListener("pause", showControls);
-        video.addEventListener("play", showControls);
+        on(video, "pause", showControls);
+        on(video, "play", showControls);
 
-        gestureZone.addEventListener("pointermove", showControls);
-        gestureZone.addEventListener("pointerdown", showControls);
-        uiWrapper.addEventListener("pointermove", showControls);
+        on(gestureZone, "pointermove", showControls);
+        on(gestureZone, "pointerdown", showControls);
+        on(uiWrapper, "pointermove", showControls);
         // Fallback: shadowHost has pointer-events:none which can block pointermove
         // from reaching the shadow DOM in some browsers, so also listen on the
         // underlying video element (events pass through when the host is transparent).
-        video.addEventListener("pointermove", showControls);
-        video.addEventListener("pointerdown", showControls);
+        on(video, "pointermove", showControls);
+        on(video, "pointerdown", showControls);
         showControls();
 
         const showFeedback = (text, position) => {
@@ -544,7 +574,7 @@
         const skippedIds = new Set();
         const SEGMENT_LABELS = { sponsor: "Sponsor Skipped", intro: "Intro Skipped", outro: "Outro Skipped", selfpromo: "Self-Promo Skipped", interaction: "Interaction Skipped", music_offtopic: "Music Skipped", preview: "Preview Skipped" };
 
-        video.addEventListener("timeupdate", () => {
+        on(video, "timeupdate", () => {
             if (window.__isSkipping || !skipSegments.length) return;
             const t = video.currentTime;
             for (const seg of skipSegments) {
@@ -556,7 +586,7 @@
                     skippedIds.add(segId);
                     video.currentTime = end;
                     showFeedback(SEGMENT_LABELS[seg.category] || "Segment Skipped");
-                    video.addEventListener("seeked", () => { window.__isSkipping = false; }, { once: true });
+                    on(video, "seeked", () => { window.__isSkipping = false; }, { once: true });
                     setTimeout(() => { window.__isSkipping = false; }, 1000);
                     break;
                 }
@@ -618,23 +648,24 @@
                     break;
             }
         };
-        document.addEventListener("keydown", handleKeyDown);
+        on(document, "keydown", handleKeyDown);
 
         const cleanup = () => {
-            document.removeEventListener("keydown", handleKeyDown);
+            try { overlayController.abort(); } catch (_) {}
             clearTimeout(tapTimeout);
             clearTimeout(hideTimer);
-            video.removeEventListener("pointermove", showControls);
-            video.removeEventListener("pointerdown", showControls);
             ro.disconnect();
             shadowHost.remove();
             video.dataset.customPlayerActive = "";
             video.controls = (video.dataset.originalControls === "true");
+            if (video.__wpOverlayAbortController === overlayController) {
+                delete video.__wpOverlayAbortController;
+            }
             root.classList.remove("webplayer-active");
             addPlayerButton(video);
         };
 
-        uiWrapper.querySelector("#wp-exit").addEventListener("click", cleanup);
+        on(uiWrapper.querySelector("#wp-exit"), "click", cleanup);
 
         const formatTime = (sec) => {
             if (!isFinite(sec) || sec < 0) return "0:00";
@@ -656,7 +687,7 @@
             prog.style.background = `linear-gradient(to right, #A8C7FA ${val}%, rgba(255,255,255,0.15) ${val}%)`;
         };
 
-        prog.addEventListener("input", e => {
+        on(prog, "input", e => {
             isScrubbing = true;
             clearTimeout(scrubTimeout);
             const val = e.target.value;
@@ -666,7 +697,7 @@
             }
         });
 
-        prog.addEventListener("change", e => {
+        on(prog, "change", e => {
             if (isFinite(video.duration)) {
                 video.currentTime = (e.target.value / 100) * video.duration;
             }
@@ -674,7 +705,7 @@
             scrubTimeout = setTimeout(() => { isScrubbing = false; }, 300);
         });
 
-        video.addEventListener("timeupdate", () => {
+        on(video, "timeupdate", () => {
             if (!isFinite(video.duration) || isScrubbing) return;
             const val = (video.currentTime / video.duration) * 100;
             prog.value = val;
@@ -684,19 +715,19 @@
         });
 
         const playBtn = uiWrapper.querySelector("#wp-play");
-        video.addEventListener("play",  () => setSVG(playBtn, IC.pause));
-        video.addEventListener("pause", () => setSVG(playBtn, IC.play));
-        playBtn.addEventListener("click", () => {
+        on(video, "play",  () => setSVG(playBtn, IC.pause));
+        on(video, "pause", () => setSVG(playBtn, IC.play));
+        on(playBtn, "click", () => {
             const wasPaused = video.paused;
             wasPaused ? safePlay(video) : safePause(video);
         });
 
-        uiWrapper.querySelector("#wp-skip-back").addEventListener("click", () => { video.currentTime = Math.max(0, video.currentTime - 10); showFeedback("−10s"); });
-        uiWrapper.querySelector("#wp-skip-fwd").addEventListener("click",  () => { safeSeekForward(video, 10); showFeedback("+10s"); });
-        uiWrapper.querySelector("#wp-pip").addEventListener("click", async () => {
+        on(uiWrapper.querySelector("#wp-skip-back"), "click", () => { video.currentTime = Math.max(0, video.currentTime - 10); showFeedback("−10s"); });
+        on(uiWrapper.querySelector("#wp-skip-fwd"), "click",  () => { safeSeekForward(video, 10); showFeedback("+10s"); });
+        on(uiWrapper.querySelector("#wp-pip"), "click", async () => {
             document.pictureInPictureElement ? await document.exitPictureInPicture() : await video.requestPictureInPicture();
         });
-        uiWrapper.querySelector("#wp-fs").addEventListener("click", async () => {
+        on(uiWrapper.querySelector("#wp-fs"), "click", async () => {
             const ytFsBtn = document.querySelector(".ytp-fullscreen-button");
             if (ytFsBtn) {
                 ytFsBtn.click();
@@ -721,11 +752,11 @@
         });
 
         uiWrapper.querySelectorAll(".speed-pill").forEach(pill => {
-            pill.addEventListener("click", () => setPlaybackRate(parseFloat(pill.dataset.speed)));
+            on(pill, "click", () => setPlaybackRate(parseFloat(pill.dataset.speed)));
         });
 
         let rot = 0;
-        uiWrapper.querySelector("#wp-rotate").addEventListener("click", () => {
+        on(uiWrapper.querySelector("#wp-rotate"), "click", () => {
             rot = (rot + 90) % 360;
             video.style.transform  = `rotate(${rot}deg)`;
             video.style.transition = "transform 0.3s";
@@ -736,9 +767,9 @@
         let currentBrightness = 1.0, originalSpeed = 1.0;
         let isLongPressActive = false;
 
-        gestureZone.addEventListener("contextmenu", e => e.preventDefault());
+        on(gestureZone, "contextmenu", e => e.preventDefault());
 
-        gestureZone.addEventListener("dblclick", e => {
+        on(gestureZone, "dblclick", e => {
             e.preventDefault();
             // Fallback for native dblclick if pointer events miss the timing, 
             // but restrict to fullscreen to avoid duplicated seeks.
@@ -748,7 +779,7 @@
             }
         });
 
-        gestureZone.addEventListener("pointerdown", e => {
+        on(gestureZone, "pointerdown", e => {
             isPointerDown = true;
             gestureZone.setPointerCapture(e.pointerId);
             startX = e.clientX; startY = e.clientY; lastY = e.clientY; swipeDir = null;
@@ -760,7 +791,7 @@
             }, 500);
         });
 
-        gestureZone.addEventListener("pointermove", e => {
+        on(gestureZone, "pointermove", e => {
             if (!isPointerDown) return;
             // U6: Ignore gestures near screen edges (top/bottom 12%)
             const _edgeRect = gestureZone.getBoundingClientRect();
@@ -794,7 +825,11 @@
         const handleGestureEnd = e => {
             if (!isPointerDown) return;
             isPointerDown = false;
-            gestureZone.releasePointerCapture(e.pointerId);
+            try {
+                if (gestureZone.hasPointerCapture(e.pointerId)) {
+                    gestureZone.releasePointerCapture(e.pointerId);
+                }
+            } catch (_) {}
             clearTimeout(longPressTimer);
 
             // BUG FIX: use isLongPressActive flag to restore and sync pills
@@ -866,8 +901,8 @@
             }
         };
 
-        gestureZone.addEventListener("pointerup", handleGestureEnd);
-        gestureZone.addEventListener("pointercancel", handleGestureEnd);
+        on(gestureZone, "pointerup", handleGestureEnd);
+        on(gestureZone, "pointercancel", handleGestureEnd);
     }
 
     findVideos();
