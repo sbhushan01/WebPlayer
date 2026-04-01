@@ -250,6 +250,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             btn.className = "quality-option" + (value === -1 ? " active" : "");
             btn.textContent = label;
             btn.dataset.value = value;
+            btn.setAttribute("role", "option");
+            btn.setAttribute("aria-selected", value === -1 ? "true" : "false");
             qualityDropdown.appendChild(btn);
         });
     }
@@ -257,8 +259,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     qualityDropdown.addEventListener("click", (e) => {
         const btn = e.target.closest(".quality-option");
         if (!btn) return;
-        qualityDropdown.querySelectorAll(".quality-option").forEach(b => b.classList.remove("active"));
+        qualityDropdown.querySelectorAll(".quality-option").forEach(b => {
+            b.classList.remove("active");
+            b.setAttribute("aria-selected", "false");
+        });
         btn.classList.add("active");
+        btn.setAttribute("aria-selected", "true");
         const val = parseInt(btn.dataset.value);
         if (currentHls) {
             currentHls.currentLevel = val;
@@ -282,6 +288,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         offBtn.className = "quality-option active";
         offBtn.textContent = "Off";
         offBtn.dataset.value = "-1";
+        offBtn.setAttribute("role", "option");
+        offBtn.setAttribute("aria-selected", "true");
         ccDropdown.appendChild(offBtn);
 
         tracks.forEach(({ label, value }) => {
@@ -290,6 +298,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             btn.className = "quality-option";
             btn.textContent = label;
             btn.dataset.value = value;
+            btn.setAttribute("role", "option");
+            btn.setAttribute("aria-selected", "false");
             ccDropdown.appendChild(btn);
         });
     }
@@ -297,8 +307,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     ccDropdown.addEventListener("click", (e) => {
         const btn = e.target.closest(".quality-option");
         if (!btn) return;
-        ccDropdown.querySelectorAll(".quality-option").forEach(b => b.classList.remove("active"));
+        ccDropdown.querySelectorAll(".quality-option").forEach(b => {
+            b.classList.remove("active");
+            b.setAttribute("aria-selected", "false");
+        });
         btn.classList.add("active");
+        btn.setAttribute("aria-selected", "true");
         const val = parseInt(btn.dataset.value);
         
         if (currentHls) {
@@ -311,8 +325,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                 currentDash.setTextTrack(val);
             }
         } else {
-            for(let i=0; i<player.textTracks.length; i++) {
-                player.textTracks[i].mode = (i === val) ? "showing" : "hidden";
+            for (let i = 0; i < player.textTracks.length; i++) {
+                player.textTracks[i].mode = (val === -1) ? "disabled" : ((i === val) ? "showing" : "hidden");
             }
         }
 
@@ -332,6 +346,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             btn.textContent = label;
             btn.dataset.value = value;
             if (id !== undefined) btn.dataset.id = id;
+            btn.setAttribute("role", "option");
+            btn.setAttribute("aria-selected", isActive ? "true" : "false");
             audioDropdown.appendChild(btn);
         });
     }
@@ -339,8 +355,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     audioDropdown.addEventListener("click", (e) => {
         const btn = e.target.closest(".quality-option");
         if (!btn) return;
-        audioDropdown.querySelectorAll(".quality-option").forEach(b => b.classList.remove("active"));
+        audioDropdown.querySelectorAll(".quality-option").forEach(b => {
+            b.classList.remove("active");
+            b.setAttribute("aria-selected", "false");
+        });
         btn.classList.add("active");
+        btn.setAttribute("aria-selected", "true");
         
         if (currentHls) {
             currentHls.audioTrack = parseInt(btn.dataset.value);
@@ -562,7 +582,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                         const active = Array.from(player.audioTracks).findIndex(t => t.enabled) || 0;
                         populateAudio(tracks, active);
                     }
-                });
+                }, { once: true });
             }
         } catch (err) {
             showError(`Failed to load stream: ${err.message}`, "Load Error", src);
@@ -1168,7 +1188,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     const handleGestureEnd = (e) => {
         if (!isPointerDown) return;
         isPointerDown = false;
-        gestureZone.releasePointerCapture(e.pointerId);
+        try {
+            if (gestureZone.hasPointerCapture(e.pointerId)) gestureZone.releasePointerCapture(e.pointerId);
+        } catch (err) {
+            console.warn("[WebPlayer] Pointer capture release failed:", err);
+        }
         clearTimeout(longPressTimer);
 
         // BUG FIX: use isLongPressActive flag to restore and sync pills
