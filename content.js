@@ -508,7 +508,13 @@
         video.addEventListener("play", showControls);
 
         gestureZone.addEventListener("pointermove", showControls);
+        gestureZone.addEventListener("pointerdown", showControls);
         uiWrapper.addEventListener("pointermove", showControls);
+        // Fallback: shadowHost has pointer-events:none which can block pointermove
+        // from reaching the shadow DOM in some browsers, so also listen on the
+        // underlying video element (events pass through when the host is transparent).
+        video.addEventListener("pointermove", showControls);
+        video.addEventListener("pointerdown", showControls);
         showControls();
 
         const showFeedback = (text, position) => {
@@ -617,6 +623,9 @@
         const cleanup = () => {
             document.removeEventListener("keydown", handleKeyDown);
             clearTimeout(tapTimeout);
+            clearTimeout(hideTimer);
+            video.removeEventListener("pointermove", showControls);
+            video.removeEventListener("pointerdown", showControls);
             ro.disconnect();
             shadowHost.remove();
             video.dataset.customPlayerActive = "";
