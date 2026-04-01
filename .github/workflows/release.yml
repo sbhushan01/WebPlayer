@@ -61,7 +61,12 @@ jobs:
       - name: Publish GitHub release assets
         uses: softprops/action-gh-release@v2
         with:
+          # Ensure a tag is explicitly provided
           tag_name: v${{ steps.version.outputs.version }}
+          # Use the resolved version as the release title
+          name: Release v${{ steps.version.outputs.version }}
+          # Automatically generate release notes
+          generate_release_notes: true
           files: |
             dist/*.crx
             dist/*.xpi
