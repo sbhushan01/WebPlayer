@@ -419,6 +419,8 @@
         const qContainer = uiWrapper.querySelector("#wp-quality-container");
         const ccDropdown = uiWrapper.querySelector("#wp-cc-dropdown");
         const ccContainer = uiWrapper.querySelector("#wp-cc-container");
+        qDropdown.setAttribute("role", "listbox");
+        ccDropdown.setAttribute("role", "listbox");
 
         if (ytPlayer && ytPlayer.getAvailableQualityLevels) {
             const updateQualityMenu = () => {
@@ -431,6 +433,9 @@
                         btn.className = "quality-option" + (l === "auto" ? " active" : "");
                         btn.textContent = l === "auto" ? "Auto" : l;
                         btn.dataset.value = l;
+                        btn.setAttribute("role", "option");
+                        btn.setAttribute("aria-selected", l === "auto" ? "true" : "false");
+                        btn.tabIndex = 0;
                         qDropdown.appendChild(btn);
                     });
                 }
@@ -440,8 +445,12 @@
             on(qDropdown, "click", e => {
                 const btn = e.target.closest(".quality-option");
                 if (!btn) return;
-                qDropdown.querySelectorAll(".quality-option").forEach(b => b.classList.remove("active"));
+                qDropdown.querySelectorAll(".quality-option").forEach(b => {
+                    b.classList.remove("active");
+                    b.setAttribute("aria-selected", "false");
+                });
                 btn.classList.add("active");
+                btn.setAttribute("aria-selected", "true");
                 ytPlayer.setPlaybackQualityRange(btn.dataset.value);
                 qDropdown.classList.remove("open");
             });
@@ -458,7 +467,7 @@
 
             if (tracks.length > 0) {
                 ccContainer.style.display = "flex";
-                ccDropdown.innerHTML = `<button class="quality-option active" data-value="-1">Off</button>`;
+                ccDropdown.innerHTML = `<button class="quality-option active" data-value="-1" role="option" aria-selected="true" tabindex="0">Off</button>`;
                 tracks.forEach((t) => {
                     const btn = document.createElement("button");
                     btn.className = "quality-option";
@@ -466,6 +475,9 @@
                     btn.dataset.value = t.value;
                     btn.dataset.type = t.type;
                     if (t.type === "yt") btn.dataset.yt = JSON.stringify(t.ytTrack);
+                    btn.setAttribute("role", "option");
+                    btn.setAttribute("aria-selected", "false");
+                    btn.tabIndex = 0;
                     ccDropdown.appendChild(btn);
                 });
             } else {
@@ -479,8 +491,12 @@
         on(ccDropdown, "click", e => {
             const btn = e.target.closest(".quality-option");
             if (!btn) return;
-            ccDropdown.querySelectorAll(".quality-option").forEach(b => b.classList.remove("active"));
+            ccDropdown.querySelectorAll(".quality-option").forEach(b => {
+                b.classList.remove("active");
+                b.setAttribute("aria-selected", "false");
+            });
             btn.classList.add("active");
+            btn.setAttribute("aria-selected", "true");
             
             const val = parseInt(btn.dataset.value);
             const type = btn.dataset.type;
@@ -504,19 +520,62 @@
             ccDropdown.classList.remove("open");
         });
 
-        on(uiWrapper.querySelector("#wp-quality-btn"), "click", e => {
+        const qBtn = uiWrapper.querySelector("#wp-quality-btn");
+        const ccBtn = uiWrapper.querySelector("#wp-cc-btn");
+        qBtn.setAttribute("aria-haspopup", "listbox");
+        qBtn.setAttribute("aria-expanded", "false");
+        qBtn.setAttribute("aria-controls", "wp-quality-dropdown");
+        ccBtn.setAttribute("aria-haspopup", "listbox");
+        ccBtn.setAttribute("aria-expanded", "false");
+        ccBtn.setAttribute("aria-controls", "wp-cc-dropdown");
+        on(qBtn, "click", e => {
             e.stopPropagation();
             qDropdown.classList.toggle("open");
             ccDropdown.classList.remove("open");
+            qBtn.setAttribute("aria-expanded", qDropdown.classList.contains("open") ? "true" : "false");
+            ccBtn.setAttribute("aria-expanded", "false");
         });
-        on(uiWrapper.querySelector("#wp-cc-btn"), "click", e => {
+        on(ccBtn, "click", e => {
             e.stopPropagation();
             ccDropdown.classList.toggle("open");
             qDropdown.classList.remove("open");
+            ccBtn.setAttribute("aria-expanded", ccDropdown.classList.contains("open") ? "true" : "false");
+            qBtn.setAttribute("aria-expanded", "false");
         });
         on(uiWrapper, "click", e => {
-            if (!e.target.closest("#wp-quality-container") && !e.target.closest("#wp-quality-btn")) qDropdown.classList.remove("open");
-            if (!e.target.closest("#wp-cc-container") && !e.target.closest("#wp-cc-btn")) ccDropdown.classList.remove("open");
+            if (!e.target.closest("#wp-quality-container") && !e.target.closest("#wp-quality-btn")) {
+                qDropdown.classList.remove("open");
+                qBtn.setAttribute("aria-expanded", "false");
+            }
+            if (!e.target.closest("#wp-cc-container") && !e.target.closest("#wp-cc-btn")) {
+                ccDropdown.classList.remove("open");
+                ccBtn.setAttribute("aria-expanded", "false");
+            }
+        });
+        [qDropdown, ccDropdown].forEach(dropdown => {
+            on(dropdown, "keydown", (e) => {
+                const options = Array.from(dropdown.querySelectorAll(".quality-option"));
+                if (!options.length) return;
+                const idx = options.indexOf(document.activeElement);
+                if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    options[(idx + 1 + options.length) % options.length].focus();
+                } else if (e.key === "ArrowUp") {
+                    e.preventDefault();
+                    options[(idx - 1 + options.length) % options.length].focus();
+                } else if (e.key === "Enter" || e.key === " ") {
+                    if (document.activeElement?.classList?.contains("quality-option")) {
+                        e.preventDefault();
+                        document.activeElement.click();
+                    }
+                } else if (e.key === "Escape") {
+                    e.preventDefault();
+                    qDropdown.classList.remove("open");
+                    ccDropdown.classList.remove("open");
+                    qBtn.setAttribute("aria-expanded", "false");
+                    ccBtn.setAttribute("aria-expanded", "false");
+                }
+            });
         });
 
         // ==========================================================
@@ -661,7 +720,7 @@
             if (video.__wpOverlayAbortController === overlayController) {
                 delete video.__wpOverlayAbortController;
             }
-            root.classList.remove("webplayer-active");
+            root?.classList?.remove("webplayer-active");
             addPlayerButton(video);
         };
 
@@ -781,7 +840,7 @@
 
         on(gestureZone, "pointerdown", e => {
             isPointerDown = true;
-            gestureZone.setPointerCapture(e.pointerId);
+            try { gestureZone.setPointerCapture(e.pointerId); } catch (_) {}
             startX = e.clientX; startY = e.clientY; lastY = e.clientY; swipeDir = null;
             originalSpeed = video.playbackRate;
             longPressTimer = setTimeout(() => {
@@ -799,6 +858,7 @@
             if (_yRatio < 0.12 || _yRatio > 0.88) return;
             const diffX = e.clientX - startX;
             const diffY = e.clientY - startY;
+            if (!swipeDir && (Math.abs(diffX) > 6 || Math.abs(diffY) > 6)) clearTimeout(longPressTimer);
 
             if (!swipeDir) {
                 if (Math.abs(diffX) > 20)      { swipeDir = "horizontal"; clearTimeout(longPressTimer); }
