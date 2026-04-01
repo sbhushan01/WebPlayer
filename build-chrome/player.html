@@ -182,6 +182,11 @@
         }
         button:hover { background-color: rgba(255,255,255,0.12); transform: scale(1.05); }
         button:active { transform: scale(0.95); }
+        button:focus-visible {
+            outline: 2px solid var(--md-sys-color-primary);
+            outline-offset: 2px;
+            background-color: rgba(255,255,255,0.16);
+        }
         .material-symbols-rounded { font-size: 28px; }
 
         /* ── Volume ──────────────────────────────────────────────────────────── */
@@ -432,6 +437,18 @@
             background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary);
             border-color: transparent; box-shadow: 0 0 12px var(--glow-color);
         }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
+            .spinner-ring, .spinner-ring::after {
+                animation: none !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -536,12 +553,12 @@
                         <div class="popover-card theme-popover" id="theme-popover">
                             <div class="popover-header">
                                 <span>Appearance</span>
-                                <button class="popover-close" id="theme-close-btn"><span class="material-symbols-rounded">close</span></button>
+                                <button class="popover-close" id="theme-close-btn" title="Close themes" aria-label="Close themes"><span class="material-symbols-rounded">close</span></button>
                             </div>
                             <div class="theme-grid">
-                                <button class="theme-btn active" data-value="blue" title="Blue"></button>
-                                <button class="theme-btn" data-value="purple" title="Amethyst"></button>
-                                <button class="theme-btn" data-value="emerald" title="Emerald"></button>
+                                <button class="theme-btn active" data-value="blue" title="Blue" aria-label="Blue theme"></button>
+                                <button class="theme-btn" data-value="purple" title="Amethyst" aria-label="Amethyst theme"></button>
+                                <button class="theme-btn" data-value="emerald" title="Emerald" aria-label="Emerald theme"></button>
                             </div>
                         </div>
 
@@ -571,7 +588,7 @@
             <div class="popover-card eq-popover" id="eq-popover">
                 <div class="popover-header">
                     <span>10-Band Equalizer</span>
-                    <button class="popover-close" id="eq-close-btn"><span class="material-symbols-rounded">close</span></button>
+                    <button class="popover-close" id="eq-close-btn" title="Close equalizer" aria-label="Close equalizer"><span class="material-symbols-rounded">close</span></button>
                 </div>
                 <div class="eq-presets" id="eq-presets"></div>
                 <div class="preamp-row">
@@ -588,7 +605,7 @@
         <div class="shortcuts-box">
             <div class="shortcuts-header">
                 <span>Keyboard Shortcuts</span>
-                <button id="shortcuts-close" class="popover-close"><span class="material-symbols-rounded">close</span></button>
+                <button id="shortcuts-close" class="popover-close" title="Close shortcuts" aria-label="Close shortcuts"><span class="material-symbols-rounded">close</span></button>
             </div>
             <div class="shortcuts-grid">
                 <kbd>Space / K</kbd> <span>Play / Pause</span>

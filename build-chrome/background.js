@@ -88,6 +88,17 @@ function domainFilter(rawUrl) {
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === "clear_pending_stream") {
+        chrome.storage.local.get('_wp_pending_stream', (res) => {
+            const pending = res._wp_pending_stream;
+            if (!pending) return;
+            if (!request.url || pending.url === request.url) {
+                chrome.storage.local.remove('_wp_pending_stream');
+            }
+        });
+        return;
+    }
+
     if (request.action === "open_player" && request.videoSrc) {
         const videoUrl  = request.videoSrc;
         const urlFilter = domainFilter(videoUrl);
