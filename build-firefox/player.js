@@ -1189,8 +1189,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (!isPointerDown) return;
         isPointerDown = false;
         try {
-            if (gestureZone.hasPointerCapture?.(e.pointerId)) gestureZone.releasePointerCapture(e.pointerId);
-        } catch (_) {}
+            if (gestureZone.hasPointerCapture(e.pointerId)) gestureZone.releasePointerCapture(e.pointerId);
+        } catch (err) {
+            console.warn("[WebPlayer] Pointer capture release failed:", err);
+        }
         clearTimeout(longPressTimer);
 
         // BUG FIX: use isLongPressActive flag to restore and sync pills
