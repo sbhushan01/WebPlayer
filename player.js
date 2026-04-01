@@ -55,6 +55,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     const shortcutsClose  = document.getElementById("shortcuts-close");
 
     const EQ_STORAGE_KEY  = "wp_eq_settings";
+    const ARROW_DOWN_KEYS = new Set(["ArrowDown", "Down"]);
+    const ARROW_UP_KEYS = new Set(["ArrowUp", "Up"]);
 
     // B1: Track play() promise to prevent AbortError on rapid play/pause
     let _playPromise = null;
@@ -260,6 +262,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             btn.setAttribute("aria-selected", value === -1 ? "true" : "false");
             qualityDropdown.appendChild(btn);
         });
+        qualityDropdown.querySelectorAll(".quality-option").forEach(btn => {
+            btn.tabIndex = 0;
+        });
     }
 
     qualityDropdown.addEventListener("click", (e) => {
@@ -307,6 +312,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             btn.setAttribute("role", "option");
             btn.setAttribute("aria-selected", "false");
             ccDropdown.appendChild(btn);
+        });
+        ccDropdown.querySelectorAll(".quality-option").forEach(btn => {
+            btn.tabIndex = 0;
         });
     }
 
@@ -356,6 +364,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             btn.setAttribute("aria-selected", isActive ? "true" : "false");
             audioDropdown.appendChild(btn);
         });
+        audioDropdown.querySelectorAll(".quality-option").forEach(btn => {
+            btn.tabIndex = 0;
+        });
     }
 
     audioDropdown.addEventListener("click", (e) => {
@@ -391,23 +402,35 @@ document.addEventListener("DOMContentLoaded", async () => {
         qualityDropdown.classList.toggle("open");
         ccDropdown.classList.remove("open");
         audioDropdown.classList.remove("open");
+        qualityBtn.setAttribute("aria-expanded", qualityDropdown.classList.contains("open") ? "true" : "false");
+        ccBtn.setAttribute("aria-expanded", "false");
+        audioBtn.setAttribute("aria-expanded", "false");
     });
     ccBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         ccDropdown.classList.toggle("open");
         qualityDropdown.classList.remove("open");
         audioDropdown.classList.remove("open");
+        ccBtn.setAttribute("aria-expanded", ccDropdown.classList.contains("open") ? "true" : "false");
+        qualityBtn.setAttribute("aria-expanded", "false");
+        audioBtn.setAttribute("aria-expanded", "false");
     });
     audioBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         audioDropdown.classList.toggle("open");
         qualityDropdown.classList.remove("open");
         ccDropdown.classList.remove("open");
+        audioBtn.setAttribute("aria-expanded", audioDropdown.classList.contains("open") ? "true" : "false");
+        qualityBtn.setAttribute("aria-expanded", "false");
+        ccBtn.setAttribute("aria-expanded", "false");
     });
     document.addEventListener("click", () => {
         qualityDropdown.classList.remove("open");
         ccDropdown.classList.remove("open");
         audioDropdown.classList.remove("open");
+        qualityBtn.setAttribute("aria-expanded", "false");
+        ccBtn.setAttribute("aria-expanded", "false");
+        audioBtn.setAttribute("aria-expanded", "false");
     });
 
     // ── Theme ─────────────────────────────────────────────────────────────────
@@ -817,6 +840,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     const speedMicroSlider = document.getElementById("speed-micro-slider");
     const speedMicroRange  = document.getElementById("speed-micro-range");
     const speedMicroLabel  = document.getElementById("speed-micro-label");
+    qualityBtn.setAttribute("aria-haspopup", "listbox");
+    qualityBtn.setAttribute("aria-expanded", "false");
+    qualityBtn.setAttribute("aria-controls", "quality-dropdown");
+    ccBtn.setAttribute("aria-haspopup", "listbox");
+    ccBtn.setAttribute("aria-expanded", "false");
+    ccBtn.setAttribute("aria-controls", "cc-dropdown");
+    audioBtn.setAttribute("aria-haspopup", "listbox");
+    audioBtn.setAttribute("aria-expanded", "false");
+    audioBtn.setAttribute("aria-controls", "audio-dropdown");
+    muteBtn.setAttribute("aria-pressed", player.muted ? "true" : "false");
+    rotateBtn.setAttribute("aria-pressed", "false");
+    pipBtn.setAttribute("aria-pressed", "false");
+    fsBtn.setAttribute("aria-pressed", "false");
 
     const setPlaybackRate = (rate) => {
         player.playbackRate = rate;
@@ -872,6 +908,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
         volumeSlider.value = player.muted ? 0 : player.volume;
         updateVolIcon();
+        muteBtn.setAttribute("aria-pressed", player.muted ? "true" : "false");
     });
 
     // ── Speed pills (#7: long-press for micro-slider) ──────────────────────────
@@ -964,6 +1001,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     const onFSChange = () => {
         const isFS = document.fullscreenElement || document.webkitFullscreenElement;
         fsIcon.textContent = isFS ? "fullscreen_exit" : "fullscreen";
+        if (!isFS && rotationDeg % 180 !== 0) {
+            player.style.transform = `rotate(${rotationDeg}deg)`;
+        }
+        fsBtn.setAttribute("aria-pressed", isFS ? "true" : "false");
     };
     document.addEventListener("fullscreenchange",       onFSChange);
     document.addEventListener("webkitfullscreenchange", onFSChange);
@@ -974,8 +1015,11 @@ document.addEventListener("DOMContentLoaded", async () => {
             document.pictureInPictureElement
                 ? await document.exitPictureInPicture()
                 : await player.requestPictureInPicture();
+            pipBtn.setAttribute("aria-pressed", document.pictureInPictureElement ? "true" : "false");
         } catch (err) { console.warn("PiP blocked", err); showFeedback("PiP Blocked"); }
     });
+    player.addEventListener("enterpictureinpicture", () => pipBtn.setAttribute("aria-pressed", "true"));
+    player.addEventListener("leavepictureinpicture", () => pipBtn.setAttribute("aria-pressed", "false"));
 
     // ── Rotate ────────────────────────────────────────────────────────────────
     let rotationDeg = 0;
@@ -983,6 +1027,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         rotationDeg = (rotationDeg + 90) % 360;
         player.style.transform  = `rotate(${rotationDeg}deg)`;
         player.style.transition = "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)";
+        rotateBtn.setAttribute("aria-pressed", rotationDeg % 360 !== 0 ? "true" : "false");
     });
 
     // ── Idle (auto-hide controls) ─────────────────────────────────────────────
@@ -1012,6 +1057,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         themePopover.classList.remove("active");
         qualityDropdown.classList.remove("open");
         ccDropdown.classList.remove("open");
+        audioDropdown.classList.remove("open");
+        speedMicroSlider.classList.remove("open");
+        qualityBtn.setAttribute("aria-expanded", "false");
+        ccBtn.setAttribute("aria-expanded", "false");
+        audioBtn.setAttribute("aria-expanded", "false");
     };
 
     themeToggleBtn.addEventListener("click", (e) => {
@@ -1036,9 +1086,42 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.addEventListener("click", (e) => {
         if (!e.target.closest("#theme-popover") && !e.target.closest("#theme-toggle-btn")) themePopover.classList.remove("active");
         if (!e.target.closest("#eq-popover") && !e.target.closest("#eq-toggle-btn")) eqPopover.classList.remove("active");
-        if (!e.target.closest(".quality-dropdown") && !e.target.closest("#quality-btn")) qualityDropdown.classList.remove("open");
-        if (!e.target.closest(".quality-dropdown") && !e.target.closest("#cc-btn")) ccDropdown.classList.remove("open");
-        if (!e.target.closest(".quality-dropdown") && !e.target.closest("#audio-btn")) audioDropdown.classList.remove("open");
+        if (!e.target.closest(".quality-dropdown") && !e.target.closest("#quality-btn")) {
+            qualityDropdown.classList.remove("open");
+            qualityBtn.setAttribute("aria-expanded", "false");
+        }
+        if (!e.target.closest(".quality-dropdown") && !e.target.closest("#cc-btn")) {
+            ccDropdown.classList.remove("open");
+            ccBtn.setAttribute("aria-expanded", "false");
+        }
+        if (!e.target.closest(".quality-dropdown") && !e.target.closest("#audio-btn")) {
+            audioDropdown.classList.remove("open");
+            audioBtn.setAttribute("aria-expanded", "false");
+        }
+    });
+
+    [qualityDropdown, ccDropdown, audioDropdown].forEach(dropdown => {
+        dropdown.addEventListener("keydown", (e) => {
+            const options = Array.from(dropdown.querySelectorAll(".quality-option"));
+            if (!options.length) return;
+            const activeElement = document.activeElement;
+            const currentIndex = options.indexOf(activeElement);
+            if (ARROW_DOWN_KEYS.has(e.key)) {
+                e.preventDefault();
+                options[(currentIndex + 1 + options.length) % options.length].focus();
+            } else if (ARROW_UP_KEYS.has(e.key)) {
+                e.preventDefault();
+                options[(currentIndex - 1 + options.length) % options.length].focus();
+            } else if (e.key === "Enter" || e.key === " ") {
+                if (activeElement?.classList?.contains("quality-option")) {
+                    e.preventDefault();
+                    activeElement.click();
+                }
+            } else if (e.key === "Escape") {
+                e.preventDefault();
+                closeAllPopovers();
+            }
+        });
     });
 
     // ── Shortcuts side panel (#9) ─────────────────────────────────────────────
@@ -1151,7 +1234,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     gestureZone.addEventListener("pointerdown", (e) => {
         isPointerDown = true;
-        gestureZone.setPointerCapture(e.pointerId);
+        try { gestureZone.setPointerCapture(e.pointerId); } catch (_) {}
         startX = e.clientX; startY = e.clientY; lastY = e.clientY; swipeDir = null;
         originalSpeed = player.playbackRate;
         longPressTimer = setTimeout(() => {
@@ -1169,6 +1252,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (_yRatio < 0.12 || _yRatio > 0.88) return;
         const diffX = e.clientX - startX;
         const diffY = e.clientY - startY;
+        if (!swipeDir && (Math.abs(diffX) > 6 || Math.abs(diffY) > 6)) clearTimeout(longPressTimer);
         if (!swipeDir) {
             if (Math.abs(diffX) > 20)      { swipeDir = "horizontal"; clearTimeout(longPressTimer); }
             else if (Math.abs(diffY) > 20) { swipeDir = "vertical";   clearTimeout(longPressTimer); }
