@@ -471,6 +471,15 @@ document.addEventListener("DOMContentLoaded", async () => {
                                 populateQuality(levels);
                             }
                         });
+                        // One-shot recovery flags — prevent infinite retry loops.
+                        // Flags are reset on `playing` so a later transient error
+                        // can also be recovered once.
+                        let _hlsMediaRecovered = false;
+                        let _hlsNetworkRecovered = false;
+                        player.addEventListener("playing", () => {
+                            _hlsMediaRecovered = false;
+                            _hlsNetworkRecovered = false;
+                        });
                         currentHls.on(Hls.Events.ERROR, (e, d) => {
                             if (d.fatal) {
                                 const typeMap = {
@@ -478,13 +487,15 @@ document.addEventListener("DOMContentLoaded", async () => {
                                     [Hls.ErrorTypes.MEDIA_ERROR]: "Decode Error",
                                     [Hls.ErrorTypes.OTHER_ERROR]: "Stream Error"
                                 };
-                                if (d.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                                if (d.type === Hls.ErrorTypes.MEDIA_ERROR && !_hlsMediaRecovered) {
                                     console.warn('[WebPlayer] HLS media error, attempting recovery...');
+                                    _hlsMediaRecovered = true;
                                     currentHls.recoverMediaError();
                                     return;
                                 }
-                                if (d.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                                if (d.type === Hls.ErrorTypes.NETWORK_ERROR && !_hlsNetworkRecovered) {
                                     console.warn('[WebPlayer] HLS network error, attempting recovery...');
+                                    _hlsNetworkRecovered = true;
                                     currentHls.startLoad();
                                     return;
                                 }
