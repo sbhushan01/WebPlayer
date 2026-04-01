@@ -62,5 +62,15 @@ if (fs.existsSync(readmePath)) {
     console.log(`📝 README.md version synced to ${manifest.version}`);
 }
 
+// U11: Auto-sync welcome page version badges with manifest
+const welcomePath = path.join(__dirname, 'welcome.html');
+if (fs.existsSync(welcomePath)) {
+    let welcome = fs.readFileSync(welcomePath, 'utf8');
+    welcome = welcome.replace(/v\d+\.\d+\.\d+/g, `v${manifest.version}`);
+    welcome = welcome.replace(/Version\s+\d+\.\d+\.\d+/g, `Version ${manifest.version}`);
+    fs.writeFileSync(welcomePath, welcome);
+    console.log(`📝 welcome.html version synced to ${manifest.version}`);
+}
+
 ['chrome', 'firefox'].forEach(packExtension);
 console.log("\n📦 To create a ZIP, zip the CONTENTS of the build folders (not the folder itself).");
