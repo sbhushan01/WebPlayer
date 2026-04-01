@@ -52,6 +52,17 @@ Open your terminal in the extension folder and run:
 `node build.js`
 This generates two output folders: `build-chrome` and `build-firefox`.
 
+### 1.1 Publish a GitHub Release with `.crx` and `.xpi`
+This repository includes a release workflow at `.github/workflows/release.yml` that runs on tags like `v1.4.0` (or manually via **workflow_dispatch**), builds both browser variants, then uploads:
+- `WebPlayer-<version>.xpi` (from `build-firefox`)
+- `WebPlayer-<version>.crx` (from `build-chrome`)
+
+Before running the workflow, configure this repository secret:
+- `CHROME_EXTENSION_PRIVATE_KEY`: PEM private key used to sign the `.crx`
+
+Then create and push a version tag:
+`git tag v1.4.0 && git push origin v1.4.0`
+
 ### 2. Install on Chrome / Edge / Brave
 1. Open your browser and navigate to `chrome://extensions/`.
 2. Toggle **Developer mode** on in the top right corner.
