@@ -1011,6 +1011,10 @@ document.addEventListener("DOMContentLoaded", async () => {
                 if (exitFn) await exitFn.call(document);
             } else {
                 if (triggerEvent && !triggerEvent.isTrusted) { showFeedback("Fullscreen blocked"); return; }
+                if (!triggerEvent && document.userActivation && !document.userActivation.isActive) {
+                    showFeedback("Fullscreen blocked");
+                    return;
+                }
                 const req = container.requestFullscreen || container.webkitRequestFullscreen;
                 const fsEnabled = (document.fullscreenEnabled !== false) || !!document.webkitFullscreenEnabled;
                 if (!req || !fsEnabled) { showFeedback("Fullscreen unavailable"); return; }
@@ -1465,7 +1469,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         try {
             const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
-            if (!AudioContextCtor) return;
+            if (!AudioContextCtor) { isAudioInitialized = true; return; }
             if (!window.audioContext || window.audioContext.state === "closed") {
                 window.audioContext = new AudioContextCtor();
             }
