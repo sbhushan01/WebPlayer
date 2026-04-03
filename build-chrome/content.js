@@ -835,7 +835,7 @@
                         await vidReq?.call(video);
                     }
                 }
-            } catch (err) {
+            } catch (_) {
                 try {
                     const vidReq = video.requestFullscreen || video.webkitRequestFullscreen;
                     await vidReq?.call(video);
