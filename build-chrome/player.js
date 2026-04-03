@@ -1172,10 +1172,20 @@ document.addEventListener("DOMContentLoaded", async () => {
         feedbackTimer = setTimeout(() => feedbackOverlay.style.opacity = 0, 800);
     };
 
+    const isTextEntryTarget = (target) => {
+        if (!target) return false;
+        if (target.isContentEditable) return true;
+        const tag = target.tagName;
+        if (tag === "TEXTAREA" || tag === "SELECT") return true;
+        if (tag !== "INPUT") return false;
+        const type = (target.type || "").toLowerCase();
+        return !["button", "checkbox", "color", "file", "hidden", "image", "radio", "range", "reset", "submit"].includes(type);
+    };
+
     // ── Keyboard shortcuts (BUG FIX: was completely unimplemented) ────────────
     document.addEventListener("keydown", (e) => {
-        // Don't intercept while typing in an input
-        if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT" || e.target.isContentEditable) return;
+        // Don't intercept while typing in a text-entry field
+        if (isTextEntryTarget(e.target)) return;
         // Don't intercept modifier combos
         if (e.ctrlKey || e.metaKey || e.altKey) return;
 

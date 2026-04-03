@@ -660,9 +660,19 @@
             );
         };
 
+        const isTextEntryTarget = (target) => {
+            if (!target) return false;
+            if (target.isContentEditable) return true;
+            const tag = target.tagName;
+            if (tag === "TEXTAREA" || tag === "SELECT") return true;
+            if (tag !== "INPUT") return false;
+            const type = (target.type || "").toLowerCase();
+            return !["button", "checkbox", "color", "file", "hidden", "image", "radio", "range", "reset", "submit"].includes(type);
+        };
+
         let tapTimeout;
         const handleKeyDown = (e) => {
-            if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.isContentEditable) return;
+            if (isTextEntryTarget(e.target)) return;
             if (e.ctrlKey || e.metaKey || e.altKey) return;
             switch (e.key) {
                 case " ": case "k": case "K":
