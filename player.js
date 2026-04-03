@@ -1014,7 +1014,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const req = container.requestFullscreen || container.webkitRequestFullscreen;
                 const fsEnabled = (document.fullscreenEnabled !== false) || !!document.webkitFullscreenEnabled;
                 if (!req || !fsEnabled) { showFeedback("Fullscreen unavailable"); return; }
-                if (req) await req.call(container);
+                await req.call(container);
                 // U5: Lock to landscape on fullscreen if video is rotated
                 if (rotationDeg % 180 !== 0) {
                     try { await screen.orientation?.lock?.('landscape'); player.style.transform = 'none'; } catch (_) {}
