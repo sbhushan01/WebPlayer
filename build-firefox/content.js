@@ -49,6 +49,12 @@
         interceptedUrlTimers.set(url, t);
     }
 
+    function clearInterceptedTimers() {
+        for (const t of interceptedUrlTimers.values()) clearTimeout(t);
+        interceptedUrlTimers.clear();
+    }
+    window.addEventListener("unload", clearInterceptedTimers, { once: true });
+
     function clearPendingStream(url) {
         if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) return;
         try {

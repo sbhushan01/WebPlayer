@@ -37,6 +37,18 @@ function getPendingStreams(res) {
     return dedup;
 }
 
+function enqueuePendingStream(next, done) {
+    chrome.storage.local.get(['_wp_pending_stream', '_wp_pending_streams'], (res) => {
+        const pendingItems = getPendingStreams(res);
+        const filtered = pendingItems.filter(p => !(p.tabId === next.tabId && p.url === next.url));
+        filtered.push(next);
+        chrome.storage.local.set({ _wp_pending_streams: filtered }, () => {
+            // Keep legacy key cleaned only after successful queue write
+            chrome.storage.local.remove('_wp_pending_stream', () => done?.());
+        });
+    });
+}
+
 chrome.runtime.onInstalled.addListener((details) => {
     setupAlarms();
     cleanupOldVideoProgress();
@@ -62,19 +74,29 @@ chrome.runtime.onStartup.addListener(() => {
     chrome.storage.local.get(['_wp_pending_stream', '_wp_pending_streams'], (res) => {
         const pendingItems = getPendingStreams(res);
         if (!pendingItems.length) return;
+        let remaining = pendingItems.length;
+        const done = () => {
+            remaining -= 1;
+            if (remaining <= 0) {
+                chrome.storage.local.remove(['_wp_pending_stream', '_wp_pending_streams']);
+            }
+        };
         pendingItems.forEach((pending) => {
             chrome.tabs.get(pending.tabId, (tab) => {
-                if (chrome.runtime.lastError || !tab) return;
+                if (chrome.runtime.lastError || !tab) {
+                    done();
+                    return;
+                }
                 chrome.tabs.sendMessage(pending.tabId, {
                     action: 'stream_detected',
                     url: pending.url,
                     pageUrl: pending.pageUrl
                 }, () => {
                     if (chrome.runtime.lastError) { /* tab may not have content script */ }
+                    done();
                 });
             });
         });
-        chrome.storage.local.remove(['_wp_pending_stream', '_wp_pending_streams']);
     });
 });
 
@@ -202,6 +224,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 const recentlyInterceptedTabs = new Set();
+let pendingQueueWrite = Promise.resolve();
 
 chrome.webRequest.onHeadersReceived.addListener(
     (details) => {
@@ -213,20 +236,16 @@ chrome.webRequest.onHeadersReceived.addListener(
             recentlyInterceptedTabs.add(details.tabId);
             setTimeout(() => recentlyInterceptedTabs.delete(details.tabId), 5000);
 
-            // B2: Store pending stream queue in case SW dies before user confirms
-            chrome.storage.local.get(['_wp_pending_stream', '_wp_pending_streams'], (res) => {
-                const pendingItems = getPendingStreams(res);
-                const next = {
-                    url: details.url,
-                    tabId: details.tabId,
-                    pageUrl: details.initiator || "",
-                    ts: Date.now()
-                };
-                const filtered = pendingItems.filter(p => !(p.tabId === next.tabId && p.url === next.url));
-                filtered.push(next);
-                chrome.storage.local.set({ _wp_pending_streams: filtered });
-                chrome.storage.local.remove('_wp_pending_stream');
-            });
+            // B2: Store pending stream queue in case SW dies before user confirms (serialized writes)
+            const nextPending = {
+                url: details.url,
+                tabId: details.tabId,
+                pageUrl: details.initiator || "",
+                ts: Date.now()
+            };
+            pendingQueueWrite = pendingQueueWrite.then(() => new Promise((resolve) => {
+                enqueuePendingStream(nextPending, resolve);
+            })).catch(() => {});
 
             chrome.tabs.sendMessage(details.tabId, {
                 action:  "stream_detected",
