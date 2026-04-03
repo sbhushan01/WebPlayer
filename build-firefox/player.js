@@ -199,15 +199,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     function destroyEngines() {
         if (currentHls)  { currentHls.destroy();  currentHls  = null; }
         if (currentDash) { currentDash.reset();   currentDash = null; }
-        // B4 fix: Reset EQ AudioContext so it reconnects on next play
-        if (window.audioContext?.state !== "closed") {
-            try { window.audioContext?.close(); } catch (_) {}
-        }
-        window.audioContext = null;
-        isAudioInitialized = false;
-        eqFilters.length = 0;
-        mediaElementSource = null;
-        preampGain = null;
     }
     window.addEventListener("beforeunload", () => {
         destroyEngines();
@@ -1011,7 +1002,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // ── Fullscreen ────────────────────────────────────────────────────────────
-    const toggleFS = async () => {
+    const toggleFS = async (triggerEvent) => {
         try {
             if (document.fullscreenElement || document.webkitFullscreenElement) {
                 // U5: Unlock orientation when exiting fullscreen
@@ -1019,16 +1010,26 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const exitFn = document.exitFullscreen || document.webkitExitFullscreen;
                 if (exitFn) await exitFn.call(document);
             } else {
+                if (triggerEvent && !triggerEvent.isTrusted) return;
                 const req = container.requestFullscreen || container.webkitRequestFullscreen;
+                const fsEnabled = (document.fullscreenEnabled !== false) || !!document.webkitFullscreenEnabled;
+                if (!req || !fsEnabled) { showFeedback("Fullscreen unavailable"); return; }
                 if (req) await req.call(container);
                 // U5: Lock to landscape on fullscreen if video is rotated
                 if (rotationDeg % 180 !== 0) {
                     try { await screen.orientation?.lock?.('landscape'); player.style.transform = 'none'; } catch (_) {}
                 }
             }
-        } catch (err) { console.warn("Fullscreen request denied", err); }
+        } catch (err) {
+            const msg = String(err?.message || "");
+            if (err?.name === "NotAllowedError" || msg.includes("user gesture") || msg.includes("Permissions check failed")) {
+                showFeedback("Fullscreen blocked");
+                return;
+            }
+            console.warn("Fullscreen request denied", err);
+        }
     };
-    fsBtn.addEventListener("click", toggleFS);
+    fsBtn.addEventListener("click", (e) => toggleFS(e));
     const onFSChange = () => {
         const isFS = document.fullscreenElement || document.webkitFullscreenElement;
         fsIcon.textContent = isFS ? "fullscreen_exit" : "fullscreen";
@@ -1231,7 +1232,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 break;
             case "f":
             case "F":
-                toggleFS();
+                toggleFS(e);
                 break;
             case "r":
             case "R":
@@ -1269,7 +1270,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         // but restrict to fullscreen to avoid duplicated seeks.
         const rect = gestureZone.getBoundingClientRect();
         if (e.clientX > rect.left + rect.width * 0.30 && e.clientX < rect.left + rect.width * 0.70) {
-            toggleFS();
+            toggleFS(e);
         }
     });
 
@@ -1372,7 +1373,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 } else {
                     // Double tap center toggles fullscreen for mouse, play/pause for touch
                     if (e.pointerType === "mouse") {
-                        toggleFS();
+                        toggleFS(e);
                     } else {
                         const wasPaused = player.paused;
                         wasPaused ? safePlay() : safePause();
@@ -1461,10 +1462,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const initAudioContext = () => {
         if (isAudioInitialized) return;
-        isAudioInitialized = true;
 
         try {
-            window.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContextCtor) return;
+            if (!window.audioContext || window.audioContext.state === "closed") {
+                window.audioContext = new AudioContextCtor();
+            }
             if (window.audioContext.state === "suspended") {
                 window.audioContext.resume().catch(err => console.warn("[WebPlayer] AudioContext resume failed:", err));
             }
@@ -1529,11 +1533,16 @@ document.addEventListener("DOMContentLoaded", async () => {
             };
             if (eqStorage) { try { eqStorage.get([EQ_STORAGE_KEY], _loadEqCb); } catch (_) { _loadEqCb({}); } }
             else { _loadEqCb({}); }
+            isAudioInitialized = true;
 
         } catch (err) {
-            console.warn("[WebPlayer] Equalizer could not be initialized:", err);
+            isAudioInitialized = false;
+            console.warn("[WebPlayer] Equalizer could not be initialized:", err?.name || err, err?.message || "");
             if (window.audioContext?.state !== "closed") window.audioContext?.close();
             window.audioContext = null;
+            mediaElementSource = null;
+            preampGain = null;
+            eqFilters.length = 0;
         }
     };
 
