@@ -446,6 +446,38 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     // ── Source attachment ─────────────────────────────────────────────────────
+    function detectSourceKind(src) {
+        const rawSrc = String(src || "");
+        const lowerSrc = rawSrc.toLowerCase();
+        let decodedSrc = lowerSrc;
+        try { decodedSrc = decodeURIComponent(lowerSrc); } catch (_) {}
+
+        // Common direct/encoded manifest markers
+        if (decodedSrc.includes(".m3u8")) return "hls";
+        if (decodedSrc.includes(".mpd")) return "dash";
+
+        // Extensionless manifest endpoints often advertise format/type in query
+        try {
+            const u = new URL(decodedSrc, window.location.href);
+            const path = (u.pathname || "").toLowerCase();
+            if (path.endsWith(".m3u8")) return "hls";
+            if (path.endsWith(".mpd")) return "dash";
+
+            const queryAndHash = `${u.search || ""}${u.hash || ""}`.toLowerCase();
+            if (
+                /(?:^|[?&#])(?:format|type|mime|ext|container)=(?:[^&#]*(?:mpegurl|hls|m3u8))/.test(queryAndHash) ||
+                /(?:^|[?&#])(?:hls|playlist|master)=/.test(queryAndHash)
+            ) return "hls";
+
+            if (
+                /(?:^|[?&#])(?:format|type|mime|ext|container)=(?:[^&#]*(?:dash|mpd|application\/dash\+xml))/.test(queryAndHash) ||
+                /(?:^|[?&#])(?:manifest|dash)=/.test(queryAndHash)
+            ) return "dash";
+        } catch (_) {}
+
+        return "native";
+    }
+
     async function attachSource(src) {
         destroyEngines();
         bufferEl.classList.add("is-buffering");
@@ -453,17 +485,18 @@ document.addEventListener("DOMContentLoaded", async () => {
         ccContainer.style.display = "none";
         audioContainer.style.display = "none";
 
-        const cleanSrc = src.split("?")[0].toLowerCase();
-        const isStream = cleanSrc.endsWith(".m3u8") || cleanSrc.endsWith(".mpd");
+        const lowerSrc = String(src || "").toLowerCase();
+        const sourceKind = detectSourceKind(src);
+        const isStream = sourceKind !== "native";
 
         // Only set crossOrigin for direct/native playback; HLS.js and DASH.js
         // manage their own XHR pipeline — the attribute can interfere with MediaSource.
-        if (!isStream && !cleanSrc.startsWith("blob:") && !cleanSrc.startsWith("data:")) {
+        if (!isStream && !lowerSrc.startsWith("blob:") && !lowerSrc.startsWith("data:")) {
             player.crossOrigin = "anonymous";
         }
 
         try {
-            if (cleanSrc.endsWith(".m3u8")) {
+            if (sourceKind === "hls") {
                 if (player.canPlayType("application/vnd.apple.mpegurl")) {
                     // Safari native HLS — set crossOrigin since browser handles fetch
                     player.crossOrigin = "anonymous";
@@ -557,7 +590,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                         });
                     } else { showError("HLS not supported in this browser."); }
                 }
-            } else if (cleanSrc.endsWith(".mpd")) {
+            } else if (sourceKind === "dash") {
                 await loadScript("libs/dash.all.min.js");
                 if (window.dashjs) {
                     currentDash = dashjs.MediaPlayer().create();
