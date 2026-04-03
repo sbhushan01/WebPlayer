@@ -675,18 +675,23 @@
         const handleKeyDown = (e) => {
             if (isTextEntryTarget(e.target)) return;
             if (e.ctrlKey || e.metaKey || e.altKey) return;
+            const togglePlayPause = () => {
+                const wasPaused = video.paused;
+                wasPaused ? safePlay(video) : safePause(video);
+                showFeedback(wasPaused ? "Playing" : "Paused");
+            };
+            const toggleMute = () => {
+                video.muted = !video.muted;
+                showFeedback(video.muted ? "Muted" : "Unmuted");
+            };
             switch (e.key) {
                 case " ": case "Spacebar":
                     e.preventDefault();
-                    { const wasPaused = video.paused;
-                    wasPaused ? safePlay(video) : safePause(video);
-                    showFeedback(wasPaused ? "Playing" : "Paused"); }
+                    togglePlayPause();
                     break;
                 case "k": case "K":
                     e.preventDefault();
-                    { const wasPaused = video.paused;
-                    wasPaused ? safePlay(video) : safePause(video);
-                    showFeedback(wasPaused ? "Playing" : "Paused"); }
+                    togglePlayPause();
                     break;
                 case "ArrowLeft":
                     e.preventDefault();
@@ -714,8 +719,7 @@
                     break;
                 case "m": case "M":
                     e.preventDefault();
-                    video.muted = !video.muted;
-                    showFeedback(video.muted ? "Muted" : "Unmuted");
+                    toggleMute();
                     break;
                 case "f": case "F":
                     uiWrapper.querySelector("#wp-fs").click();
@@ -726,15 +730,12 @@
             }
             if (e.code === "Space" && e.key !== " ") {
                 e.preventDefault();
-                const wasPaused = video.paused;
-                wasPaused ? safePlay(video) : safePause(video);
-                showFeedback(wasPaused ? "Playing" : "Paused");
+                togglePlayPause();
                 return;
             }
             if (e.code === "KeyM" && e.key !== "m" && e.key !== "M") {
                 e.preventDefault();
-                video.muted = !video.muted;
-                showFeedback(video.muted ? "Muted" : "Unmuted");
+                toggleMute();
             }
         };
         on(window, "keydown", handleKeyDown, { capture: true });
