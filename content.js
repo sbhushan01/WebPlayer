@@ -687,6 +687,7 @@
             };
             const key = (e.key || "").toLowerCase();
 
+            // Keep e.code as a fallback because some sites/remotes can emit unexpected key values.
             if (key === " " || key === "spacebar" || e.code === "Space") {
                 e.preventDefault();
                 togglePlayPause();
