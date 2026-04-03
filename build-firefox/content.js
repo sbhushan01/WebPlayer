@@ -59,13 +59,20 @@
         return typeof chrome !== 'undefined' && !!chrome.runtime?.id && typeof chrome.runtime.sendMessage === 'function';
     }
 
+    function getRuntimeLastErrorMessage() {
+        try {
+            return chrome?.runtime?.lastError?.message || "";
+        } catch (_) {
+            return "";
+        }
+    }
+
     function clearPendingStream(url) {
         if (!hasValidExtensionContext()) return;
         try {
             chrome.runtime.sendMessage({ action: "clear_pending_stream", url }, () => {
-                if (chrome.runtime.lastError) {
-                    console.debug("[WebPlayer] clear_pending_stream ignored:", chrome.runtime.lastError.message);
-                }
+                const errMsg = getRuntimeLastErrorMessage();
+                if (errMsg) console.debug("[WebPlayer] clear_pending_stream ignored:", errMsg);
             });
         } catch (_) {}
     }
@@ -127,9 +134,8 @@
                                 pageTitle: document.title,
                                 pageUrl:   window.location.href
                             }, () => {
-                                if (chrome.runtime.lastError) {
-                                    console.warn("[WebPlayer] Cannot send launch message:", chrome.runtime.lastError.message);
-                                }
+                                const errMsg = getRuntimeLastErrorMessage();
+                                if (errMsg) console.warn("[WebPlayer] Cannot send launch message:", errMsg);
                             });
                         } catch (e) {
                             console.warn("[WebPlayer] Cannot send launch message:", e);
