@@ -83,6 +83,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const urlParams  = new URLSearchParams(window.location.search);
     const videoSrc   = urlParams.get("src");
     const pageUrl    = urlParams.get("pageUrl") || "";
+    const isStandaloneMode = !pageUrl;
     const titleParam = urlParams.get("title")   || "";
 
     // #11: Smarter dynamic tab title — prefer explicit title, else extract filename, else hostname
@@ -115,8 +116,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     const errorUrlBox    = document.getElementById("error-url-container");
     const errorUrlEl     = document.getElementById("error-url");
     const errorCopyBtn   = document.getElementById("error-copy-url");
-    const DEMUXER_PARSE_TOKEN = "pipelinestatus::demuxer_error_could_not_parse";
-    const DEMUXER_PARSE_TOKEN_LOWER = DEMUXER_PARSE_TOKEN.toLowerCase();
+    const DEMUXER_PARSE_ERROR_TOKEN = "pipelinestatus::demuxer_error_could_not_parse";
+    const DEMUXER_PARSE_ERROR_TOKEN_LOWER = DEMUXER_PARSE_ERROR_TOKEN.toLowerCase();
 
     function showError(msg, type, url) {
         errorMsgEl.textContent  = msg;
@@ -131,21 +132,24 @@ document.addEventListener("DOMContentLoaded", async () => {
         bufferEl.classList.remove("is-buffering");
     }
 
-    function mapPlaybackErrorMessage(message, fallback) {
+    function normalizePlaybackErrorMessage(message) {
         const raw = String(message || "").trim();
-        if (!raw) return fallback;
-        const rawLower = raw.toLowerCase();
-        if (rawLower.includes(DEMUXER_PARSE_TOKEN_LOWER)) {
+        return raw ? { raw, rawLower: raw.toLowerCase() } : null;
+    }
+
+    function mapPlaybackErrorMessage(message, fallback) {
+        const normalized = normalizePlaybackErrorMessage(message);
+        if (!normalized) return fallback;
+        if (normalized.rawLower.includes(DEMUXER_PARSE_ERROR_TOKEN_LOWER)) {
             return "The stream could not be parsed. It may be malformed, unsupported, or returning invalid media segments.";
         }
-        return raw;
+        return normalized.raw;
     }
 
     function mapPlaybackErrorType(message, fallback) {
-        const raw = String(message || "").trim();
-        if (!raw) return fallback;
-        const rawLower = raw.toLowerCase();
-        if (rawLower.includes(DEMUXER_PARSE_TOKEN_LOWER)) return "Parse Error";
+        const normalized = normalizePlaybackErrorMessage(message);
+        if (!normalized) return fallback;
+        if (normalized.rawLower.includes(DEMUXER_PARSE_ERROR_TOKEN_LOWER)) return "Parse Error";
         return fallback;
     }
 
@@ -523,7 +527,12 @@ document.addEventListener("DOMContentLoaded", async () => {
                             startLevel: -1,
                             manifestLoadingMaxRetry: 6,
                             levelLoadingMaxRetry: 6,
-                            fragLoadingMaxRetry: 6
+                            fragLoadingMaxRetry: 6,
+                            ...(isStandaloneMode ? {
+                                lowLatencyMode: true,
+                                maxBufferLength: 12,
+                                maxMaxBufferLength: 20
+                            } : {})
                         });
                         currentHls.loadSource(src);
                         currentHls.attachMedia(player);
@@ -606,6 +615,18 @@ document.addEventListener("DOMContentLoaded", async () => {
                 await loadScript("libs/dash.all.min.js");
                 if (window.dashjs) {
                     currentDash = dashjs.MediaPlayer().create();
+                    if (isStandaloneMode) {
+                        currentDash.updateSettings({
+                            streaming: {
+                                buffer: {
+                                    bufferTimeDefault: 4,
+                                    bufferTimeAtTopQuality: 6,
+                                    bufferTimeAtTopQualityLongForm: 8
+                                },
+                                liveDelay: 4
+                            }
+                        });
+                    }
                     currentDash.initialize(player, src, true);
                     
                     currentDash.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, () => {
