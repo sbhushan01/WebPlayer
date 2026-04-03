@@ -63,7 +63,9 @@
         if (!hasValidExtensionContext()) return;
         try {
             chrome.runtime.sendMessage({ action: "clear_pending_stream", url }, () => {
-                void chrome.runtime.lastError;
+                if (chrome.runtime.lastError) {
+                    console.debug("[WebPlayer] clear_pending_stream ignored:", chrome.runtime.lastError.message);
+                }
             });
         } catch (_) {}
     }
@@ -124,6 +126,10 @@
                                 videoSrc:  msg.url,
                                 pageTitle: document.title,
                                 pageUrl:   window.location.href
+                            }, () => {
+                                if (chrome.runtime.lastError) {
+                                    console.warn("[WebPlayer] Cannot send launch message:", chrome.runtime.lastError.message);
+                                }
                             });
                         } catch (e) {
                             console.warn("[WebPlayer] Cannot send launch message:", e);
