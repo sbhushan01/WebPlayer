@@ -74,7 +74,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     // ── Media Session ─────────────────────────────────────────────────────────
     if ("mediaSession" in navigator) {
         navigator.mediaSession.setActionHandler("play",         () => safePlay());
-        navigator.mediaSession.setActionHandler("pause",        () => player.pause());
+        navigator.mediaSession.setActionHandler("pause",        () => safePause());
         navigator.mediaSession.setActionHandler("seekbackward", (e) => { player.currentTime = Math.max(0, player.currentTime - (e.seekOffset || 10)); });
         navigator.mediaSession.setActionHandler("seekforward",  (e) => { player.currentTime = Math.min(player.duration || Infinity, player.currentTime + (e.seekOffset || 10)); });
     }
@@ -940,7 +940,15 @@ document.addEventListener("DOMContentLoaded", async () => {
         showFeedback(wasPaused ? "Playing" : "Paused"); // BUG FIX: capture state before toggle
     };
     playBtn.addEventListener("click", togglePlay);
-    player.addEventListener("play",  () => playIcon.textContent = "pause");
+    player.addEventListener("play", () => {
+        if (currentHls && typeof currentHls.startLoad === "function") {
+            try { currentHls.startLoad(); } catch (_) {}
+        }
+        if (window.audioContext?.state === "suspended") {
+            window.audioContext.resume().catch(() => {});
+        }
+        playIcon.textContent = "pause";
+    });
     player.addEventListener("pause", () => playIcon.textContent = "play_arrow");
 
     // ── Buffering ─────────────────────────────────────────────────────────────
