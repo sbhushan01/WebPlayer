@@ -84,6 +84,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const videoSrc   = urlParams.get("src");
     const pageUrl    = urlParams.get("pageUrl") || "";
     const isStandaloneMode = !pageUrl;
+    const STANDALONE_HLS_MAX_BUFFER_BYTES = 20 * 1000 * 1000;
     const titleParam = urlParams.get("title")   || "";
 
     // #11: Smarter dynamic tab title — prefer explicit title, else extract filename, else hostname
@@ -529,9 +530,10 @@ document.addEventListener("DOMContentLoaded", async () => {
                             levelLoadingMaxRetry: 6,
                             fragLoadingMaxRetry: 6,
                             ...(isStandaloneMode ? {
-                                lowLatencyMode: true,
-                                maxBufferLength: 12,
-                                maxMaxBufferLength: 20
+                                lowLatencyMode: false,
+                                maxBufferLength: 6,
+                                maxMaxBufferLength: 8,
+                                maxBufferSize: STANDALONE_HLS_MAX_BUFFER_BYTES
                             } : {})
                         });
                         currentHls.loadSource(src);
