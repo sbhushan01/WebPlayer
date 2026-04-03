@@ -134,15 +134,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     function mapPlaybackErrorMessage(message, fallback) {
         const raw = String(message || "").trim();
         if (!raw) return fallback;
-        if (raw.toLowerCase().includes(DEMUXER_PARSE_TOKEN_LOWER)) {
+        const rawLower = raw.toLowerCase();
+        if (rawLower.includes(DEMUXER_PARSE_TOKEN_LOWER)) {
             return "The stream could not be parsed. It may be malformed, unsupported, or returning invalid media segments.";
         }
         return raw;
     }
 
     function mapPlaybackErrorType(message, fallback) {
-        const raw = String(message || "").toLowerCase();
-        if (raw.includes(DEMUXER_PARSE_TOKEN_LOWER)) return "Parse Error";
+        const raw = String(message || "").trim();
+        if (!raw) return fallback;
+        const rawLower = raw.toLowerCase();
+        if (rawLower.includes(DEMUXER_PARSE_TOKEN_LOWER)) return "Parse Error";
         return fallback;
     }
 
