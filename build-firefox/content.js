@@ -804,12 +804,17 @@
             }
             
             const container = video.closest('.html5-video-player, [data-vjs-player]') || video.parentElement;
-            const req = container.requestFullscreen || container.webkitRequestFullscreen;
+            const req = container?.requestFullscreen || container?.webkitRequestFullscreen;
             try {
                 if (document.fullscreenElement || document.webkitFullscreenElement) {
                     await (document.exitFullscreen || document.webkitExitFullscreen).call(document);
                 } else {
-                    await req?.call(container);
+                    if (req && container) {
+                        await req.call(container);
+                    } else {
+                        const vidReq = video.requestFullscreen || video.webkitRequestFullscreen;
+                        await vidReq?.call(video);
+                    }
                 }
             } catch (err) {
                 console.warn("[WebPlayer] Container FS failed:", err);
