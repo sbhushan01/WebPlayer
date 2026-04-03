@@ -817,7 +817,7 @@
                     }
                 }
             } catch (err) {
-                console.warn("[WebPlayer] Container FS failed:", err);
+                console.warn("[WebPlayer] Fullscreen request failed, retrying on video element:", err);
                 try {
                     const vidReq = video.requestFullscreen || video.webkitRequestFullscreen;
                     await vidReq?.call(video);
