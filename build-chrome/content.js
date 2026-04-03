@@ -55,14 +55,29 @@
     }
     window.addEventListener("unload", clearInterceptedTimers, { once: true });
 
-    function clearPendingStream(url) {
-        if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) return;
+    function hasValidExtensionContext() {
+        return typeof chrome !== 'undefined' && !!chrome.runtime?.id && typeof chrome.runtime.sendMessage === 'function';
+    }
+
+    function getRuntimeLastErrorMessage() {
         try {
-            chrome.runtime.sendMessage({ action: "clear_pending_stream", url });
+            return chrome?.runtime?.lastError?.message || "";
+        } catch (_) {
+            return "";
+        }
+    }
+
+    function clearPendingStream(url) {
+        if (!hasValidExtensionContext()) return;
+        try {
+            chrome.runtime.sendMessage({ action: "clear_pending_stream", url }, () => {
+                const errMsg = getRuntimeLastErrorMessage();
+                if (errMsg) console.debug("[WebPlayer] clear_pending_stream ignored:", errMsg);
+            });
         } catch (_) {}
     }
 
-    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id) {
+    if (hasValidExtensionContext()) {
         try {
             chrome.runtime.onMessage.addListener((msg) => {
                 if (msg.action === "stream_detected" && msg.url && !interceptedUrls.has(msg.url)) {
@@ -111,12 +126,16 @@
                     prompt.querySelector(".wp-prompt-launch").onclick = () => {
                         closePrompt();
                         clearPendingStream(msg.url);
+                        if (!hasValidExtensionContext()) return;
                         try {
                             chrome.runtime.sendMessage({
                                 action:    "open_player",
                                 videoSrc:  msg.url,
                                 pageTitle: document.title,
                                 pageUrl:   window.location.href
+                            }, () => {
+                                const errMsg = getRuntimeLastErrorMessage();
+                                if (errMsg) console.warn("[WebPlayer] Cannot send launch message:", errMsg);
                             });
                         } catch (e) {
                             console.warn("[WebPlayer] Cannot send launch message:", e);
