@@ -529,9 +529,10 @@ document.addEventListener("DOMContentLoaded", async () => {
                             levelLoadingMaxRetry: 6,
                             fragLoadingMaxRetry: 6,
                             ...(isStandaloneMode ? {
-                                lowLatencyMode: true,
-                                maxBufferLength: 12,
-                                maxMaxBufferLength: 20
+                                lowLatencyMode: false,
+                                maxBufferLength: 6,
+                                maxMaxBufferLength: 8,
+                                maxBufferSize: 20 * 1000 * 1000
                             } : {})
                         });
                         currentHls.loadSource(src);
