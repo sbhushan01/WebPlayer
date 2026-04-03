@@ -55,14 +55,20 @@
     }
     window.addEventListener("unload", clearInterceptedTimers, { once: true });
 
+    function hasValidExtensionContext() {
+        return typeof chrome !== 'undefined' && !!chrome.runtime?.id && typeof chrome.runtime.sendMessage === 'function';
+    }
+
     function clearPendingStream(url) {
-        if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) return;
+        if (!hasValidExtensionContext()) return;
         try {
-            chrome.runtime.sendMessage({ action: "clear_pending_stream", url });
+            chrome.runtime.sendMessage({ action: "clear_pending_stream", url }, () => {
+                void chrome.runtime.lastError;
+            });
         } catch (_) {}
     }
 
-    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id) {
+    if (hasValidExtensionContext()) {
         try {
             chrome.runtime.onMessage.addListener((msg) => {
                 if (msg.action === "stream_detected" && msg.url && !interceptedUrls.has(msg.url)) {
@@ -111,6 +117,7 @@
                     prompt.querySelector(".wp-prompt-launch").onclick = () => {
                         closePrompt();
                         clearPendingStream(msg.url);
+                        if (!hasValidExtensionContext()) return;
                         try {
                             chrome.runtime.sendMessage({
                                 action:    "open_player",
