@@ -34,6 +34,20 @@
 
     const buttonRegistry = new WeakMap();
     const interceptedUrls = new Set();
+    const interceptedUrlTimers = new Map();
+    const INTERCEPT_DEDUPE_TTL_MS = 5 * 60 * 1000;
+
+    function markIntercepted(url) {
+        if (!url) return;
+        interceptedUrls.add(url);
+        const existing = interceptedUrlTimers.get(url);
+        if (existing) clearTimeout(existing);
+        const t = setTimeout(() => {
+            interceptedUrls.delete(url);
+            interceptedUrlTimers.delete(url);
+        }, INTERCEPT_DEDUPE_TTL_MS);
+        interceptedUrlTimers.set(url, t);
+    }
 
     function clearPendingStream(url) {
         if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) return;
@@ -46,7 +60,7 @@
         try {
             chrome.runtime.onMessage.addListener((msg) => {
                 if (msg.action === "stream_detected" && msg.url && !interceptedUrls.has(msg.url)) {
-                    interceptedUrls.add(msg.url);
+                    markIntercepted(msg.url);
                     
                     const prompt = document.createElement("div");
                     prompt.style.cssText = `

@@ -6,16 +6,35 @@ function cleanupOldVideoProgress() {
     chrome.storage.local.get(null, (items) => {
         const now = Date.now();
         const keysToRemove = [];
+        const isLikelyProgressKey = (key) => /^https?:\/\//i.test(key);
         for (const [key, val] of Object.entries(items)) {
-            if (key === '_wp_pending_stream') continue; // B2: skip queue key
-            if (typeof val === 'number') {
+            if (key === '_wp_pending_stream' || key === '_wp_pending_streams') continue; // B2: skip queue keys
+            if (!isLikelyProgressKey(key)) continue; // B12: never touch unrelated local storage keys
+            if (typeof val === 'number') { // legacy format: raw timestamp/position
                 keysToRemove.push(key);
-            } else if (val && val.ts && (now - val.ts > 30 * 24 * 60 * 60 * 1000)) { // B7: 30-day TTL
+            } else if (val && typeof val === 'object' && typeof val.ts === 'number' && (now - val.ts > 30 * 24 * 60 * 60 * 1000)) { // B7: 30-day TTL
                 keysToRemove.push(key);
             }
         }
         if (keysToRemove.length > 0) chrome.storage.local.remove(keysToRemove);
     });
+}
+
+function getPendingStreams(res) {
+    const single = res._wp_pending_stream;
+    const many = Array.isArray(res._wp_pending_streams) ? res._wp_pending_streams : [];
+    const merged = [...many];
+    if (single && single.tabId) merged.push(single);
+    const dedup = [];
+    const seen = new Set();
+    for (const p of merged) {
+        if (!p || !p.tabId || !p.url) continue;
+        const k = `${p.tabId}|${p.url}`;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        dedup.push(p);
+    }
+    return dedup;
 }
 
 chrome.runtime.onInstalled.addListener((details) => {
@@ -39,15 +58,13 @@ chrome.runtime.onStartup.addListener(() => {
         const ids = rules.map(r => r.id);
         if (ids.length) chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: ids });
     });
-    // B2: Re-fire any pending stream launch that was interrupted by SW termination
-    chrome.storage.local.get('_wp_pending_stream', (res) => {
-        const pending = res._wp_pending_stream;
-        if (pending && pending.tabId) {
+    // B2: Re-fire pending stream launches interrupted by SW termination
+    chrome.storage.local.get(['_wp_pending_stream', '_wp_pending_streams'], (res) => {
+        const pendingItems = getPendingStreams(res);
+        if (!pendingItems.length) return;
+        pendingItems.forEach((pending) => {
             chrome.tabs.get(pending.tabId, (tab) => {
-                if (chrome.runtime.lastError || !tab) {
-                    chrome.storage.local.remove('_wp_pending_stream');
-                    return;
-                }
+                if (chrome.runtime.lastError || !tab) return;
                 chrome.tabs.sendMessage(pending.tabId, {
                     action: 'stream_detected',
                     url: pending.url,
@@ -55,9 +72,9 @@ chrome.runtime.onStartup.addListener(() => {
                 }, () => {
                     if (chrome.runtime.lastError) { /* tab may not have content script */ }
                 });
-                chrome.storage.local.remove('_wp_pending_stream');
             });
-        }
+        });
+        chrome.storage.local.remove(['_wp_pending_stream', '_wp_pending_streams']);
     });
 });
 
@@ -89,11 +106,19 @@ function domainFilter(rawUrl) {
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "clear_pending_stream") {
-        chrome.storage.local.get('_wp_pending_stream', (res) => {
-            const pending = res._wp_pending_stream;
-            if (!pending) return;
-            if (!request.url || pending.url === request.url) {
-                chrome.storage.local.remove('_wp_pending_stream');
+        chrome.storage.local.get(['_wp_pending_stream', '_wp_pending_streams'], (res) => {
+            const pendingItems = getPendingStreams(res);
+            if (!pendingItems.length) return;
+            if (!request.url) {
+                chrome.storage.local.remove(['_wp_pending_stream', '_wp_pending_streams']);
+                return;
+            }
+            const filtered = pendingItems.filter(p => p.url !== request.url);
+            chrome.storage.local.remove('_wp_pending_stream');
+            if (filtered.length) {
+                chrome.storage.local.set({ _wp_pending_streams: filtered });
+            } else {
+                chrome.storage.local.remove('_wp_pending_streams');
             }
         });
         return;
@@ -188,13 +213,20 @@ chrome.webRequest.onHeadersReceived.addListener(
             recentlyInterceptedTabs.add(details.tabId);
             setTimeout(() => recentlyInterceptedTabs.delete(details.tabId), 5000);
 
-            // B2: Store pending stream in case SW dies before user confirms
-            chrome.storage.local.set({ _wp_pending_stream: {
-                url: details.url,
-                tabId: details.tabId,
-                pageUrl: details.initiator || "",
-                ts: Date.now()
-            }});
+            // B2: Store pending stream queue in case SW dies before user confirms
+            chrome.storage.local.get(['_wp_pending_stream', '_wp_pending_streams'], (res) => {
+                const pendingItems = getPendingStreams(res);
+                const next = {
+                    url: details.url,
+                    tabId: details.tabId,
+                    pageUrl: details.initiator || "",
+                    ts: Date.now()
+                };
+                const filtered = pendingItems.filter(p => !(p.tabId === next.tabId && p.url === next.url));
+                filtered.push(next);
+                chrome.storage.local.set({ _wp_pending_streams: filtered });
+                chrome.storage.local.remove('_wp_pending_stream');
+            });
 
             chrome.tabs.sendMessage(details.tabId, {
                 action:  "stream_detected",
