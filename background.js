@@ -1,3 +1,6 @@
+let pendingQueueWrite = Promise.resolve();
+const hasUrlPrefix = (key) => /^https?:\/\//i.test(key);
+
 function setupAlarms() {
     chrome.alarms.create("keepAlive", { periodInMinutes: 0.5 });
 }
@@ -6,10 +9,9 @@ function cleanupOldVideoProgress() {
     chrome.storage.local.get(null, (items) => {
         const now = Date.now();
         const keysToRemove = [];
-        const isLikelyProgressKey = (key) => /^https?:\/\//i.test(key);
         for (const [key, val] of Object.entries(items)) {
             if (key === '_wp_pending_stream' || key === '_wp_pending_streams') continue; // B2: skip queue keys
-            if (!isLikelyProgressKey(key)) continue; // B12: never touch unrelated local storage keys
+            if (!hasUrlPrefix(key)) continue; // B12: never touch unrelated local storage keys
             if (typeof val === 'number') { // legacy format: raw timestamp/position
                 keysToRemove.push(key);
             } else if (val && typeof val === 'object' && typeof val.ts === 'number' && (now - val.ts > 30 * 24 * 60 * 60 * 1000)) { // B7: 30-day TTL
@@ -46,6 +48,20 @@ function enqueuePendingStream(next, done) {
             // Keep legacy key cleaned only after successful queue write
             chrome.storage.local.remove('_wp_pending_stream', () => done?.());
         });
+    });
+}
+
+function enqueuePendingStreamSerialized(next) {
+    pendingQueueWrite = pendingQueueWrite
+        .catch(() => {})
+        .then(() => new Promise((resolve) => {
+            enqueuePendingStream(next, resolve);
+        }));
+    const currentWrite = pendingQueueWrite;
+    currentWrite.finally(() => {
+        if (pendingQueueWrite === currentWrite) {
+            pendingQueueWrite = Promise.resolve();
+        }
     });
 }
 
@@ -224,7 +240,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 const recentlyInterceptedTabs = new Set();
-let pendingQueueWrite = Promise.resolve();
 
 chrome.webRequest.onHeadersReceived.addListener(
     (details) => {
@@ -243,9 +258,7 @@ chrome.webRequest.onHeadersReceived.addListener(
                 pageUrl: details.initiator || "",
                 ts: Date.now()
             };
-            pendingQueueWrite = pendingQueueWrite.then(() => new Promise((resolve) => {
-                enqueuePendingStream(nextPending, resolve);
-            })).catch(() => {});
+            enqueuePendingStreamSerialized(nextPending);
 
             chrome.tabs.sendMessage(details.tabId, {
                 action:  "stream_detected",
