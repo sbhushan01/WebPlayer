@@ -1010,7 +1010,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const exitFn = document.exitFullscreen || document.webkitExitFullscreen;
                 if (exitFn) await exitFn.call(document);
             } else {
-                if (triggerEvent && !triggerEvent.isTrusted) return;
+                if (triggerEvent && !triggerEvent.isTrusted) { showFeedback("Fullscreen blocked"); return; }
                 const req = container.requestFullscreen || container.webkitRequestFullscreen;
                 const fsEnabled = (document.fullscreenEnabled !== false) || !!document.webkitFullscreenEnabled;
                 if (!req || !fsEnabled) { showFeedback("Fullscreen unavailable"); return; }
