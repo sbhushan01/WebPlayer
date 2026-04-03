@@ -675,6 +675,7 @@
         const handleKeyDown = (e) => {
             if (isTextEntryTarget(e.target)) return;
             if (e.ctrlKey || e.metaKey || e.altKey) return;
+            if (e.defaultPrevented) return;
             const togglePlayPause = () => {
                 const wasPaused = video.paused;
                 wasPaused ? safePlay(video) : safePause(video);
@@ -684,11 +685,20 @@
                 video.muted = !video.muted;
                 showFeedback(video.muted ? "Muted" : "Unmuted");
             };
+            const key = (e.key || "").toLowerCase();
+
+            if (key === " " || key === "spacebar" || e.code === "Space") {
+                e.preventDefault();
+                togglePlayPause();
+                return;
+            }
+            if (key === "m" || e.code === "KeyM") {
+                e.preventDefault();
+                toggleMute();
+                return;
+            }
+
             switch (e.key) {
-                case " ": case "Spacebar":
-                    e.preventDefault();
-                    togglePlayPause();
-                    break;
                 case "k": case "K":
                     e.preventDefault();
                     togglePlayPause();
@@ -717,10 +727,6 @@
                     showFeedback(`Vol: ${Math.round(video.volume * 100)}%`);
                     showControls();
                     break;
-                case "m": case "M":
-                    e.preventDefault();
-                    toggleMute();
-                    break;
                 case "f": case "F":
                     uiWrapper.querySelector("#wp-fs").click();
                     break;
@@ -728,17 +734,8 @@
                     uiWrapper.querySelector("#wp-rotate").click();
                     break;
             }
-            if (e.code === "Space" && e.key !== " ") {
-                e.preventDefault();
-                togglePlayPause();
-                return;
-            }
-            if (e.code === "KeyM" && e.key !== "m" && e.key !== "M") {
-                e.preventDefault();
-                toggleMute();
-            }
         };
-        on(window, "keydown", handleKeyDown, { capture: true });
+        on(document, "keydown", handleKeyDown);
 
         const cleanup = () => {
             try { overlayController.abort(); } catch (_) {}
