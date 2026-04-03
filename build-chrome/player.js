@@ -115,6 +115,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const errorUrlBox    = document.getElementById("error-url-container");
     const errorUrlEl     = document.getElementById("error-url");
     const errorCopyBtn   = document.getElementById("error-copy-url");
+    const DEMUXER_PARSE_TOKEN = "pipelinestatus::demuxer_error_could_not_parse";
 
     function showError(msg, type, url) {
         errorMsgEl.textContent  = msg;
@@ -127,6 +128,21 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
         errorBox.style.display = "flex";
         bufferEl.classList.remove("is-buffering");
+    }
+
+    function mapPlaybackErrorMessage(message, fallback) {
+        const raw = String(message || "").trim();
+        if (!raw) return fallback;
+        if (raw.toLowerCase().includes(DEMUXER_PARSE_TOKEN)) {
+            return "The stream could not be parsed. It may be malformed, unsupported, or returning invalid media segments.";
+        }
+        return raw;
+    }
+
+    function mapPlaybackErrorType(message, fallback) {
+        const raw = String(message || "").toLowerCase();
+        if (raw.includes(DEMUXER_PARSE_TOKEN)) return "Parse Error";
+        return fallback;
     }
 
     errorCopyBtn.addEventListener("click", () => {
@@ -147,8 +163,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     player.addEventListener("error", () => {
         const err = player.error;
         const typeMap = { 1: "Aborted", 2: "Network Error", 3: "Decode Error", 4: "Source Not Supported" };
-        const errType = err ? (typeMap[err.code] || "Unknown Error") : "Playback Error";
-        const errMsg  = err?.message || "The video could not be played.";
+        const errTypeBase = err ? (typeMap[err.code] || "Unknown Error") : "Playback Error";
+        const errMsg  = mapPlaybackErrorMessage(err?.message, "The video could not be played.");
+        const errType = mapPlaybackErrorType(err?.message, errTypeBase);
         showError(errMsg, errType, videoSrc);
     });
 
@@ -571,8 +588,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                                     return;
                                 }
                                 showError(
-                                    d.details || 'Fatal playback error',
-                                    typeMap[d.type] || "Stream Error",
+                                    mapPlaybackErrorMessage(d.details, 'Fatal playback error'),
+                                    mapPlaybackErrorType(d.details, typeMap[d.type] || "Stream Error"),
                                     src
                                 );
                                 currentHls.destroy();
@@ -613,8 +630,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                     currentDash.on(dashjs.MediaPlayer.events.ERROR, (e) => {
                         if (e.error) {
                             showError(
-                                e.error.message || 'Stream playback failed',
-                                "DASH Error",
+                                mapPlaybackErrorMessage(e.error.message, 'Stream playback failed'),
+                                mapPlaybackErrorType(e.error.message, "DASH Error"),
                                 src
                             );
                         }
