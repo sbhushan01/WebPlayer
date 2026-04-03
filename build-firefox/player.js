@@ -116,6 +116,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const errorUrlEl     = document.getElementById("error-url");
     const errorCopyBtn   = document.getElementById("error-copy-url");
     const DEMUXER_PARSE_TOKEN = "pipelinestatus::demuxer_error_could_not_parse";
+    const DEMUXER_PARSE_TOKEN_LOWER = DEMUXER_PARSE_TOKEN.toLowerCase();
 
     function showError(msg, type, url) {
         errorMsgEl.textContent  = msg;
@@ -133,7 +134,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     function mapPlaybackErrorMessage(message, fallback) {
         const raw = String(message || "").trim();
         if (!raw) return fallback;
-        if (raw.toLowerCase().includes(DEMUXER_PARSE_TOKEN.toLowerCase())) {
+        if (raw.toLowerCase().includes(DEMUXER_PARSE_TOKEN_LOWER)) {
             return "The stream could not be parsed. It may be malformed, unsupported, or returning invalid media segments.";
         }
         return raw;
@@ -141,7 +142,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     function mapPlaybackErrorType(message, fallback) {
         const raw = String(message || "").toLowerCase();
-        if (raw.includes(DEMUXER_PARSE_TOKEN.toLowerCase())) return "Parse Error";
+        if (raw.includes(DEMUXER_PARSE_TOKEN_LOWER)) return "Parse Error";
         return fallback;
     }
 
