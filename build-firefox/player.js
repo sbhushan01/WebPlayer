@@ -447,7 +447,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // ── Source attachment ─────────────────────────────────────────────────────
     function detectSourceKind(src) {
-        const lowerSrc = String(src || "").toLowerCase();
+        const rawSrc = String(src || "");
+        const lowerSrc = rawSrc.toLowerCase();
         let decodedSrc = lowerSrc;
         try { decodedSrc = decodeURIComponent(lowerSrc); } catch (_) {}
 
@@ -457,20 +458,20 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         // Extensionless manifest endpoints often advertise format/type in query
         try {
-            const u = new URL(src);
+            const u = new URL(decodedSrc, window.location.href);
             const path = (u.pathname || "").toLowerCase();
             if (path.endsWith(".m3u8")) return "hls";
             if (path.endsWith(".mpd")) return "dash";
 
-            const q = `${u.search || ""}&${u.hash || ""}`.toLowerCase();
+            const queryAndHash = `${u.search || ""}${u.hash || ""}`.toLowerCase();
             if (
-                /(?:^|[?&#])(?:format|type|mime|ext|container)=.*(?:mpegurl|hls|m3u8)/.test(q) ||
-                /(?:^|[?&#])(?:hls|playlist|master)=/.test(q)
+                /(?:^|[?&#])(?:format|type|mime|ext|container)=(?:[^&#]*(?:mpegurl|hls|m3u8))/.test(queryAndHash) ||
+                /(?:^|[?&#])(?:hls|playlist|master)=/.test(queryAndHash)
             ) return "hls";
 
             if (
-                /(?:^|[?&#])(?:format|type|mime|ext|container)=.*(?:dash|mpd|application\/dash\+xml)/.test(q) ||
-                /(?:^|[?&#])(?:manifest|dash)=/.test(q)
+                /(?:^|[?&#])(?:format|type|mime|ext|container)=(?:[^&#]*(?:dash|mpd|application\/dash\+xml))/.test(queryAndHash) ||
+                /(?:^|[?&#])(?:manifest|dash)=/.test(queryAndHash)
             ) return "dash";
         } catch (_) {}
 
@@ -484,12 +485,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         ccContainer.style.display = "none";
         audioContainer.style.display = "none";
 
+        const lowerSrc = String(src || "").toLowerCase();
         const sourceKind = detectSourceKind(src);
         const isStream = sourceKind !== "native";
 
         // Only set crossOrigin for direct/native playback; HLS.js and DASH.js
         // manage their own XHR pipeline — the attribute can interfere with MediaSource.
-        if (!isStream && !String(src).toLowerCase().startsWith("blob:") && !String(src).toLowerCase().startsWith("data:")) {
+        if (!isStream && !lowerSrc.startsWith("blob:") && !lowerSrc.startsWith("data:")) {
             player.crossOrigin = "anonymous";
         }
 
