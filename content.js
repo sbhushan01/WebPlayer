@@ -235,6 +235,7 @@
         el.textContent = '';
         try {
             const doc = new DOMParser().parseFromString(svgStr, 'image/svg+xml');
+            if (doc.querySelector("parsererror")) throw new Error("SVG parse error");
             el.appendChild(document.importNode(doc.documentElement, true));
         } catch (_) { el.innerHTML = svgStr; }
     };
@@ -302,17 +303,17 @@
             .wp-progress-row { display: flex; align-items: center; gap: 12px; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; font-weight: 500; color: #C4C7C5; }
             input[type=range] { 
                 -webkit-appearance: none; appearance: none; flex: 1; 
-                background: rgba(255,255,255,0.15); height: 8px; border-radius: 4px; 
-                cursor: pointer; outline: none; margin: 16px 0; 
+                background: rgba(255,255,255,0.15); height: 6px; border-radius: 3px; 
+                cursor: pointer; outline: none; margin: 12px 0; 
             }
             input[type=range]::-webkit-slider-thumb {
                 -webkit-appearance: none; appearance: none;
-                width: 20px; height: 20px; border-radius: 50%; background: #A8C7FA; 
+                width: 16px; height: 16px; border-radius: 50%; background: #A8C7FA; 
                 cursor: pointer; box-shadow: 0 0 8px rgba(0,0,0,0.4); transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             }
             input[type=range]:active::-webkit-slider-thumb { transform: scale(1.3); }
             input[type=range]::-moz-range-thumb {
-                width: 20px; height: 20px; border-radius: 50%; background: #A8C7FA; 
+                width: 16px; height: 16px; border-radius: 50%; background: #A8C7FA; 
                 cursor: pointer; border: none; box-shadow: 0 0 8px rgba(0,0,0,0.4); transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             }
             input[type=range]:active::-moz-range-thumb { transform: scale(1.3); }
@@ -326,7 +327,7 @@
                 .speed-pills { display: none !important; }
                 button { width: 44px; height: 44px; padding: 8px; flex-shrink: 0; }
                 .wp-progress-row { font-size: 13px; gap: 8px; }
-                input[type=range] { margin: 10px 0; height: 8px; }
+                input[type=range] { margin: 8px 0; height: 6px; }
             }
             .speed-pills { display: flex; align-items: center; gap: 6px; margin: 0 8px; }
             .speed-pill { font-size: 13px; font-weight: 600; padding: 0 12px; height: 32px; border-radius: 16px; background: rgba(255,255,255,0.06); color: #C4C7C5; transition: all 0.3s ease; border: 1px solid rgba(255,255,255,0.08); width: auto; display: flex; align-items: center; }
@@ -675,7 +676,13 @@
             if (isTextEntryTarget(e.target)) return;
             if (e.ctrlKey || e.metaKey || e.altKey) return;
             switch (e.key) {
-                case " ": case "k": case "K":
+                case " ": case "Spacebar":
+                    e.preventDefault();
+                    { const wasPaused = video.paused;
+                    wasPaused ? safePlay(video) : safePause(video);
+                    showFeedback(wasPaused ? "Playing" : "Paused"); }
+                    break;
+                case "k": case "K":
                     e.preventDefault();
                     { const wasPaused = video.paused;
                     wasPaused ? safePlay(video) : safePause(video);
@@ -706,6 +713,7 @@
                     showControls();
                     break;
                 case "m": case "M":
+                    e.preventDefault();
                     video.muted = !video.muted;
                     showFeedback(video.muted ? "Muted" : "Unmuted");
                     break;
@@ -716,8 +724,20 @@
                     uiWrapper.querySelector("#wp-rotate").click();
                     break;
             }
+            if (e.code === "Space" && e.key !== " ") {
+                e.preventDefault();
+                const wasPaused = video.paused;
+                wasPaused ? safePlay(video) : safePause(video);
+                showFeedback(wasPaused ? "Playing" : "Paused");
+                return;
+            }
+            if (e.code === "KeyM" && e.key !== "m" && e.key !== "M") {
+                e.preventDefault();
+                video.muted = !video.muted;
+                showFeedback(video.muted ? "Muted" : "Unmuted");
+            }
         };
-        on(document, "keydown", handleKeyDown);
+        on(window, "keydown", handleKeyDown, { capture: true });
 
         const cleanup = () => {
             try { overlayController.abort(); } catch (_) {}
@@ -817,11 +837,10 @@
                     }
                 }
             } catch (err) {
-                console.warn("[WebPlayer] Fullscreen request failed, retrying on video element:", err);
                 try {
                     const vidReq = video.requestFullscreen || video.webkitRequestFullscreen;
                     await vidReq?.call(video);
-                } catch (e) { console.warn("[WebPlayer] FS completely blocked", e); showFeedback("FS Blocked"); }
+                } catch (_) { showFeedback("FS Blocked"); }
             }
         });
 
