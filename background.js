@@ -144,14 +144,30 @@ function domainFilter(rawUrl) {
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "clear_pending_stream") {
+        const senderTabId = sender?.tab?.id;
         chrome.storage.local.get(['_wp_pending_stream', '_wp_pending_streams'], (res) => {
             const pendingItems = getPendingStreams(res);
             if (!pendingItems.length) return;
             if (!request.url) {
-                chrome.storage.local.remove(['_wp_pending_stream', '_wp_pending_streams']);
+                if (typeof senderTabId === 'number') {
+                    const filtered = pendingItems.filter(p => p.tabId !== senderTabId);
+                    chrome.storage.local.remove('_wp_pending_stream');
+                    if (filtered.length) {
+                        chrome.storage.local.set({ _wp_pending_streams: filtered });
+                    } else {
+                        chrome.storage.local.remove('_wp_pending_streams');
+                    }
+                } else {
+                    chrome.storage.local.remove(['_wp_pending_stream', '_wp_pending_streams']);
+                }
                 return;
             }
-            const filtered = pendingItems.filter(p => p.url !== request.url);
+            const filtered = pendingItems.filter((p) => {
+                const sameUrl = p.url === request.url;
+                const sameTab = typeof senderTabId === 'number' ? p.tabId === senderTabId : true;
+                const removeThisItem = sameUrl && sameTab;
+                return !removeThisItem;
+            });
             chrome.storage.local.remove('_wp_pending_stream');
             if (filtered.length) {
                 chrome.storage.local.set({ _wp_pending_streams: filtered });
@@ -243,8 +259,9 @@ const recentlyInterceptedTabs = new Set();
 
 chrome.webRequest.onHeadersReceived.addListener(
     (details) => {
-        if (details.tabId >= 0 && (details.url.includes('.m3u8') || details.url.includes('.mpd'))) {
-            if (details.url.includes('.ts') || details.url.includes('.m4s') || /seg\d+/i.test(details.url)) return;
+        const lowerUrl = (details.url || "").toLowerCase();
+        if (details.tabId >= 0 && (lowerUrl.includes('.m3u8') || lowerUrl.includes('.mpd'))) {
+            if (lowerUrl.includes('.ts') || lowerUrl.includes('.m4s') || /seg\d+/i.test(lowerUrl)) return;
 
             if (recentlyInterceptedTabs.has(details.tabId)) return;
             
