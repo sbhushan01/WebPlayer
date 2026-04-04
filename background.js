@@ -147,7 +147,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const senderTabId = sender?.tab?.id;
         chrome.storage.local.get(['_wp_pending_stream', '_wp_pending_streams'], (res) => {
             const pendingItems = getPendingStreams(res);
-            if (!pendingItems.length) return;
+            if (!pendingItems.length) {
+                sendResponse({ ok: true });
+                return;
+            }
             if (!request.url) {
                 if (typeof senderTabId === 'number') {
                     const filtered = pendingItems.filter(p => p.tabId !== senderTabId);
@@ -160,6 +163,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 } else {
                     chrome.storage.local.remove(['_wp_pending_stream', '_wp_pending_streams']);
                 }
+                sendResponse({ ok: true });
                 return;
             }
             const filtered = pendingItems.filter((p) => {
@@ -174,8 +178,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             } else {
                 chrome.storage.local.remove('_wp_pending_streams');
             }
+            sendResponse({ ok: true });
         });
-        return;
+        return true;
     }
 
     if (request.action === "open_player" && request.videoSrc) {
@@ -226,6 +231,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             () => {
                 if (chrome.runtime.lastError) {
                     console.error("[WebPlayer] Failed to add DNR rules:", chrome.runtime.lastError.message);
+                    sendResponse({ ok: false, error: chrome.runtime.lastError.message });
                     return;
                 }
 
@@ -241,17 +247,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                         if (chrome.runtime.lastError || !tab) {
                             console.error("[WebPlayer] Failed to open tab:", chrome.runtime.lastError?.message);
                             chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [ruleId, broadRuleId] });
+                            sendResponse({ ok: false, error: chrome.runtime.lastError?.message || "Failed to open player tab" });
                             return;
                         }
                         // Store both rule IDs for cleanup when the tab closes
                         chrome.storage.session.set({ [tab.id.toString()]: [ruleId, broadRuleId] });
+                        sendResponse({ ok: true, tabId: tab.id });
                     });
                 } catch (err) {
                     console.error("[WebPlayer] Exception while creating tab:", err);
                     chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [ruleId, broadRuleId] });
+                    sendResponse({ ok: false, error: err?.message || String(err) });
                 }
             }
         );
+        return true;
     }
 });
 
