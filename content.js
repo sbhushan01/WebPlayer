@@ -355,15 +355,28 @@
                 background: rgba(255,255,255,0.15); height: 6px; border-radius: 3px; 
                 cursor: pointer; outline: none; margin: 12px 0; 
             }
+            #wp-progress {
+                height: 5px;
+                margin: 6px 0;
+                border-radius: 4px;
+            }
             input[type=range]::-webkit-slider-thumb {
                 -webkit-appearance: none; appearance: none;
                 width: 16px; height: 16px; border-radius: 50%; background: #A8C7FA; 
                 cursor: pointer; box-shadow: 0 0 8px rgba(0,0,0,0.4); transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             }
+            #wp-progress::-webkit-slider-thumb {
+                width: 14px;
+                height: 14px;
+            }
             input[type=range]:active::-webkit-slider-thumb { transform: scale(1.3); }
             input[type=range]::-moz-range-thumb {
                 width: 16px; height: 16px; border-radius: 50%; background: #A8C7FA; 
                 cursor: pointer; border: none; box-shadow: 0 0 8px rgba(0,0,0,0.4); transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            #wp-progress::-moz-range-thumb {
+                width: 14px;
+                height: 14px;
             }
             input[type=range]:active::-moz-range-thumb { transform: scale(1.3); }
             .wp-center-row { display: flex; justify-content: center; align-items: center; gap: 16px; margin-top: 4px; flex-wrap: wrap; }
@@ -377,6 +390,7 @@
                 button { width: 44px; height: 44px; padding: 8px; flex-shrink: 0; }
                 .wp-progress-row { font-size: 13px; gap: 8px; }
                 input[type=range] { margin: 8px 0; height: 6px; }
+                #wp-progress { margin: 6px 0; height: 5px; }
             }
             .speed-pills { display: flex; align-items: center; gap: 6px; margin: 0 8px; }
             .speed-pill { font-size: 13px; font-weight: 600; padding: 0 12px; height: 32px; border-radius: 16px; background: rgba(255,255,255,0.06); color: #C4C7C5; transition: all 0.3s ease; border: 1px solid rgba(255,255,255,0.08); width: auto; display: flex; align-items: center; }
