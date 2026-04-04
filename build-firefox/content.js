@@ -315,10 +315,20 @@
         video.parentElement.appendChild(shadowHost);
 
         const syncOverlay = () => {
-            shadowHost.style.left   = `${video.offsetLeft}px`;
-            shadowHost.style.top    = `${video.offsetTop}px`;
-            shadowHost.style.width  = `${video.offsetWidth}px`;
-            shadowHost.style.height = `${video.offsetHeight}px`;
+            const parent = video.parentElement;
+            if (!parent) return;
+            const vr = video.getBoundingClientRect();
+            const pr = parent.getBoundingClientRect();
+
+            const parentScaleX = parent.offsetWidth  > 0 ? (pr.width  / parent.offsetWidth)  : 1;
+            const parentScaleY = parent.offsetHeight > 0 ? (pr.height / parent.offsetHeight) : 1;
+            const sx = parentScaleX || 1;
+            const sy = parentScaleY || 1;
+
+            shadowHost.style.left   = `${(vr.left - pr.left) / sx}px`;
+            shadowHost.style.top    = `${(vr.top - pr.top) / sy}px`;
+            shadowHost.style.width  = `${vr.width / sx}px`;
+            shadowHost.style.height = `${vr.height / sy}px`;
         };
         syncOverlay();
         const ro = new ResizeObserver(syncOverlay);
