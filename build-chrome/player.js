@@ -118,7 +118,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     const errorUrlEl     = document.getElementById("error-url");
     const errorCopyBtn   = document.getElementById("error-copy-url");
     const DEMUXER_PARSE_ERROR_TOKEN = "pipelinestatus::demuxer_error_could_not_parse";
+    const DEMUXER_OPEN_CONTEXT_ERROR_TOKEN = "pipelinestatus::demuxer_error_could_not_open";
+    const DEMUXER_OPEN_CONTEXT_ERROR_MESSAGE_TOKEN = "ffmpegdemuxer: open context failed";
     const DEMUXER_PARSE_ERROR_TOKEN_LOWER = DEMUXER_PARSE_ERROR_TOKEN.toLowerCase();
+    const DEMUXER_OPEN_CONTEXT_ERROR_TOKEN_LOWER = DEMUXER_OPEN_CONTEXT_ERROR_TOKEN.toLowerCase();
+    const DEMUXER_OPEN_CONTEXT_ERROR_MESSAGE_TOKEN_LOWER = DEMUXER_OPEN_CONTEXT_ERROR_MESSAGE_TOKEN.toLowerCase();
 
     function showError(msg, type, url) {
         errorMsgEl.textContent  = msg;
@@ -141,6 +145,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     function mapPlaybackErrorMessage(message, fallback) {
         const normalized = normalizePlaybackErrorMessage(message);
         if (!normalized) return fallback;
+        if (
+            normalized.rawLower.includes(DEMUXER_OPEN_CONTEXT_ERROR_TOKEN_LOWER) ||
+            normalized.rawLower.includes(DEMUXER_OPEN_CONTEXT_ERROR_MESSAGE_TOKEN_LOWER)
+        ) {
+            return "The stream could not be opened. The media URL may be inaccessible, blocked, expired, or unsupported.";
+        }
         if (normalized.rawLower.includes(DEMUXER_PARSE_ERROR_TOKEN_LOWER)) {
             return "The stream could not be parsed. It may be malformed, unsupported, or returning invalid media segments.";
         }
@@ -150,6 +160,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     function mapPlaybackErrorType(message, fallback) {
         const normalized = normalizePlaybackErrorMessage(message);
         if (!normalized) return fallback;
+        if (
+            normalized.rawLower.includes(DEMUXER_OPEN_CONTEXT_ERROR_TOKEN_LOWER) ||
+            normalized.rawLower.includes(DEMUXER_OPEN_CONTEXT_ERROR_MESSAGE_TOKEN_LOWER)
+        ) return "Open Error";
         if (normalized.rawLower.includes(DEMUXER_PARSE_ERROR_TOKEN_LOWER)) return "Parse Error";
         return fallback;
     }
