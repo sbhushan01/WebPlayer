@@ -282,7 +282,7 @@ const isPlayerRequest = (details) => {
         const documentUrl = new URL(details.documentUrl);
         if (!documentUrl.href.startsWith(chrome.runtime.getURL("player.html"))) return false;
         const playerTabId = Number(documentUrl.searchParams.get("wpTabId"));
-        return Number.isInteger(playerTabId) && playerTabId > 0 && playerTabId === details.tabId;
+        return Number.isInteger(playerTabId) && playerTabId >= 0 && playerTabId === details.tabId;
     } catch (_) {
         return false;
     }
