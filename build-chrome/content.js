@@ -732,6 +732,7 @@
         const speedCloseBtn = uiWrapper.querySelector("#wp-speed-close-btn");
         const speedPillsEl = uiWrapper.querySelector("#wp-speed-pills");
         const speedMicroRange = uiWrapper.querySelector("#wp-speed-micro-range");
+        const speedMicroLabel = uiWrapper.querySelector("#wp-speed-micro-label");
         qBtn.setAttribute("aria-haspopup", "listbox");
         qBtn.setAttribute("aria-expanded", "false");
         qBtn.setAttribute("aria-controls", "wp-quality-dropdown");
@@ -801,8 +802,16 @@
                 speedToggleBtn.setAttribute("aria-expanded", "false");
             }
         });
-        [qDropdown, ccDropdown, audioDropdown].forEach(dropdown => {
+        [qDropdown, ccDropdown, audioDropdown, speedPopover].forEach(dropdown => {
             on(dropdown, "keydown", (e) => {
+                if (dropdown === speedPopover) {
+                    if (e.key === "Escape") {
+                        e.preventDefault();
+                        speedPopover.classList.remove("active");
+                        speedToggleBtn.setAttribute("aria-expanded", "false");
+                    }
+                    return;
+                }
                 const options = Array.from(dropdown.querySelectorAll(".quality-option"));
                 if (!options.length) return;
                 const idx = options.indexOf(document.activeElement);
@@ -829,13 +838,6 @@
                     speedToggleBtn.setAttribute("aria-expanded", "false");
                 }
             });
-        });
-        on(speedPopover, "keydown", (e) => {
-            if (e.key === "Escape") {
-                e.preventDefault();
-                speedPopover.classList.remove("active");
-                speedToggleBtn.setAttribute("aria-expanded", "false");
-            }
         });
 
         // ==========================================================
@@ -924,8 +926,6 @@
             uiWrapper.querySelectorAll(".speed-pill").forEach(p =>
                 p.classList.toggle("active", parseFloat(p.dataset.speed) === rate)
             );
-            const speedMicroRange = uiWrapper.querySelector("#wp-speed-micro-range");
-            const speedMicroLabel = uiWrapper.querySelector("#wp-speed-micro-label");
             if (speedMicroRange) speedMicroRange.value = rate.toFixed(2);
             if (speedMicroLabel) speedMicroLabel.textContent = `${rate.toFixed(2)}×`;
         };
