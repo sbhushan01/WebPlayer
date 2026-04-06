@@ -865,24 +865,52 @@ document.addEventListener("DOMContentLoaded", async () => {
         progPlayed.style.width = `${pendingSeekPct * 100}%`;
         progThumb.style.left   = `${pendingSeekPct * 100}%`;
         timeCur.textContent = formatTime(pendingSeekPct * player.duration);
+        
+        // Show and update seek thumbnail during drag
+        const time = pendingSeekPct * player.duration;
+        const leftPx = Math.max(85, Math.min(rect.width - 85, pendingSeekPct * rect.width));
+        seekPreview.style.left = `${leftPx}px`;
+        seekPreviewTime.textContent = formatTime(time);
+        seekPreview.classList.add("visible");
+        
+        clearTimeout(seekPreviewTimer);
+        seekPreviewTimer = setTimeout(() => {
+            if (Math.abs(time - lastPreviewTime) < 0.5) return;
+            lastPreviewTime = time;
+            const onSeeked = () => {
+                try { seekCtx.drawImage(player, 0, 0, 320, 180); } catch (_) {}
+                player.removeEventListener("seeked", onSeeked);
+            };
+            if (player.readyState >= 2) {
+                player.addEventListener("seeked", onSeeked, { once: true });
+                player.currentTime = time;
+            }
+        }, 150);
     };
 
     progWrapper.addEventListener("pointerdown", (e) => {
         e.preventDefault();
         e.stopPropagation();
         isDraggingProgress = true;
-        seekPreview.classList.remove("visible");
+        
+        window.__wasPlayingBeforeDrag = !player.paused;
+        if (window.__wasPlayingBeforeDrag) safePause();
+        
         progWrapper.classList.add("dragging");
-        // Capture pointer to prevent gesture zone from stealing events
         try { progWrapper.setPointerCapture(e.pointerId); } catch (_) {}
         updateProgressFromEvent(e);
         const onMove = (ev) => { ev.preventDefault(); updateProgressFromEvent(ev); };
         const onUp   = (ev) => {
             isDraggingProgress = false;
+            seekPreview.classList.remove("visible");
             progWrapper.classList.remove("dragging");
             try { progWrapper.releasePointerCapture(ev.pointerId); } catch (_) {}
+            
             if (isFinite(player.duration)) {
                 player.currentTime = pendingSeekPct * player.duration;
+                if (window.__wasPlayingBeforeDrag) {
+                    player.addEventListener("seeked", () => safePlay(), { once: true });
+                }
             }
             window.removeEventListener("pointermove", onMove);
             window.removeEventListener("pointerup",   onUp);
@@ -898,7 +926,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         e.preventDefault();
         e.stopPropagation();
         isDraggingProgress = true;
-        seekPreview.classList.remove("visible");
+        
+        window.__wasPlayingBeforeDrag = !player.paused;
+        if (window.__wasPlayingBeforeDrag) safePause();
+        
         progWrapper.classList.add("dragging");
         updateProgressFromEvent(e);
     }, { passive: false });
@@ -912,9 +943,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (!isDraggingProgress) return;
         e.preventDefault();
         isDraggingProgress = false;
+        seekPreview.classList.remove("visible");
         progWrapper.classList.remove("dragging");
         if (isFinite(player.duration)) {
             player.currentTime = pendingSeekPct * player.duration;
+            if (window.__wasPlayingBeforeDrag) {
+                player.addEventListener("seeked", () => safePlay(), { once: true });
+            }
         }
     }, { passive: false });
 
@@ -1053,10 +1088,16 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const fsEnabled = (document.fullscreenEnabled !== false) || !!document.webkitFullscreenEnabled;
                 if (!req || !fsEnabled) { showFeedback("Fullscreen unavailable"); return; }
                 await req.call(container);
-                // U5: Lock to landscape on fullscreen if video is rotated
-                if (rotationDeg % 180 !== 0) {
-                    try { await screen.orientation?.lock?.('landscape'); player.style.transform = 'none'; } catch (_) {}
-                }
+                // U5: Lock to landscape natively on mobile for horizontal videos
+                try {
+                    const isHorizontal = player.videoWidth >= player.videoHeight;
+                    if (isHorizontal || rotationDeg % 180 !== 0) {
+                        await screen.orientation?.lock?.('landscape');
+                    }
+                    if (rotationDeg % 180 !== 0) {
+                        player.style.transform = 'none';
+                    }
+                } catch (_) {}
             }
         } catch (err) {
             const msg = String(err?.message || "");
@@ -1511,7 +1552,13 @@ document.addEventListener("DOMContentLoaded", async () => {
                         wasPaused ? safePlay() : safePause();
                         showFeedback(wasPaused ? "Playing" : "Paused");
                     } else {
-                        resetIdle(); // single tap on touch shows UI without pausing
+                        if (container.classList.contains("idle")) {
+                            resetIdle(); // show and start timer
+                        } else {
+                            container.classList.add("idle"); // hide immediately
+                            clearTimeout(idleTimer);
+                            closeAllPopovers();
+                        }
                     }
                     lastTapTime = 0;
                 }, 250); // 250ms distinct click delay

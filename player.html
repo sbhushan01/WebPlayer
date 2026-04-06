@@ -2,7 +2,7 @@
 <html lang="en" data-theme="blue">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#1A1D24">
     <meta name="description" content="WebPlayer — feature-rich video player for HLS, DASH, and native streams.">
     <title>WebPlayer</title>
@@ -397,6 +397,9 @@
             #shortcuts-modal { width: 100%; max-width: 100%; border-left: none; }
             .shortcuts-grid { grid-template-columns: 1fr; gap: 8px; }
             .shortcuts-grid kbd { display: inline-block; width: fit-content; }
+            /* Detach popovers from scrollable row to prevent clipping */
+            .popover-anchor, .quality-container { position: static; }
+            .quality-dropdown, .speed-popover, .theme-popover { right: 0; bottom: calc(100% + 16px); }
         }
 
         /* ── Error box ───────────────────────────────────────────────────────── */
