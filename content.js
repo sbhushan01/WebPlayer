@@ -991,7 +991,9 @@
 
         let startX = 0, startY = 0, lastY = 0, swipeDir = null;
         let isPointerDown = false, lastTapTime = 0;
-        let currentBrightness = 1.0;
+        let currentBrightness = 1.0, originalSpeed = 1.0;
+        let longPressTimer = null;
+        let isLongPressActive = false;
 
         on(gestureZone, "contextmenu", e => e.preventDefault());
 
@@ -1009,6 +1011,16 @@
             isPointerDown = true;
             try { gestureZone.setPointerCapture(e.pointerId); } catch (_) {}
             startX = e.clientX; startY = e.clientY; lastY = e.clientY; swipeDir = null;
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+            if (!isLongPressActive) originalSpeed = video.playbackRate;
+            longPressTimer = setTimeout(() => {
+                if (!isPointerDown) return;
+                longPressTimer = null;
+                isLongPressActive = true;
+                setPlaybackRate(2.0);
+                showFeedback("2× Speed");
+            }, 500);
         });
 
         on(gestureZone, "pointermove", e => {
@@ -1023,6 +1035,10 @@
             if (!swipeDir) {
                 if (Math.abs(diffX) > 20)      { swipeDir = "horizontal"; }
                 else if (Math.abs(diffY) > 20) { swipeDir = "vertical"; }
+                if (swipeDir) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                }
             }
 
             if (swipeDir === "vertical") {
@@ -1045,11 +1061,22 @@
         const handleGestureEnd = e => {
             if (!isPointerDown) return;
             isPointerDown = false;
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
             try {
                 if (gestureZone.hasPointerCapture(e.pointerId)) {
                     gestureZone.releasePointerCapture(e.pointerId);
                 }
             } catch (_) {}
+
+            if (isLongPressActive) {
+                isLongPressActive = false;
+                setPlaybackRate(originalSpeed);
+                showFeedback(`${originalSpeed}× Speed`);
+                // Prevent immediate tap/double-tap actions from the same release after long-press.
+                lastTapTime = 0;
+                return;
+            }
 
             const diffX = e.clientX - startX;
             if (swipeDir === "horizontal" && Math.abs(diffX) > 40) {
