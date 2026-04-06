@@ -1028,7 +1028,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         resetIdle();
     });
 
-    speedCloseBtn.addEventListener("click", () => { speedPopover.classList.remove("active"); speedToggleBtn.setAttribute("aria-expanded", "false"); resetIdle(); });
+    speedCloseBtn.addEventListener("click", () => {
+        speedPopover.classList.remove("active");
+        speedToggleBtn.setAttribute("aria-expanded", "false");
+        resetIdle();
+    });
 
     // ── Fullscreen ────────────────────────────────────────────────────────────
     const toggleFS = async (triggerEvent) => {
