@@ -786,6 +786,7 @@
         on(speedCloseBtn, "click", () => {
             speedPopover.classList.remove("active");
             speedToggleBtn.setAttribute("aria-expanded", "false");
+            speedToggleBtn.focus();
         });
         on(uiWrapper, "click", e => {
             if (!e.target.closest("#wp-quality-container") && !e.target.closest("#wp-quality-btn")) {
@@ -813,6 +814,32 @@
                         speedPopover.classList.remove("active");
                         speedToggleBtn.setAttribute("aria-expanded", "false");
                         speedToggleBtn.focus();
+                        return;
+                    }
+
+                    const speedPills = Array.from(speedPillsEl.querySelectorAll(".speed-pill"));
+                    const activeEl = document.activeElement;
+                    const pillIndex = speedPills.indexOf(activeEl);
+
+                    if (pillIndex !== -1) {
+                        if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+                            e.preventDefault();
+                            if (pillIndex < speedPills.length - 1) speedPills[pillIndex + 1].focus();
+                            else speedMicroRange.focus();
+                        } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+                            e.preventDefault();
+                            if (pillIndex > 0) speedPills[pillIndex - 1].focus();
+                        } else if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            activeEl.click();
+                        }
+                        return;
+                    }
+
+                    if (activeEl === speedMicroRange && (e.key === "ArrowUp" || e.key === "ArrowLeft")) {
+                        e.preventDefault();
+                        const activePill = speedPillsEl.querySelector(".speed-pill.active") || speedPills[speedPills.length - 1];
+                        activePill?.focus();
                     }
                     return;
                 }
