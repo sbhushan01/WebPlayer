@@ -246,8 +246,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 const params = new URLSearchParams({
                     src:     videoUrl,
                     title:   request.pageTitle || "Video",
-                    pageUrl: request.pageUrl   || "",
-                    playerOriginTabId: String(sender?.tab?.id ?? "")
+                    pageUrl: request.pageUrl   || ""
                 });
                 const playerUrl = chrome.runtime.getURL(`player.html?${params}`);
 
@@ -280,9 +279,7 @@ const isPlayerRequest = (details) => {
         if (details.tabId < 0) return false;
         if (!details.documentUrl) return false;
         const documentUrl = new URL(details.documentUrl);
-        if (!documentUrl.href.startsWith(chrome.runtime.getURL("player.html"))) return false;
-        const playerTabId = Number(documentUrl.searchParams.get("playerOriginTabId"));
-        return Number.isInteger(playerTabId) && playerTabId >= 0 && playerTabId === details.tabId;
+        return documentUrl.href.startsWith(chrome.runtime.getURL("player.html"));
     } catch (_) {
         return false;
     }
