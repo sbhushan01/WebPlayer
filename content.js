@@ -1134,13 +1134,13 @@
             }
         });
 
-        setPlaybackRate(video.playbackRate || 1);
         speedPillsEl.querySelectorAll(".speed-pill").forEach(pill => {
             on(pill, "click", () => setPlaybackRate(parseFloat(pill.dataset.speed)));
         });
         on(speedMicroRange, "input", (e) => {
             setPlaybackRate(parseFloat(e.target.value));
         });
+        setPlaybackRate(video.playbackRate || 1);
 
         let rot = 0;
         on(uiWrapper.querySelector("#wp-rotate"), "click", () => {
