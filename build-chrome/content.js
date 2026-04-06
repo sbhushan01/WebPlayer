@@ -742,7 +742,7 @@
         audioBtn.setAttribute("aria-haspopup", "listbox");
         audioBtn.setAttribute("aria-expanded", "false");
         audioBtn.setAttribute("aria-controls", "wp-audio-dropdown");
-        speedToggleBtn.setAttribute("aria-haspopup", "dialog");
+        speedToggleBtn.setAttribute("aria-haspopup", "true");
         speedToggleBtn.setAttribute("aria-expanded", "false");
         speedToggleBtn.setAttribute("aria-controls", "wp-speed-popover");
         
@@ -778,6 +778,8 @@
             if (!wasActive) {
                 speedPopover.classList.add("active");
                 speedToggleBtn.setAttribute("aria-expanded", "true");
+            } else {
+                speedToggleBtn.setAttribute("aria-expanded", "false");
             }
         });
         on(speedCloseBtn, "click", () => {
@@ -809,6 +811,7 @@
                         e.preventDefault();
                         speedPopover.classList.remove("active");
                         speedToggleBtn.setAttribute("aria-expanded", "false");
+                        speedToggleBtn.focus();
                     }
                     return;
                 }
