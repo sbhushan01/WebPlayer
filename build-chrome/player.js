@@ -1245,7 +1245,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const closeShortcuts = () => {
         if (!shortcutsModal.classList.contains("active")) return;
         shortcutsModal.classList.remove("active");
-        if (shortcutsLastFocusedEl && typeof shortcutsLastFocusedEl.focus === "function" && shortcutsLastFocusedEl.isConnected) {
+        if (shortcutsLastFocusedEl && shortcutsLastFocusedEl.isConnected) {
             shortcutsLastFocusedEl.focus();
         } else {
             shortcutsBtn.focus();

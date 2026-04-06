@@ -357,7 +357,12 @@
         }
         @media (prefers-reduced-motion: reduce) {
             html { scroll-behavior: auto; }
-            *, *::before, *::after {
+            .bg-orb,
+            .hero,
+            .feature-card,
+            .mode-card,
+            .hero-cta,
+            .footer a {
                 animation: none !important;
                 transition: none !important;
             }
