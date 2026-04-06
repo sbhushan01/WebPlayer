@@ -36,6 +36,7 @@
     const interceptedUrls = new Set();
     const interceptedUrlTimers = new Map();
     const INTERCEPT_DEDUPE_TTL_MS = 5 * 60 * 1000;
+    let latestInterceptedUrl = null;
 
     function markIntercepted(url) {
         if (!url) return;
@@ -81,6 +82,7 @@
         try {
             chrome.runtime.onMessage.addListener((msg) => {
                 if (msg.action === "stream_detected" && msg.url && !interceptedUrls.has(msg.url)) {
+                    latestInterceptedUrl = msg.url;
                     markIntercepted(msg.url);
                     
                     const prompt = document.createElement("div");
@@ -467,6 +469,7 @@
                     <button class="speed-pill" data-speed="1.5">1.5×</button>
                     <button class="speed-pill" data-speed="2">2×</button>
                 </div>
+                <button id="wp-standalone" title="Launch Standalone Player"></button>
                 <button id="wp-pip"></button>
                 <button id="wp-fs"></button>
                 <button id="wp-rotate"></button>
@@ -477,6 +480,7 @@
         setSVG(uiWrapper.querySelector("#wp-skip-back"), IC.skipBack);
         setSVG(uiWrapper.querySelector("#wp-play"), IC.play);
         setSVG(uiWrapper.querySelector("#wp-skip-fwd"), IC.skipFwd);
+        setSVG(uiWrapper.querySelector("#wp-standalone"), IC.launch);
         setSVG(uiWrapper.querySelector("#wp-pip"), IC.pip);
         setSVG(uiWrapper.querySelector("#wp-fs"), IC.fullscreen);
         setSVG(uiWrapper.querySelector("#wp-rotate"), IC.rotate);
@@ -987,6 +991,28 @@
 
         on(uiWrapper.querySelector("#wp-skip-back"), "click", () => { video.currentTime = Math.max(0, video.currentTime - 10); showFeedback("−10s"); });
         on(uiWrapper.querySelector("#wp-skip-fwd"), "click",  () => { safeSeekForward(video, 10); showFeedback("+10s"); });
+        on(uiWrapper.querySelector("#wp-standalone"), "click", () => {
+            let src = video.src;
+            if (!src || src.startsWith("blob:")) {
+                const sourceEl = video.querySelector("source");
+                if (sourceEl) src = sourceEl.src;
+                else if (latestInterceptedUrl) src = latestInterceptedUrl;
+            }
+            if (!src || src.startsWith("blob:")) {
+                showFeedback("Cannot extract URL", "center");
+                return;
+            }
+            try {
+                chrome.runtime.sendMessage({
+                    action: "open_player",
+                    videoSrc: src,
+                    pageTitle: document.title,
+                    pageUrl: window.location.href
+                });
+            } catch (err) {
+                showFeedback("Error launching");
+            }
+        });
         on(uiWrapper.querySelector("#wp-pip"), "click", async () => {
             document.pictureInPictureElement ? await document.exitPictureInPicture() : await video.requestPictureInPicture();
         });
