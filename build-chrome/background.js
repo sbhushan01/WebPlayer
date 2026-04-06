@@ -202,6 +202,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             { header: "Content-Security-Policy",          operation: "remove"                               }
         ];
 
+        const playerTabId = sender?.tab?.id;
+        if (!Number.isInteger(playerTabId) || playerTabId < 0) {
+            sendResponse({ ok: false, error: "Invalid sender tab context" });
+            return true;
+        }
+
         chrome.declarativeNetRequest.updateSessionRules(
             {
                 addRules: [
@@ -212,6 +218,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                         action: { type: "modifyHeaders", responseHeaders: corsHeaders },
                         condition: {
                             urlFilter: urlFilter,
+                            tabIds: [playerTabId],
                             resourceTypes: ["media", "xmlhttprequest", "other"]
                         }
                     },
@@ -222,6 +229,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                         action: { type: "modifyHeaders", responseHeaders: corsHeaders },
                         condition: {
                             regexFilter: "\\.(ts|m4s|m3u8|mpd|mp4|aac|vtt|srt|key)(\\?.*)?$",
+                            tabIds: [playerTabId],
                             resourceTypes: ["media", "xmlhttprequest", "other"],
                             isUrlFilterCaseSensitive: false
                         }
@@ -266,11 +274,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 const recentlyInterceptedTabs = new Set();
+const isPlayerRequest = (details) => {
+    try {
+        if (details.tabId < 0) return false;
+        if (!details.documentUrl) return false;
+        const documentUrl = new URL(details.documentUrl);
+        return documentUrl.href.startsWith(chrome.runtime.getURL("player.html"));
+    } catch (_err) {
+        return false;
+    }
+};
 
 chrome.webRequest.onHeadersReceived.addListener(
     (details) => {
         const lowerUrl = (details.url || "").toLowerCase();
         if (details.tabId >= 0 && (lowerUrl.includes('.m3u8') || lowerUrl.includes('.mpd'))) {
+            if (isPlayerRequest(details)) return;
             if (lowerUrl.includes('.ts') || lowerUrl.includes('.m4s') || /seg\d+/i.test(lowerUrl)) return;
 
             if (recentlyInterceptedTabs.has(details.tabId)) return;

@@ -17,9 +17,8 @@ function packExtension(browserType) {
     const bm = JSON.parse(JSON.stringify(manifest));
     
     if (browserType === 'firefox') {
-        // Firefox requires BOTH service_worker AND scripts in MV3 OR just scripts
+        // Deliberately use scripts for broad AMO compatibility/lint cleanliness in Firefox packaging
         bm.background = {
-            "service_worker": "background.js",
             "scripts": ["background.js"]
         };
     } else {
