@@ -1222,9 +1222,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // ── Shortcuts side panel (#9) ─────────────────────────────────────────────
     let shortcutsLastFocusedEl = null;
+    const isInAriaHiddenTree = (el) => {
+        let node = el;
+        while (node && node !== document.body) {
+            if (node.getAttribute?.("aria-hidden") === "true") return true;
+            node = node.parentElement;
+        }
+        return false;
+    };
     const getShortcutsFocusableEls = () =>
         Array.from(shortcutsModal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'))
-            .filter(el => !el.hasAttribute("disabled") && !el.getAttribute("aria-hidden"));
+            .filter(el => !el.hasAttribute("disabled") && !isInAriaHiddenTree(el));
 
     const openShortcuts = () => {
         if (shortcutsModal.classList.contains("active")) return;
