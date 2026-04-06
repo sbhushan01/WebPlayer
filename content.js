@@ -37,6 +37,7 @@
     const interceptedUrlTimers = new Map();
     const INTERCEPT_DEDUPE_TTL_MS = 5 * 60 * 1000;
     let latestInterceptedUrl = null;
+    let findVideosTimer = null;
 
     function markIntercepted(url) {
         if (!url) return;
@@ -1115,6 +1116,13 @@
     }
 
     findVideos();
+    const queueFindVideos = () => {
+        if (findVideosTimer) return;
+        findVideosTimer = setTimeout(() => {
+            findVideosTimer = null;
+            findVideos();
+        }, 300);
+    };
     // B3: Also watch for src attribute mutations (SPA reuse of video elements)
     const observer = new MutationObserver((mutations) => {
         let needsScan = false;
@@ -1122,7 +1130,7 @@
             if (m.type === 'childList') { needsScan = true; break; }
             if (m.type === 'attributes' && m.target.tagName === 'VIDEO') { needsScan = true; break; }
         }
-        if (needsScan) setTimeout(findVideos, 300);
+        if (needsScan) queueFindVideos();
     });
     const obsConfig = { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] };
 
