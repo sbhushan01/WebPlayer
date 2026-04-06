@@ -1121,6 +1121,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     player.addEventListener("play",  resetIdle);
     player.addEventListener("pause", () => container.classList.remove("idle"));
 
+    // Keep mobile viewport height in sync with dynamic browser UI (address/tool bars)
+    const syncViewportHeight = () => {
+        const vh = (window.visualViewport?.height || window.innerHeight) * 0.01;
+        document.documentElement.style.setProperty("--wp-vh", `${vh}px`);
+    };
+    syncViewportHeight();
+    window.addEventListener("resize", syncViewportHeight, { passive: true });
+    window.visualViewport?.addEventListener("resize", syncViewportHeight, { passive: true });
+
     // ── Popovers ──────────────────────────────────────────────────────────────
     const closeAllPopovers = () => {
         eqPopover.classList.remove("active");
