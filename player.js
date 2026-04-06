@@ -1336,7 +1336,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (_yRatio < 0.12 || _yRatio > 0.88) return;
         const diffX = e.clientX - startX;
         const diffY = e.clientY - startY;
-        if (!swipeDir && (Math.abs(diffX) > 6 || Math.abs(diffY) > 6)) clearTimeout(longPressTimer);
         if (!swipeDir) {
             if (Math.abs(diffX) > 20)      { swipeDir = "horizontal"; clearTimeout(longPressTimer); }
             else if (Math.abs(diffY) > 20) { swipeDir = "vertical";   clearTimeout(longPressTimer); }
