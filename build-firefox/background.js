@@ -280,7 +280,7 @@ const isPlayerRequest = (details) => {
         if (!details.documentUrl) return false;
         const documentUrl = new URL(details.documentUrl);
         return documentUrl.href.startsWith(chrome.runtime.getURL("player.html"));
-    } catch (_) {
+    } catch (_err) {
         return false;
     }
 };
