@@ -991,7 +991,9 @@
 
         let startX = 0, startY = 0, lastY = 0, swipeDir = null;
         let isPointerDown = false, lastTapTime = 0;
-        let currentBrightness = 1.0;
+        let currentBrightness = 1.0, originalSpeed = 1.0;
+        let longPressTimer;
+        let isLongPressActive = false;
 
         on(gestureZone, "contextmenu", e => e.preventDefault());
 
@@ -1009,6 +1011,12 @@
             isPointerDown = true;
             try { gestureZone.setPointerCapture(e.pointerId); } catch (_) {}
             startX = e.clientX; startY = e.clientY; lastY = e.clientY; swipeDir = null;
+            originalSpeed = video.playbackRate;
+            longPressTimer = setTimeout(() => {
+                isLongPressActive = true;
+                setPlaybackRate(2.0);
+                showFeedback("2× Speed");
+            }, 500);
         });
 
         on(gestureZone, "pointermove", e => {
@@ -1021,8 +1029,8 @@
             const diffY = e.clientY - startY;
 
             if (!swipeDir) {
-                if (Math.abs(diffX) > 20)      { swipeDir = "horizontal"; }
-                else if (Math.abs(diffY) > 20) { swipeDir = "vertical"; }
+                if (Math.abs(diffX) > 20)      { swipeDir = "horizontal"; clearTimeout(longPressTimer); }
+                else if (Math.abs(diffY) > 20) { swipeDir = "vertical"; clearTimeout(longPressTimer); }
             }
 
             if (swipeDir === "vertical") {
@@ -1045,11 +1053,20 @@
         const handleGestureEnd = e => {
             if (!isPointerDown) return;
             isPointerDown = false;
+            clearTimeout(longPressTimer);
             try {
                 if (gestureZone.hasPointerCapture(e.pointerId)) {
                     gestureZone.releasePointerCapture(e.pointerId);
                 }
             } catch (_) {}
+
+            if (isLongPressActive) {
+                isLongPressActive = false;
+                setPlaybackRate(originalSpeed);
+                showFeedback(`${originalSpeed}× Speed`);
+                lastTapTime = 0;
+                return;
+            }
 
             const diffX = e.clientX - startX;
             if (swipeDir === "horizontal" && Math.abs(diffX) > 40) {
