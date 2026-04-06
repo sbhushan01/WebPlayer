@@ -779,6 +779,7 @@
                 speedPopover.classList.add("active");
                 speedToggleBtn.setAttribute("aria-expanded", "true");
             } else {
+                speedPopover.classList.remove("active");
                 speedToggleBtn.setAttribute("aria-expanded", "false");
             }
         });
@@ -929,7 +930,7 @@
             uiWrapper.querySelectorAll(".speed-pill").forEach(p =>
                 p.classList.toggle("active", parseFloat(p.dataset.speed) === rate)
             );
-            if (speedMicroRange) speedMicroRange.value = rate.toFixed(2);
+            if (speedMicroRange) speedMicroRange.value = rate;
             if (speedMicroLabel) speedMicroLabel.textContent = `${rate.toFixed(2)}×`;
         };
 
