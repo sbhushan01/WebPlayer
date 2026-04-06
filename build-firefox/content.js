@@ -1011,10 +1011,12 @@
             isPointerDown = true;
             try { gestureZone.setPointerCapture(e.pointerId); } catch (_) {}
             startX = e.clientX; startY = e.clientY; lastY = e.clientY; swipeDir = null;
-            if (!isLongPressActive) originalSpeed = video.playbackRate;
             clearTimeout(longPressTimer);
+            longPressTimer = null;
+            if (!isLongPressActive) originalSpeed = video.playbackRate;
             longPressTimer = setTimeout(() => {
                 if (!isPointerDown) return;
+                longPressTimer = null;
                 isLongPressActive = true;
                 setPlaybackRate(2.0);
                 showFeedback("2× Speed");
@@ -1031,8 +1033,12 @@
             const diffY = e.clientY - startY;
 
             if (!swipeDir) {
-                if (Math.abs(diffX) > 20)      { swipeDir = "horizontal"; clearTimeout(longPressTimer); }
-                else if (Math.abs(diffY) > 20) { swipeDir = "vertical"; clearTimeout(longPressTimer); }
+                if (Math.abs(diffX) > 20)      { swipeDir = "horizontal"; }
+                else if (Math.abs(diffY) > 20) { swipeDir = "vertical"; }
+                if (swipeDir) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                }
             }
 
             if (swipeDir === "vertical") {
@@ -1067,6 +1073,7 @@
                 isLongPressActive = false;
                 setPlaybackRate(originalSpeed);
                 showFeedback(`${originalSpeed}× Speed`);
+                // Prevent immediate tap/double-tap actions from the same release after long-press.
                 lastTapTime = 0;
                 return;
             }
