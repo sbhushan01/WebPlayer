@@ -202,8 +202,9 @@
         .volume-container:hover .volume-slider { width: 90px; opacity: 1; margin-left: 8px; }
         @media (pointer: coarse) { .volume-container { display: none; } } /* Hide volume slider on mobile/touch, rely on physical OS buttons */
 
-        /* ── Speed pills ─────────────────────────────────────────────────────── */
-        .speed-pills { display: flex; align-items: center; gap: 6px; margin: 0 8px; }
+        /* ── Speed controls ──────────────────────────────────────────────────── */
+        .popover-anchor { position: relative; }
+        .speed-pills { display: flex; align-items: center; gap: 6px; margin: 0; flex-wrap: wrap; }
         .speed-pill {
             font-size: 0.85rem; font-weight: 600; padding: 0 16px; height: 36px; border-radius: 18px;
             background: rgba(255,255,255,0.06); color: var(--md-sys-color-on-surface-variant);
@@ -215,18 +216,14 @@
             border-color: transparent; box-shadow: 0 0 16px var(--glow-color); text-shadow: none;
         }
 
-        /* ── Speed micro-slider ──────────────────────────────────────────────── */
-        #speed-micro-slider {
-            position: absolute; bottom: calc(100% + 12px); left: 50%; transform: translateX(-50%);
-            background: var(--md-sys-color-surface-container); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
-            border: var(--glass-border); border-radius: 20px; padding: 16px 24px;
-            display: none; flex-direction: column; align-items: center; gap: 10px;
-            z-index: 55; box-shadow: var(--md-elevation-8); min-width: 260px;
-            transition: background 0.4s;
+        .speed-popover { width: min(340px, calc(100vw - 48px)); right: 0; gap: 16px; }
+        .speed-fine-tune {
+            display: flex; flex-direction: column; gap: 10px;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px; padding: 12px;
         }
-        #speed-micro-slider.open { display: flex; animation: slideUpScale 0.2s cubic-bezier(0.4,0,0.2,1); }
         #speed-micro-label {
-            font-size: 1.5rem; font-weight: 700; color: var(--md-sys-color-primary);
+            font-size: 1.15rem; font-weight: 700; color: var(--md-sys-color-primary);
             font-variant-numeric: tabular-nums;
         }
         #speed-micro-range {
@@ -355,16 +352,6 @@
         .shortcuts-grid span { font-size: 1rem; color: var(--md-sys-color-on-surface-variant); }
         .shortcuts-hint { margin-top: 32px; font-size: 0.9rem; color: var(--md-sys-color-on-surface-variant); text-align: center; background: rgba(255,255,255,0.05); padding: 12px; border-radius: 12px; }
 
-        /* ── Mobile Speed Cycle Chip ─────────────────────────────────────────── */
-        #speed-cycle-chip {
-            display: none; font-size: 0.85rem; font-weight: 700; padding: 0 14px; height: 36px;
-            border-radius: 18px; background: rgba(255,255,255,0.08); color: var(--md-sys-color-on-surface);
-            border: 1px solid rgba(255,255,255,0.12); transition: all 0.25s ease; width: auto;
-            font-variant-numeric: tabular-nums; min-width: 52px; text-align: center;
-        }
-        #speed-cycle-chip:hover { background: rgba(255,255,255,0.15); }
-        #speed-cycle-chip:active { transform: scale(0.92); }
-
         /* ── EQ Reset button hover ───────────────────────────────────────────── */
         #eq-reset-btn:hover { background: rgba(255,255,255,0.12) !important; }
 
@@ -375,8 +362,7 @@
             .controls-left, .controls-right { flex-wrap: nowrap; flex-shrink: 0; }
             .time-display { font-size: 0.8rem; white-space: nowrap; margin-left: 6px; }
             #shortcuts-btn { display: none; }
-            .speed-pills { display: none; }
-            #speed-cycle-chip { display: flex; align-items: center; justify-content: center; }
+            .speed-pills { justify-content: center; }
             .custom-controls { padding: 12px 14px; gap: 12px; border-radius: 20px; }
             .custom-controls-wrapper { bottom: max(16px, calc(8px + env(safe-area-inset-bottom))); width: 100%; padding: 0 10px; }
             button { width: 44px; height: 44px; flex-shrink: 0; margin: 0 2px; }
@@ -533,21 +519,28 @@
                         </div>
 
 
-                        <div style="position:relative;">
-                            <div class="speed-pills" id="speed-pills">
-                                <button class="speed-pill" data-speed="0.25">0.25×</button>
-                                <button class="speed-pill" data-speed="0.5">0.5×</button>
-                                <button class="speed-pill active" data-speed="1">1×</button>
-                                <button class="speed-pill" data-speed="1.5">1.5×</button>
-                                <button class="speed-pill" data-speed="2">2×</button>
-                            </div>
-                            <div id="speed-micro-slider">
-                                <span id="speed-micro-label">1.00×</span>
-                                <input type="range" id="speed-micro-range" min="0.25" max="3" step="0.05" value="1">
+                        <div class="popover-anchor">
+                            <button id="speed-toggle-btn" title="Playback speed" aria-label="Playback speed">
+                                <span class="material-symbols-rounded">slow_motion_video</span>
+                            </button>
+                            <div class="popover-card speed-popover" id="speed-popover">
+                                <div class="popover-header">
+                                    <span>Playback Speed</span>
+                                    <button class="popover-close" id="speed-close-btn" title="Close playback speed" aria-label="Close playback speed"><span class="material-symbols-rounded">close</span></button>
+                                </div>
+                                <div class="speed-pills" id="speed-pills">
+                                    <button class="speed-pill" data-speed="0.25">0.25×</button>
+                                    <button class="speed-pill" data-speed="0.5">0.5×</button>
+                                    <button class="speed-pill active" data-speed="1">1×</button>
+                                    <button class="speed-pill" data-speed="1.5">1.5×</button>
+                                    <button class="speed-pill" data-speed="2">2×</button>
+                                </div>
+                                <div class="speed-fine-tune">
+                                    <span id="speed-micro-label">1.00×</span>
+                                    <input type="range" id="speed-micro-range" min="0.25" max="3" step="0.05" value="1">
+                                </div>
                             </div>
                         </div>
-
-                        <button id="speed-cycle-chip" title="Playback speed" aria-label="Playback speed">1×</button>
 
                         <button id="theme-toggle-btn" title="Themes" aria-label="Themes">
                             <span class="material-symbols-rounded">palette</span>
