@@ -23,6 +23,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     const pipBtn          = document.getElementById("pip-btn");
     const rotateBtn       = document.getElementById("rotate-btn");
     const speedPillsEl    = document.getElementById("speed-pills");
+    const speedToggleBtn  = document.getElementById("speed-toggle-btn");
+    const speedPopover    = document.getElementById("speed-popover");
+    const speedCloseBtn   = document.getElementById("speed-close-btn");
     const qualityContainer= document.getElementById("quality-container");
     const qualityBtn      = document.getElementById("quality-btn");
     const qualityDropdown = document.getElementById("quality-dropdown");
@@ -921,7 +924,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     }, { passive: false });
 
     // ── Playback rate helper — keeps speed pills in sync ──────────────────────
-    const speedMicroSlider = document.getElementById("speed-micro-slider");
     const speedMicroRange  = document.getElementById("speed-micro-range");
     const speedMicroLabel  = document.getElementById("speed-micro-label");
     qualityBtn.setAttribute("aria-haspopup", "listbox");
@@ -933,6 +935,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     audioBtn.setAttribute("aria-haspopup", "listbox");
     audioBtn.setAttribute("aria-expanded", "false");
     audioBtn.setAttribute("aria-controls", "audio-dropdown");
+    speedToggleBtn.setAttribute("aria-haspopup", "dialog");
+    speedToggleBtn.setAttribute("aria-expanded", "false");
+    speedToggleBtn.setAttribute("aria-controls", "speed-popover");
     muteBtn.setAttribute("aria-pressed", player.muted ? "true" : "false");
     rotateBtn.setAttribute("aria-pressed", "false");
     pipBtn.setAttribute("aria-pressed", "false");
@@ -943,12 +948,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         speedPillsEl.querySelectorAll(".speed-pill").forEach(p =>
             p.classList.toggle("active", parseFloat(p.dataset.speed) === rate)
         );
-        // Sync micro-slider if open
         speedMicroRange.value = rate;
         speedMicroLabel.textContent = `${rate.toFixed(2)}×`;
-        // Sync mobile speed cycle chip
-        const chip = document.getElementById("speed-cycle-chip");
-        if (chip) chip.textContent = `${parseFloat(rate.toFixed(2))}×`;
     };
 
     // ── Play / Pause ──────────────────────────────────────────────────────────
@@ -1003,73 +1004,31 @@ document.addEventListener("DOMContentLoaded", async () => {
         muteBtn.setAttribute("aria-pressed", player.muted ? "true" : "false");
     });
 
-    // ── Speed pills (#7: long-press for micro-slider) ──────────────────────────
-    let speedLongPressTimer = null;
+    // ── Speed controls ─────────────────────────────────────────────────────────
     speedPillsEl.querySelectorAll(".speed-pill").forEach(pill => {
-        pill.addEventListener("pointerdown", (e) => {
-            speedLongPressTimer = setTimeout(() => {
-                speedLongPressTimer = null; // mark as consumed
-                const rate = parseFloat(pill.dataset.speed);
-                speedMicroRange.value = rate;
-                speedMicroLabel.textContent = `${rate.toFixed(2)}×`;
-                speedMicroSlider.classList.add("open");
-                resetIdle();
-            }, 500);
-        });
-        pill.addEventListener("pointerup", () => {
-            if (speedLongPressTimer !== null) {
-                clearTimeout(speedLongPressTimer);
-                speedLongPressTimer = null;
-                setPlaybackRate(parseFloat(pill.dataset.speed));
-            }
-        });
-        pill.addEventListener("pointercancel", () => {
-            if (speedLongPressTimer !== null) {
-                clearTimeout(speedLongPressTimer);
-                speedLongPressTimer = null;
-            }
+        pill.addEventListener("click", () => {
+            setPlaybackRate(parseFloat(pill.dataset.speed));
+            resetIdle();
         });
     });
 
     speedMicroRange.addEventListener("input", (e) => {
-        const rate = parseFloat(e.target.value);
-        player.playbackRate = rate;
-        speedMicroLabel.textContent = `${rate.toFixed(2)}×`;
-        speedPillsEl.querySelectorAll(".speed-pill").forEach(p =>
-            p.classList.toggle("active", parseFloat(p.dataset.speed) === rate)
-        );
+        setPlaybackRate(parseFloat(e.target.value));
         resetIdle();
     });
 
-    // Close micro-slider on outside click
-    document.addEventListener("click", (e) => {
-        if (!e.target.closest("#speed-micro-slider") && !e.target.closest(".speed-pill")) {
-            speedMicroSlider.classList.remove("open");
+    speedToggleBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const wasActive = speedPopover.classList.contains("active");
+        closeAllPopovers();
+        if (!wasActive) {
+            speedPopover.classList.add("active");
+            speedToggleBtn.setAttribute("aria-expanded", "true");
         }
+        resetIdle();
     });
 
-    // ── Mobile speed cycle chip (M1) ──────────────────────────────────────────
-    const speedCycleChip = document.getElementById("speed-cycle-chip");
-    const SPEED_CYCLE_STEPS = [0.5, 1, 1.25, 1.5, 2];
-    if (speedCycleChip) {
-        speedCycleChip.addEventListener("click", () => {
-            const current = player.playbackRate;
-            // Find next step in cycle
-            let nextIdx = 0;
-            for (let i = 0; i < SPEED_CYCLE_STEPS.length; i++) {
-                if (Math.abs(SPEED_CYCLE_STEPS[i] - current) < 0.01) {
-                    nextIdx = (i + 1) % SPEED_CYCLE_STEPS.length;
-                    break;
-                }
-                // If current speed isn't in the cycle, snap to nearest next
-                if (SPEED_CYCLE_STEPS[i] > current) { nextIdx = i; break; }
-                nextIdx = 0; // wrap around
-            }
-            const newRate = SPEED_CYCLE_STEPS[nextIdx];
-            setPlaybackRate(newRate);
-            showFeedback(`${newRate}× Speed`);
-        });
-    }
+    speedCloseBtn.addEventListener("click", () => { speedPopover.classList.remove("active"); speedToggleBtn.setAttribute("aria-expanded", "false"); resetIdle(); });
 
     // ── Fullscreen ────────────────────────────────────────────────────────────
     const toggleFS = async (triggerEvent) => {
@@ -1146,7 +1105,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 !eqPopover.classList.contains("active") &&
                 !themePopover.classList.contains("active") &&
                 !shortcutsModal.classList.contains("active") &&
-                !speedMicroSlider.classList.contains("open")) {
+                !speedPopover.classList.contains("active")) {
                 container.classList.add("idle");
             }
         }, 3000);
@@ -1161,13 +1120,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     const closeAllPopovers = () => {
         eqPopover.classList.remove("active");
         themePopover.classList.remove("active");
+        speedPopover.classList.remove("active");
         qualityDropdown.classList.remove("open");
         ccDropdown.classList.remove("open");
         audioDropdown.classList.remove("open");
-        speedMicroSlider.classList.remove("open");
         qualityBtn.setAttribute("aria-expanded", "false");
         ccBtn.setAttribute("aria-expanded", "false");
         audioBtn.setAttribute("aria-expanded", "false");
+        speedToggleBtn.setAttribute("aria-expanded", "false");
     };
 
     themeToggleBtn.addEventListener("click", (e) => {
@@ -1192,6 +1152,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.addEventListener("click", (e) => {
         if (!e.target.closest("#theme-popover") && !e.target.closest("#theme-toggle-btn")) themePopover.classList.remove("active");
         if (!e.target.closest("#eq-popover") && !e.target.closest("#eq-toggle-btn")) eqPopover.classList.remove("active");
+        if (!e.target.closest("#speed-popover") && !e.target.closest("#speed-toggle-btn")) {
+            speedPopover.classList.remove("active");
+            speedToggleBtn.setAttribute("aria-expanded", "false");
+        }
         if (!e.target.closest(".quality-dropdown") && !e.target.closest("#quality-btn")) {
             qualityDropdown.classList.remove("open");
             qualityBtn.setAttribute("aria-expanded", "false");
