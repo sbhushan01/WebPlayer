@@ -938,6 +938,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     speedToggleBtn.setAttribute("aria-haspopup", "dialog");
     speedToggleBtn.setAttribute("aria-expanded", "false");
     speedToggleBtn.setAttribute("aria-controls", "speed-popover");
+    themeToggleBtn.setAttribute("aria-haspopup", "dialog");
+    themeToggleBtn.setAttribute("aria-expanded", "false");
+    themeToggleBtn.setAttribute("aria-controls", "theme-popover");
+    eqToggleBtn.setAttribute("aria-haspopup", "dialog");
+    eqToggleBtn.setAttribute("aria-expanded", "false");
+    eqToggleBtn.setAttribute("aria-controls", "eq-popover");
     muteBtn.setAttribute("aria-pressed", player.muted ? "true" : "false");
     rotateBtn.setAttribute("aria-pressed", "false");
     pipBtn.setAttribute("aria-pressed", "false");
@@ -1128,6 +1134,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         qualityDropdown.classList.remove("open");
         ccDropdown.classList.remove("open");
         audioDropdown.classList.remove("open");
+        themeToggleBtn.setAttribute("aria-expanded", "false");
+        eqToggleBtn.setAttribute("aria-expanded", "false");
         qualityBtn.setAttribute("aria-expanded", "false");
         ccBtn.setAttribute("aria-expanded", "false");
         audioBtn.setAttribute("aria-expanded", "false");
@@ -1138,19 +1146,33 @@ document.addEventListener("DOMContentLoaded", async () => {
         e.stopPropagation();
         const wasActive = themePopover.classList.contains("active");
         closeAllPopovers();
-        if (!wasActive) themePopover.classList.add("active");
+        if (!wasActive) {
+            themePopover.classList.add("active");
+            themeToggleBtn.setAttribute("aria-expanded", "true");
+        }
         resetIdle();
     });
-    themeCloseBtn.addEventListener("click", () => { themePopover.classList.remove("active"); resetIdle(); });
+    themeCloseBtn.addEventListener("click", () => {
+        themePopover.classList.remove("active");
+        themeToggleBtn.setAttribute("aria-expanded", "false");
+        resetIdle();
+    });
 
     eqToggleBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         const wasActive = eqPopover.classList.contains("active");
         closeAllPopovers();
-        if (!wasActive) eqPopover.classList.add("active");
+        if (!wasActive) {
+            eqPopover.classList.add("active");
+            eqToggleBtn.setAttribute("aria-expanded", "true");
+        }
         resetIdle();
     });
-    eqCloseBtn.addEventListener("click", () => { eqPopover.classList.remove("active"); resetIdle(); });
+    eqCloseBtn.addEventListener("click", () => {
+        eqPopover.classList.remove("active");
+        eqToggleBtn.setAttribute("aria-expanded", "false");
+        resetIdle();
+    });
 
     // Close on outside click
     document.addEventListener("click", (e) => {
@@ -1199,9 +1221,56 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     // ── Shortcuts side panel (#9) ─────────────────────────────────────────────
-    const toggleShortcuts = () => shortcutsModal.classList.toggle("active");
-    shortcutsBtn.addEventListener("click",   toggleShortcuts);
-    shortcutsClose.addEventListener("click", () => shortcutsModal.classList.remove("active"));
+    let shortcutsLastFocusedEl = null;
+    const getShortcutsFocusableEls = () =>
+        Array.from(shortcutsModal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'))
+            .filter(el => !el.hasAttribute("disabled") && !el.getAttribute("aria-hidden"));
+
+    const openShortcuts = () => {
+        if (shortcutsModal.classList.contains("active")) return;
+        shortcutsLastFocusedEl = document.activeElement;
+        shortcutsModal.classList.add("active");
+        requestAnimationFrame(() => {
+            (getShortcutsFocusableEls()[0] || shortcutsClose).focus();
+        });
+    };
+    const closeShortcuts = () => {
+        if (!shortcutsModal.classList.contains("active")) return;
+        shortcutsModal.classList.remove("active");
+        if (shortcutsLastFocusedEl && typeof shortcutsLastFocusedEl.focus === "function" && shortcutsLastFocusedEl.isConnected) {
+            shortcutsLastFocusedEl.focus();
+        } else {
+            shortcutsBtn.focus();
+        }
+    };
+    const toggleShortcuts = () => {
+        if (shortcutsModal.classList.contains("active")) closeShortcuts();
+        else openShortcuts();
+    };
+
+    shortcutsBtn.addEventListener("click", toggleShortcuts);
+    shortcutsClose.addEventListener("click", closeShortcuts);
+    shortcutsModal.addEventListener("keydown", (e) => {
+        if (!shortcutsModal.classList.contains("active")) return;
+        if (e.key === "Escape") {
+            e.preventDefault();
+            closeShortcuts();
+            return;
+        }
+        if (e.key !== "Tab") return;
+        const focusable = getShortcutsFocusableEls();
+        if (!focusable.length) return;
+        const currentIndex = focusable.indexOf(document.activeElement);
+        if (e.shiftKey) {
+            if (currentIndex <= 0) {
+                e.preventDefault();
+                focusable[focusable.length - 1].focus();
+            }
+        } else if (currentIndex === -1 || currentIndex === focusable.length - 1) {
+            e.preventDefault();
+            focusable[0].focus();
+        }
+    });
 
     // ── Feedback overlay (#4: directional positioning) ─────────────────────────
     let feedbackTimer;
@@ -1285,7 +1354,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 break;
             case "Escape":
                 // Close any open modals/popovers
-                if (shortcutsModal.classList.contains("active")) { shortcutsModal.classList.remove("active"); }
+                if (shortcutsModal.classList.contains("active")) { closeShortcuts(); }
                 else { closeAllPopovers(); }
                 break;
             default:
