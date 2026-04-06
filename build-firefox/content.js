@@ -480,18 +480,6 @@
                     </button>
                     <div class="quality-dropdown" id="wp-quality-dropdown"></div>
                 </div>
-                <div class="quality-container" id="wp-cc-container" style="display:none;">
-                    <button id="wp-cc-btn" title="Subtitles/CC">
-                        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M19 4H5c-1.11 0-2 .9-2 2v12c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 7H9.5v-.5h-2v3h2V13H11v1.5c0 .28-.22.5-.5.5h-3c-.28 0-.5-.22-.5-.5v-4c0-.28.22-.5.5-.5h3c.28 0 .5.22.5.5V11zm7 0h-1.5v-.5h-2v3h2V13H18v1.5c0 .28-.22.5-.5.5h-3c-.28 0-.5-.22-.5-.5v-4c0-.28.22-.5.5-.5h3c.28 0 .5.22.5.5V11z"/></svg>
-                    </button>
-                    <div class="quality-dropdown" id="wp-cc-dropdown"></div>
-                </div>
-                <div class="quality-container" id="wp-audio-container" style="display:none;">
-                    <button id="wp-audio-btn" title="Audio Track">
-                        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M12 3v9.28c-.47-.17-.97-.28-1.5-.28C8.01 12 6 14.01 6 16.5S8.01 21 10.5 21c2.31 0 4.2-1.75 4.45-4H15V6h4V3h-7z"/></svg>
-                    </button>
-                    <div class="quality-dropdown" id="wp-audio-dropdown"></div>
-                </div>
                 <div class="popover-anchor">
                     <button id="wp-speed-toggle-btn" title="Playback speed" aria-label="Playback speed">
                         <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M8 5v14l11-7L8 5zm-3 0h2v14H5V5zm16.5 7l-2.5-2.5V11h-2v2h2v1.5L21.5 12z"/></svg>
@@ -544,13 +532,7 @@
         const ytPlayer = document.querySelector(".html5-video-player") || video.closest('.html5-video-player');
         const qDropdown = uiWrapper.querySelector("#wp-quality-dropdown");
         const qContainer = uiWrapper.querySelector("#wp-quality-container");
-        const ccDropdown = uiWrapper.querySelector("#wp-cc-dropdown");
-        const ccContainer = uiWrapper.querySelector("#wp-cc-container");
-        const audioDropdown = uiWrapper.querySelector("#wp-audio-dropdown");
-        const audioContainer = uiWrapper.querySelector("#wp-audio-container");
         qDropdown.setAttribute("role", "listbox");
-        ccDropdown.setAttribute("role", "listbox");
-        audioDropdown.setAttribute("role", "listbox");
 
         if (ytPlayer && ytPlayer.getAvailableQualityLevels) {
             const updateQualityMenu = () => {
@@ -586,147 +568,7 @@
             });
         }
 
-        const updateCCMenu = () => {
-            let tracks = [];
-            if (video.textTracks && video.textTracks.length > 0) {
-                tracks = Array.from(video.textTracks).map((t, i) => ({ label: t.label || t.language || `Track ${i + 1}`, value: i, type: "native" }));
-            } else if (ytPlayer && ytPlayer.getOption) {
-                const ytTracks = ytPlayer.getOption('captions', 'tracklist') || [];
-                tracks = ytTracks.map((t, i) => ({ label: t.displayName || t.languageCode, value: i, type: "yt", ytTrack: t }));
-            }
-
-            if (tracks.length > 0) {
-                ccContainer.style.display = "flex";
-                ccDropdown.textContent = "";
-                ccDropdown.insertAdjacentHTML('beforeend', `<button class="quality-option active" data-value="-1" role="option" aria-selected="true" tabindex="0">Off</button>`);
-                tracks.forEach((t) => {
-                    const btn = document.createElement("button");
-                    btn.className = "quality-option";
-                    btn.textContent = t.label;
-                    btn.dataset.value = t.value;
-                    btn.dataset.type = t.type;
-                    if (t.type === "yt") btn.dataset.yt = JSON.stringify(t.ytTrack);
-                    btn.setAttribute("role", "option");
-                    btn.setAttribute("aria-selected", "false");
-                    btn.tabIndex = 0;
-                    ccDropdown.appendChild(btn);
-                });
-            } else {
-                ccContainer.style.display = "none";
-            }
-        };
-        updateCCMenu();
-        on(video, "loadedmetadata", updateCCMenu);
-        on(video, "canplay", updateCCMenu);
-        
-        on(ccDropdown, "click", e => {
-            const btn = e.target.closest(".quality-option");
-            if (!btn) return;
-            ccDropdown.querySelectorAll(".quality-option").forEach(b => {
-                b.classList.remove("active");
-                b.setAttribute("aria-selected", "false");
-            });
-            btn.classList.add("active");
-            btn.setAttribute("aria-selected", "true");
-            
-            const val = parseInt(btn.dataset.value);
-            const type = btn.dataset.type;
-            
-            if (val === -1) {
-                Array.from(video.textTracks || []).forEach(t => t.mode = "disabled");
-                if (ytPlayer && ytPlayer.unloadModule) ytPlayer.unloadModule("captions");
-            } else {
-                if (type === "native") {
-                    Array.from(video.textTracks || []).forEach((t, i) => t.mode = i === val ? "showing" : "disabled");
-                } else if (type === "yt") {
-                    if (ytPlayer && ytPlayer.setOption) {
-                        try {
-                            const tObj = JSON.parse(btn.dataset.yt);
-                            ytPlayer.loadModule("captions");
-                            ytPlayer.setOption("captions", "track", tObj);
-                        } catch(err) {}
-                    }
-                }
-            }
-            ccDropdown.classList.remove("open");
-        });
-
-        const updateAudioMenu = () => {
-            let tracks = [];
-            if (video.audioTracks && video.audioTracks.length > 0) {
-                tracks = Array.from(video.audioTracks).map((t, i) => ({ label: t.label || t.language || `Audio ${i + 1}`, value: i, type: "native" }));
-            } else if (ytPlayer && ytPlayer.getOption) {
-                // YouTube exposes audio tracks under different modules, often tracklist -> displayName
-                const ytTracks = ytPlayer.getOption('audioTrack', 'tracklist') || [];
-                if (ytTracks.length > 0) {
-                    tracks = ytTracks.map((t, i) => ({ label: t.displayName || t.id || `Audio ${i + 1}`, value: i, type: "yt", ytTrack: t }));
-                }
-            }
-
-            if (tracks.length > 0) {
-                audioContainer.style.display = "flex";
-                audioDropdown.textContent = "";
-                let activeIndex = 0;
-                if (tracks[0].type === "native") {
-                    activeIndex = Array.from(video.audioTracks).findIndex(t => t.enabled);
-                    if (activeIndex === -1) activeIndex = 0;
-                } else if (tracks[0].type === "yt") {
-                    const activeT = ytPlayer.getOption('audioTrack', 'track');
-                    if (activeT) {
-                        const found = tracks.findIndex(t => t.ytTrack.id === activeT.id);
-                        if (found !== -1) activeIndex = found;
-                    }
-                }
-                
-                tracks.forEach((t, i) => {
-                    const btn = document.createElement("button");
-                    btn.className = "quality-option" + (i === activeIndex ? " active" : "");
-                    btn.textContent = t.label;
-                    btn.dataset.value = t.value;
-                    btn.dataset.type = t.type;
-                    if (t.type === "yt") btn.dataset.yt = JSON.stringify(t.ytTrack);
-                    btn.setAttribute("role", "option");
-                    btn.setAttribute("aria-selected", i === activeIndex ? "true" : "false");
-                    btn.tabIndex = 0;
-                    audioDropdown.appendChild(btn);
-                });
-            } else {
-                audioContainer.style.display = "none";
-            }
-        };
-        updateAudioMenu();
-        on(video, "loadedmetadata", updateAudioMenu);
-        on(video, "canplay", updateAudioMenu);
-
-        on(audioDropdown, "click", e => {
-            const btn = e.target.closest(".quality-option");
-            if (!btn) return;
-            audioDropdown.querySelectorAll(".quality-option").forEach(b => {
-                b.classList.remove("active");
-                b.setAttribute("aria-selected", "false");
-            });
-            btn.classList.add("active");
-            btn.setAttribute("aria-selected", "true");
-            
-            const val = parseInt(btn.dataset.value);
-            const type = btn.dataset.type;
-            
-            if (type === "native") {
-                Array.from(video.audioTracks || []).forEach((t, i) => t.enabled = (i === val));
-            } else if (type === "yt") {
-                if (ytPlayer && ytPlayer.setOption) {
-                    try {
-                        const tObj = JSON.parse(btn.dataset.yt);
-                        ytPlayer.setOption("audioTrack", "track", tObj);
-                    } catch(err) {}
-                }
-            }
-            audioDropdown.classList.remove("open");
-        });
-
         const qBtn = uiWrapper.querySelector("#wp-quality-btn");
-        const ccBtn = uiWrapper.querySelector("#wp-cc-btn");
-        const audioBtn = uiWrapper.querySelector("#wp-audio-btn");
         const speedToggleBtn = uiWrapper.querySelector("#wp-speed-toggle-btn");
         const speedPopover = uiWrapper.querySelector("#wp-speed-popover");
         const speedCloseBtn = uiWrapper.querySelector("#wp-speed-close-btn");
@@ -736,20 +578,12 @@
         qBtn.setAttribute("aria-haspopup", "listbox");
         qBtn.setAttribute("aria-expanded", "false");
         qBtn.setAttribute("aria-controls", "wp-quality-dropdown");
-        ccBtn.setAttribute("aria-haspopup", "listbox");
-        ccBtn.setAttribute("aria-expanded", "false");
-        ccBtn.setAttribute("aria-controls", "wp-cc-dropdown");
-        audioBtn.setAttribute("aria-haspopup", "listbox");
-        audioBtn.setAttribute("aria-expanded", "false");
-        audioBtn.setAttribute("aria-controls", "wp-audio-dropdown");
         speedToggleBtn.setAttribute("aria-haspopup", "true");
         speedToggleBtn.setAttribute("aria-expanded", "false");
         speedToggleBtn.setAttribute("aria-controls", "wp-speed-popover");
         
         const closeAllDropdownsExcept = (keepOpenBtn) => {
             if (keepOpenBtn !== qBtn) { qDropdown.classList.remove("open"); qBtn.setAttribute("aria-expanded", "false"); }
-            if (keepOpenBtn !== ccBtn) { ccDropdown.classList.remove("open"); ccBtn.setAttribute("aria-expanded", "false"); }
-            if (keepOpenBtn !== audioBtn) { audioDropdown.classList.remove("open"); audioBtn.setAttribute("aria-expanded", "false"); }
             if (keepOpenBtn !== speedToggleBtn) { speedPopover.classList.remove("active"); speedToggleBtn.setAttribute("aria-expanded", "false"); }
         };
 
@@ -758,18 +592,6 @@
             closeAllDropdownsExcept(qBtn);
             qDropdown.classList.toggle("open");
             qBtn.setAttribute("aria-expanded", qDropdown.classList.contains("open") ? "true" : "false");
-        });
-        on(ccBtn, "click", e => {
-            e.stopPropagation();
-            closeAllDropdownsExcept(ccBtn);
-            ccDropdown.classList.toggle("open");
-            ccBtn.setAttribute("aria-expanded", ccDropdown.classList.contains("open") ? "true" : "false");
-        });
-        on(audioBtn, "click", e => {
-            e.stopPropagation();
-            closeAllDropdownsExcept(audioBtn);
-            audioDropdown.classList.toggle("open");
-            audioBtn.setAttribute("aria-expanded", audioDropdown.classList.contains("open") ? "true" : "false");
         });
         on(speedToggleBtn, "click", e => {
             e.stopPropagation();
@@ -793,20 +615,12 @@
                 qDropdown.classList.remove("open");
                 qBtn.setAttribute("aria-expanded", "false");
             }
-            if (!e.target.closest("#wp-cc-container") && !e.target.closest("#wp-cc-btn")) {
-                ccDropdown.classList.remove("open");
-                ccBtn.setAttribute("aria-expanded", "false");
-            }
-            if (!e.target.closest("#wp-audio-container") && !e.target.closest("#wp-audio-btn")) {
-                audioDropdown.classList.remove("open");
-                audioBtn.setAttribute("aria-expanded", "false");
-            }
             if (!e.target.closest("#wp-speed-popover") && !e.target.closest("#wp-speed-toggle-btn")) {
                 speedPopover.classList.remove("active");
                 speedToggleBtn.setAttribute("aria-expanded", "false");
             }
         });
-        [qDropdown, ccDropdown, audioDropdown, speedPopover].forEach(dropdown => {
+        [qDropdown, speedPopover].forEach(dropdown => {
             on(dropdown, "keydown", (e) => {
                 if (dropdown === speedPopover) {
                     if (e.key === "Escape") {
@@ -860,12 +674,8 @@
                 } else if (e.key === "Escape") {
                     e.preventDefault();
                     qDropdown.classList.remove("open");
-                    ccDropdown.classList.remove("open");
-                    audioDropdown.classList.remove("open");
                     speedPopover.classList.remove("active");
                     qBtn.setAttribute("aria-expanded", "false");
-                    ccBtn.setAttribute("aria-expanded", "false");
-                    audioBtn.setAttribute("aria-expanded", "false");
                     speedToggleBtn.setAttribute("aria-expanded", "false");
                 }
             });
@@ -882,8 +692,6 @@
                 if (
                     !video.paused &&
                     !qDropdown.classList.contains("open") &&
-                    !ccDropdown.classList.contains("open") &&
-                    !audioDropdown.classList.contains("open") &&
                     !speedPopover.classList.contains("active")
                 ) {
                     uiWrapper.classList.remove("wp-controls-visible");
