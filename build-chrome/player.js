@@ -556,12 +556,11 @@ document.addEventListener("DOMContentLoaded", async () => {
                         currentHls.loadSource(src);
                         currentHls.attachMedia(player);
                         currentHls.on(Hls.Events.MANIFEST_PARSED, (e, d) => {
-                            // Explicitly start playback — autoplay attr alone is
-                            // unreliable with MediaSource-based streaming
                             safePlay();
-                            if (d.levels && d.levels.length > 1) {
+                            // U14: Always show quality if it's a stream, even if 1 level, but prefer levels > 1
+                            if (d.levels && d.levels.length > 0) {
                                 const levels = [
-                                    { label: "Auto", value: -1 },
+                                    ...(d.levels.length > 1 ? [{ label: "Auto", value: -1 }] : []),
                                     ...d.levels.map((l, i) => ({ label: `${l.height}p`, value: i }))
                                 ];
                                 populateQuality(levels);
@@ -575,21 +574,18 @@ document.addEventListener("DOMContentLoaded", async () => {
                                 populateAudio(tracks, currentHls.audioTrack);
                             }
                         });
-                        currentHls.on(Hls.Events.AUDIO_TRACK_LOADED, (e, d) => {
-                            // Can be used to sync active track
-                        });
+                        currentHls.on(Hls.Events.AUDIO_TRACK_LOADED, (e, d) => {});
                         currentHls.on(Hls.Events.AUDIO_TRACKS_UPDATED, (e, d) => {
                             if (d.audioTracks && d.audioTracks.length > 0) {
                                 const tracks = d.audioTracks.map((t, i) => ({ label: t.name || t.lang || `Audio ${i+1}`, value: i, id: t.id }));
                                 populateAudio(tracks, currentHls.audioTrack);
                             }
                         });
-                        // B5: Rebuild quality dropdown when levels change (live streams)
                         currentHls.on(Hls.Events.LEVEL_SWITCHING, () => {
                             const lvls = currentHls.levels;
-                            if (lvls && lvls.length > 1) {
+                            if (lvls && lvls.length > 0) {
                                 const levels = [
-                                    { label: "Auto", value: -1 },
+                                    ...(lvls.length > 1 ? [{ label: "Auto", value: -1 }] : []),
                                     ...lvls.map((l, i) => ({ label: `${l.height}p`, value: i }))
                                 ];
                                 populateQuality(levels);
@@ -653,12 +649,11 @@ document.addEventListener("DOMContentLoaded", async () => {
                     currentDash.initialize(player, src, true);
                     
                     currentDash.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, () => {
-                        // Explicitly start playback for reliable autoplay
                         safePlay();
                         const bitrates = currentDash.getBitrateInfoListFor("video");
-                        if (bitrates && bitrates.length > 1) {
+                        if (bitrates && bitrates.length > 0) {
                             const levels = [
-                                { label: "Auto", value: -1 },
+                                ...(bitrates.length > 1 ? [{ label: "Auto", value: -1 }] : []),
                                 ...bitrates.map((b, i) => ({ label: `${b.height}p`, value: i }))
                             ];
                             populateQuality(levels);

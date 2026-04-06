@@ -541,7 +541,21 @@
                 if (levels && levels.length > 0) {
                     qContainer.style.display = "flex";
                     qDropdown.textContent = "";
+                    
+                    // Add Auto if not present or just list all
+                    if (levels.length > 1 && !levels.includes("auto")) {
+                        const autoBtn = document.createElement("button");
+                        autoBtn.className = "quality-option active";
+                        autoBtn.textContent = "Auto";
+                        autoBtn.dataset.value = "auto";
+                        autoBtn.setAttribute("role", "option");
+                        autoBtn.setAttribute("aria-selected", "true");
+                        autoBtn.tabIndex = 0;
+                        qDropdown.appendChild(autoBtn);
+                    }
+
                     levels.forEach(l => {
+                        if (l === "auto" && levels.length === 1) return; // Skip if it's only auto
                         const btn = document.createElement("button");
                         btn.className = "quality-option" + (l === "auto" ? " active" : "");
                         btn.textContent = l === "auto" ? "Auto" : l;
