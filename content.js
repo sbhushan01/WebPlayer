@@ -604,17 +604,17 @@
 
         const updateAudioMenu = () => {
             let tracks = [];
-            if (video.audioTracks && video.audioTracks.length > 1) {
+            if (video.audioTracks && video.audioTracks.length > 0) {
                 tracks = Array.from(video.audioTracks).map((t, i) => ({ label: t.label || t.language || `Audio ${i + 1}`, value: i, type: "native" }));
             } else if (ytPlayer && ytPlayer.getOption) {
                 // YouTube exposes audio tracks under different modules, often tracklist -> displayName
                 const ytTracks = ytPlayer.getOption('audioTrack', 'tracklist') || [];
-                if (ytTracks.length > 1) {
+                if (ytTracks.length > 0) {
                     tracks = ytTracks.map((t, i) => ({ label: t.displayName || t.id || `Audio ${i + 1}`, value: i, type: "yt", ytTrack: t }));
                 }
             }
 
-            if (tracks.length > 1) {
+            if (tracks.length > 0) {
                 audioContainer.style.display = "flex";
                 audioDropdown.textContent = "";
                 let activeIndex = 0;

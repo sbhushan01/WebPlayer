@@ -556,7 +556,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                             // Explicitly start playback — autoplay attr alone is
                             // unreliable with MediaSource-based streaming
                             safePlay();
-                            if (d.levels.length > 1) {
+                            if (d.levels && d.levels.length > 1) {
                                 const levels = [
                                     { label: "Auto", value: -1 },
                                     ...d.levels.map((l, i) => ({ label: `${l.height}p`, value: i }))
@@ -567,7 +567,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                                 const tracks = d.subtitleTracks.map((t, i) => ({ label: t.name || t.lang, value: i }));
                                 populateCC(tracks);
                             }
-                            if (d.audioTracks && d.audioTracks.length > 1) {
+                            if (d.audioTracks && d.audioTracks.length > 0) {
                                 const tracks = d.audioTracks.map((t, i) => ({ label: t.name || t.lang || `Audio ${i+1}`, value: i, id: t.id }));
                                 populateAudio(tracks, currentHls.audioTrack);
                             }
@@ -576,7 +576,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                             // Can be used to sync active track
                         });
                         currentHls.on(Hls.Events.AUDIO_TRACKS_UPDATED, (e, d) => {
-                            if (d.audioTracks && d.audioTracks.length > 1) {
+                            if (d.audioTracks && d.audioTracks.length > 0) {
                                 const tracks = d.audioTracks.map((t, i) => ({ label: t.name || t.lang || `Audio ${i+1}`, value: i, id: t.id }));
                                 populateAudio(tracks, currentHls.audioTrack);
                             }
@@ -666,7 +666,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                             populateCC(tracks);
                         }
                         const audioTracks = currentDash.getTracksFor("audio");
-                        if (audioTracks && audioTracks.length > 1) {
+                        if (audioTracks && audioTracks.length > 0) {
                             const activeTrack = currentDash.getCurrentTrackFor("audio");
                             const tracks = audioTracks.map((t, i) => ({ label: t.lang || t.id || `Audio ${i+1}`, value: i, id: t.id }));
                             populateAudio(tracks, activeTrack ? activeTrack.index : 0);
@@ -690,10 +690,10 @@ document.addEventListener("DOMContentLoaded", async () => {
                         const tracks = Array.from(player.textTracks).map((t, i) => ({ label: t.label || t.language || `Track ${i+1}`, value: i }));
                         populateCC(tracks);
                     }
-                    if (player.audioTracks && player.audioTracks.length > 1) {
+                    if (player.audioTracks && player.audioTracks.length > 0) {
                         const tracks = Array.from(player.audioTracks).map((t, i) => ({ label: t.label || t.language || `Audio ${i+1}`, value: i, id: t.id }));
-                        const active = Array.from(player.audioTracks).findIndex(t => t.enabled) || 0;
-                        populateAudio(tracks, active);
+                        const active = Array.from(player.audioTracks).findIndex(t => t.enabled);
+                        populateAudio(tracks, active === -1 ? 0 : active);
                     }
                 }, { once: true });
             }
