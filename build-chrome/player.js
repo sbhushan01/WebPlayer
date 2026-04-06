@@ -281,7 +281,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     function populateQuality(levels) {
         qualityContainer.style.display = "flex";
-        qualityDropdown.innerHTML = "";
+        qualityDropdown.textContent = "";
         levels.forEach(({ label, value }) => {
             const btn = document.createElement("button");
             btn.className = "quality-option" + (value === -1 ? " active" : "");
@@ -322,7 +322,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     function populateCC(tracks) {
         ccContainer.style.display = "flex";
-        ccDropdown.innerHTML = "";
+        ccDropdown.textContent = "";
         
         const offBtn = document.createElement("button");
         offBtn.className = "quality-option active";
@@ -379,7 +379,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     function populateAudio(tracks, currentTrackId) {
         audioContainer.style.display = "flex";
-        audioDropdown.innerHTML = "";
+        audioDropdown.textContent = "";
 
         tracks.forEach(({ label, value, id }) => {
             if (!label) label = `Track ${value}`;
@@ -1580,19 +1580,19 @@ document.addEventListener("DOMContentLoaded", async () => {
 
                 // Build and restore band sliders
                 if (eqBandsContainer) {
-                    eqBandsContainer.innerHTML = "";
+                    eqBandsContainer.textContent = "";
                     frequencies.forEach((freq, i) => {
                         const savedGain = savedBands[i] ?? 0;
                         eqFilters[i].gain.value = savedGain;
 
                         const div = document.createElement("div");
                         div.className = "eq-band";
-                        div.innerHTML = `
-                            <input type="range" min="-12" max="12" step="0.5" value="${savedGain}">
-                            <div class="eq-zero-mark"></div>
-                            <span>${freq >= 1000 ? freq / 1000 + "k" : freq}</span>
-                        `;
-                        div.querySelector("input").addEventListener("input", (e) => {
+                        const divInput = document.createElement("input");
+                        divInput.type = "range"; divInput.min = "-12"; divInput.max = "12"; divInput.step = "0.5"; divInput.value = savedGain;
+                        const divMark = document.createElement("div"); divMark.className = "eq-zero-mark";
+                        const divSpan = document.createElement("span"); divSpan.textContent = freq >= 1000 ? freq / 1000 + "k" : freq;
+                        div.append(divInput, divMark, divSpan);
+                        divInput.addEventListener("input", (e) => {
                             eqFilters[i].gain.value = parseFloat(e.target.value);
                             updatePresetHighlight(null); // manual adjustment clears preset
                             saveEqSettings();

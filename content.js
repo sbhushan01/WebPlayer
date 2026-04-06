@@ -92,7 +92,7 @@
                         box-shadow: 0 8px 24px rgba(0,0,0,0.3); font-family: system-ui, sans-serif;
                         animation: wp-slide-in 0.3s ease-out;
                     `;
-                    prompt.innerHTML = `
+                    prompt.insertAdjacentHTML('beforeend', `
                         <div style="display:flex; flex-direction:column;">
                             <span style="font-weight: 600; font-size: 14px;">Stream Detected</span>
                             <span style="font-size: 12px; color: #aaa;">HLS/DASH stream available</span>
@@ -101,7 +101,7 @@
                             <button class="wp-prompt-ignore" style="background: rgba(255,255,255,0.1); border: none; padding: 6px 12px; border-radius: 6px; color: white; cursor: pointer; font-size: 12px; transition: 0.2s;">Ignore</button>
                             <button class="wp-prompt-launch" style="background: #4A9EFF; border: none; padding: 6px 12px; border-radius: 6px; color: white; cursor: pointer; font-size: 12px; font-weight: bold; transition: 0.2s;">Launch Player</button>
                         </div>
-                    `;
+                    `);
                     
                     if (!document.getElementById("wp-prompt-style")) {
                         const s = document.createElement("style");
@@ -276,7 +276,7 @@
             const doc = new DOMParser().parseFromString(svgStr, 'image/svg+xml');
             if (doc.querySelector("parsererror")) throw new Error("SVG parse error");
             el.appendChild(document.importNode(doc.documentElement, true));
-        } catch (_) { el.innerHTML = svgStr; }
+        } catch (_) { console.warn("SVG error"); }
     };
 
     function injectCustomPlayer(video) {
@@ -379,7 +379,7 @@
                 height: 14px;
             }
             input[type=range]:active::-moz-range-thumb { transform: scale(1.3); }
-            .wp-center-row { display: flex; justify-content: center; align-items: center; gap: 16px; margin-top: 4px; flex-wrap: wrap; }
+            .wp-center-row { display: flex; justify-content: center; align-items: center; gap: 16px; margin-top: 4px; flex-wrap: nowrap; }
             button { background: rgba(255,255,255,0.0); border: none; color: #E3E3E3; cursor: pointer; padding: 8px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: all 0.2s ease; width: 44px; height: 44px; }
             button:hover { background: rgba(255,255,255,0.12); transform: scale(1.05); }
             @media (max-width: 600px) {
@@ -433,15 +433,15 @@
 
         const uiWrapper = document.createElement("div");
         uiWrapper.className = "webplayer-ui-wrapper";
-        uiWrapper.innerHTML = `
+        const tempUiDoc = new DOMParser().parseFromString(`
             <div class="wp-progress-row">
                 <span id="wp-time-cur">0:00</span> / <span id="wp-time-dur">--:--</span>
                 <input type="range" id="wp-progress" min="0" max="100" step="0.1" value="0">
             </div>
             <div class="wp-center-row">
-                <button id="wp-skip-back">${IC.skipBack}</button>
-                <button id="wp-play">${IC.play}</button>
-                <button id="wp-skip-fwd">${IC.skipFwd}</button>
+                <button id="wp-skip-back"></button>
+                <button id="wp-play"></button>
+                <button id="wp-skip-fwd"></button>
                 <div class="quality-container" id="wp-quality-container" style="display:none;">
                     <button id="wp-quality-btn" title="Quality">
                         <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94L14.4 2.81c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41L9.25 5.35C8.66 5.59 8.12 5.92 7.63 6.29L5.24 5.33c-.22-.08-.47 0-.59.22L2.73 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.08.62-.08.94s.03.64.08.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .43-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.49-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
@@ -461,12 +461,20 @@
                     <button class="speed-pill" data-speed="1.5">1.5×</button>
                     <button class="speed-pill" data-speed="2">2×</button>
                 </div>
-                <button id="wp-pip">${IC.pip}</button>
-                <button id="wp-fs">${IC.fullscreen}</button>
-                <button id="wp-rotate">${IC.rotate}</button>
-                <button id="wp-exit">${IC.close}</button>
+                <button id="wp-pip"></button>
+                <button id="wp-fs"></button>
+                <button id="wp-rotate"></button>
+                <button id="wp-exit"></button>
             </div>
-        `;
+        `, 'text/html');
+        while (tempUiDoc.body.firstChild) uiWrapper.appendChild(tempUiDoc.body.firstChild);
+        setSVG(uiWrapper.querySelector("#wp-skip-back"), IC.skipBack);
+        setSVG(uiWrapper.querySelector("#wp-play"), IC.play);
+        setSVG(uiWrapper.querySelector("#wp-skip-fwd"), IC.skipFwd);
+        setSVG(uiWrapper.querySelector("#wp-pip"), IC.pip);
+        setSVG(uiWrapper.querySelector("#wp-fs"), IC.fullscreen);
+        setSVG(uiWrapper.querySelector("#wp-rotate"), IC.rotate);
+        setSVG(uiWrapper.querySelector("#wp-exit"), IC.close);
 
         const feedbackOverlay = document.createElement("div");
         feedbackOverlay.className = "webplayer-feedback";
@@ -491,7 +499,7 @@
                 const levels = ytPlayer.getAvailableQualityLevels();
                 if (levels && levels.length > 0) {
                     qContainer.style.display = "flex";
-                    qDropdown.innerHTML = "";
+                    qDropdown.textContent = "";
                     levels.forEach(l => {
                         const btn = document.createElement("button");
                         btn.className = "quality-option" + (l === "auto" ? " active" : "");
@@ -531,7 +539,8 @@
 
             if (tracks.length > 0) {
                 ccContainer.style.display = "flex";
-                ccDropdown.innerHTML = `<button class="quality-option active" data-value="-1" role="option" aria-selected="true" tabindex="0">Off</button>`;
+                ccDropdown.textContent = "";
+                ccDropdown.insertAdjacentHTML('beforeend', `<button class="quality-option active" data-value="-1" role="option" aria-selected="true" tabindex="0">Off</button>`);
                 tracks.forEach((t) => {
                     const btn = document.createElement("button");
                     btn.className = "quality-option";

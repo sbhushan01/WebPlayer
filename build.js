@@ -32,7 +32,7 @@ function packExtension(browserType) {
     // Write all essential files to build folder
     const filesToCopy = [
         'background.js', 'content.js', 'overlay.css',
-        'player.html', 'player.js', 'welcome.html', 'icons', 'libs'
+        'player.html', 'player.js', 'welcome.html', 'welcome.js', 'icons', 'libs'
     ];
 
     filesToCopy.forEach(file => {
