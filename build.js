@@ -17,7 +17,7 @@ function packExtension(browserType) {
     const bm = JSON.parse(JSON.stringify(manifest));
     
     if (browserType === 'firefox') {
-        // Firefox uses scripts for MV3 background compatibility
+        // Deliberately use scripts for broad AMO compatibility/lint cleanliness in Firefox packaging
         bm.background = {
             "scripts": ["background.js"]
         };

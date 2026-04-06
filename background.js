@@ -247,7 +247,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     src:     videoUrl,
                     title:   request.pageTitle || "Video",
                     pageUrl: request.pageUrl   || "",
-                    wpTabId: String(sender?.tab?.id ?? "")
+                    playerOriginTabId: String(sender?.tab?.id ?? "")
                 });
                 const playerUrl = chrome.runtime.getURL(`player.html?${params}`);
 
@@ -281,7 +281,7 @@ const isPlayerRequest = (details) => {
         if (!details.documentUrl) return false;
         const documentUrl = new URL(details.documentUrl);
         if (!documentUrl.href.startsWith(chrome.runtime.getURL("player.html"))) return false;
-        const playerTabId = Number(documentUrl.searchParams.get("wpTabId"));
+        const playerTabId = Number(documentUrl.searchParams.get("playerOriginTabId"));
         return Number.isInteger(playerTabId) && playerTabId >= 0 && playerTabId === details.tabId;
     } catch (_) {
         return false;
