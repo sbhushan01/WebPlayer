@@ -297,7 +297,7 @@
         .preamp-row { display: flex; align-items: center; gap: 16px; font-size: 0.95rem; font-weight: 500; background: rgba(255,255,255,0.05); padding: 12px 16px; border-radius: 12px; }
 
         /* Theme Popover */
-        .theme-popover { width: 300px; right: 80px; }
+        .theme-popover { width: 300px; right: 0; }
         .theme-grid { display: flex; gap: 16px; justify-content: center; }
         .theme-btn {
             width: 48px; height: 48px; border-radius: 50%; border: 3px solid transparent; outline: none; transition: all 0.2s;
@@ -569,20 +569,22 @@
                             </div>
                         </div>
 
-                        <button id="theme-toggle-btn" title="Themes" aria-label="Themes">
-                            <span class="material-symbols-rounded">palette</span>
-                        </button>
-                        
-                        <!-- Theme Popover -->
-                        <div class="popover-card theme-popover" id="theme-popover">
-                            <div class="popover-header">
-                                <span>Appearance</span>
-                                <button class="popover-close" id="theme-close-btn" title="Close themes" aria-label="Close themes"><span class="material-symbols-rounded">close</span></button>
-                            </div>
-                            <div class="theme-grid">
-                                <button class="theme-btn active" data-value="blue" title="Blue" aria-label="Blue theme"></button>
-                                <button class="theme-btn" data-value="purple" title="Amethyst" aria-label="Amethyst theme"></button>
-                                <button class="theme-btn" data-value="emerald" title="Emerald" aria-label="Emerald theme"></button>
+                        <div class="popover-anchor">
+                            <button id="theme-toggle-btn" title="Themes" aria-label="Themes">
+                                <span class="material-symbols-rounded">palette</span>
+                            </button>
+                            
+                            <!-- Theme Popover -->
+                            <div class="popover-card theme-popover" id="theme-popover">
+                                <div class="popover-header">
+                                    <span>Appearance</span>
+                                    <button class="popover-close" id="theme-close-btn" title="Close themes" aria-label="Close themes"><span class="material-symbols-rounded">close</span></button>
+                                </div>
+                                <div class="theme-grid">
+                                    <button class="theme-btn active" data-value="blue" title="Blue" aria-label="Blue theme"></button>
+                                    <button class="theme-btn" data-value="purple" title="Amethyst" aria-label="Amethyst theme"></button>
+                                    <button class="theme-btn" data-value="emerald" title="Emerald" aria-label="Emerald theme"></button>
+                                </div>
                             </div>
                         </div>
 

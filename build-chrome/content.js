@@ -393,6 +393,8 @@
                 .wp-progress-row { font-size: 13px; gap: 8px; }
                 input[type=range] { margin: 8px 0; height: 6px; }
                 #wp-progress { margin: 6px 0; height: 5px; }
+                .popover-anchor, .quality-container { position: static; }
+                .quality-dropdown, .speed-popover { right: 0; bottom: calc(100% + 16px); }
             }
             .popover-anchor { position: relative; display: flex; align-items: center; }
             .speed-pills { display: flex; align-items: center; gap: 6px; margin: 0; flex-wrap: wrap; }
@@ -700,12 +702,15 @@
         // BUG FIX: Hide controls logic now respects `video.paused`
         // ==========================================================
         let hideTimer;
+        let isScrubbing = false;
+        let scrubTimeout;
         const showControls = () => {
             uiWrapper.classList.add("wp-controls-visible");
             clearTimeout(hideTimer);
             hideTimer = setTimeout(() => {
                 if (
                     !video.paused &&
+                    !isScrubbing &&
                     !qDropdown.classList.contains("open") &&
                     !speedPopover.classList.contains("active")
                 ) {
@@ -891,8 +896,7 @@
         const tCur = uiWrapper.querySelector("#wp-time-cur");
         const tDur = uiWrapper.querySelector("#wp-time-dur");
 
-        let isScrubbing = false;
-        let scrubTimeout;
+
 
         const syncTimelineStyle = (val) => {
             prog.style.background = `linear-gradient(to right, #A8C7FA ${val}%, rgba(255,255,255,0.15) ${val}%)`;
