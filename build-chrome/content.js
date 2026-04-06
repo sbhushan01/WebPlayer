@@ -992,7 +992,7 @@
         let startX = 0, startY = 0, lastY = 0, swipeDir = null;
         let isPointerDown = false, lastTapTime = 0;
         let currentBrightness = 1.0, originalSpeed = 1.0;
-        let longPressTimer;
+        let longPressTimer = null;
         let isLongPressActive = false;
 
         on(gestureZone, "contextmenu", e => e.preventDefault());
@@ -1011,8 +1011,10 @@
             isPointerDown = true;
             try { gestureZone.setPointerCapture(e.pointerId); } catch (_) {}
             startX = e.clientX; startY = e.clientY; lastY = e.clientY; swipeDir = null;
-            originalSpeed = video.playbackRate;
+            if (!isLongPressActive) originalSpeed = video.playbackRate;
+            clearTimeout(longPressTimer);
             longPressTimer = setTimeout(() => {
+                if (!isPointerDown) return;
                 isLongPressActive = true;
                 setPlaybackRate(2.0);
                 showFeedback("2× Speed");
@@ -1054,6 +1056,7 @@
             if (!isPointerDown) return;
             isPointerDown = false;
             clearTimeout(longPressTimer);
+            longPressTimer = null;
             try {
                 if (gestureZone.hasPointerCapture(e.pointerId)) {
                     gestureZone.releasePointerCapture(e.pointerId);
