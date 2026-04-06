@@ -388,16 +388,46 @@
                 .webplayer-ui-wrapper { bottom: max(16px, calc(8px + env(safe-area-inset-bottom))); padding: 12px 16px; border-radius: 20px; gap: 10px; width: calc(100% - 20px); }
                 .wp-center-row { flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; gap: 8px; padding-bottom: 2px; scrollbar-width: none; }
                 .wp-center-row::-webkit-scrollbar { display: none; }
-                .speed-pills { display: none !important; }
                 button { width: 44px; height: 44px; padding: 8px; flex-shrink: 0; }
                 .wp-progress-row { font-size: 13px; gap: 8px; }
                 input[type=range] { margin: 8px 0; height: 6px; }
                 #wp-progress { margin: 6px 0; height: 5px; }
             }
-            .speed-pills { display: flex; align-items: center; gap: 6px; margin: 0 8px; }
+            .popover-anchor { position: relative; display: flex; align-items: center; }
+            .speed-pills { display: flex; align-items: center; gap: 6px; margin: 0; flex-wrap: wrap; }
             .speed-pill { font-size: 13px; font-weight: 600; padding: 0 12px; height: 32px; border-radius: 16px; background: rgba(255,255,255,0.06); color: #C4C7C5; transition: all 0.3s ease; border: 1px solid rgba(255,255,255,0.08); width: auto; display: flex; align-items: center; }
             .speed-pill:hover { background: rgba(255,255,255,0.15); color: #E3E3E3; transform: scale(1); }
             .speed-pill.active { background: linear-gradient(135deg, #A8C7FA, #062E6F); color: #062E6F; border-color: transparent; box-shadow: 0 0 16px rgba(168, 199, 250, 0.6); }
+            .popover-card {
+                position: absolute; bottom: calc(100% + 16px); right: 0;
+                background: rgba(26, 29, 36, 0.95); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+                border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 16px;
+                display: none; flex-direction: column; gap: 16px; z-index: 60;
+                box-shadow: 0px 8px 16px 2px rgba(0,0,0,0.2);
+            }
+            .popover-card.active { display: flex; animation: wp-slideUp 0.2s cubic-bezier(0.4,0,0.2,1); }
+            .popover-header {
+                display: flex; align-items: center; justify-content: space-between; gap: 12px;
+                font-size: 16px; font-weight: 600; color: #E3E3E3;
+            }
+            .popover-close {
+                width: 36px; height: 36px; border-radius: 50%;
+                opacity: 0.8; transition: opacity 0.2s ease;
+            }
+            .popover-close:hover { opacity: 1; }
+            .speed-popover { width: min(340px, calc(100vw - 48px)); right: 0; gap: 16px; }
+            .speed-fine-tune {
+                display: flex; flex-direction: column; gap: 10px;
+                background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+                border-radius: 12px; padding: 12px;
+            }
+            #wp-speed-micro-label {
+                font-size: 1.15rem; font-weight: 700; color: #A8C7FA;
+                font-variant-numeric: tabular-nums;
+            }
+            #wp-speed-micro-range {
+                width: 100%; accent-color: #A8C7FA; cursor: pointer; height: 6px;
+            }
             .webplayer-feedback {
                 position: absolute; top: 18%;
                 background: rgba(10, 10, 15, 0.75); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
@@ -462,12 +492,27 @@
                     </button>
                     <div class="quality-dropdown" id="wp-audio-dropdown"></div>
                 </div>
-                <div class="speed-pills" id="wp-speed-pills">
-                    <button class="speed-pill" data-speed="0.25">0.25×</button>
-                    <button class="speed-pill" data-speed="0.5">0.5×</button>
-                    <button class="speed-pill active" data-speed="1">1×</button>
-                    <button class="speed-pill" data-speed="1.5">1.5×</button>
-                    <button class="speed-pill" data-speed="2">2×</button>
+                <div class="popover-anchor">
+                    <button id="wp-speed-toggle-btn" title="Playback speed" aria-label="Playback speed">
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M8 5v14l11-7L8 5zm-3 0h2v14H5V5zm16.5 7l-2.5-2.5V11h-2v2h2v1.5L21.5 12z"/></svg>
+                    </button>
+                    <div class="popover-card speed-popover" id="wp-speed-popover">
+                        <div class="popover-header">
+                            <span>Playback Speed</span>
+                            <button class="popover-close" id="wp-speed-close-btn" title="Close playback speed" aria-label="Close playback speed">${IC.close}</button>
+                        </div>
+                        <div class="speed-pills" id="wp-speed-pills">
+                            <button class="speed-pill" data-speed="0.25">0.25×</button>
+                            <button class="speed-pill" data-speed="0.5">0.5×</button>
+                            <button class="speed-pill active" data-speed="1">1×</button>
+                            <button class="speed-pill" data-speed="1.5">1.5×</button>
+                            <button class="speed-pill" data-speed="2">2×</button>
+                        </div>
+                        <div class="speed-fine-tune">
+                            <span id="wp-speed-micro-label">1.00×</span>
+                            <input type="range" id="wp-speed-micro-range" min="0.25" max="3" step="0.05" value="1">
+                        </div>
+                    </div>
                 </div>
                 <button id="wp-standalone" title="Launch Standalone Player"></button>
                 <button id="wp-pip"></button>
@@ -682,6 +727,12 @@
         const qBtn = uiWrapper.querySelector("#wp-quality-btn");
         const ccBtn = uiWrapper.querySelector("#wp-cc-btn");
         const audioBtn = uiWrapper.querySelector("#wp-audio-btn");
+        const speedToggleBtn = uiWrapper.querySelector("#wp-speed-toggle-btn");
+        const speedPopover = uiWrapper.querySelector("#wp-speed-popover");
+        const speedCloseBtn = uiWrapper.querySelector("#wp-speed-close-btn");
+        const speedPillsEl = uiWrapper.querySelector("#wp-speed-pills");
+        const speedMicroRange = uiWrapper.querySelector("#wp-speed-micro-range");
+        const speedMicroLabel = uiWrapper.querySelector("#wp-speed-micro-label");
         qBtn.setAttribute("aria-haspopup", "listbox");
         qBtn.setAttribute("aria-expanded", "false");
         qBtn.setAttribute("aria-controls", "wp-quality-dropdown");
@@ -691,11 +742,15 @@
         audioBtn.setAttribute("aria-haspopup", "listbox");
         audioBtn.setAttribute("aria-expanded", "false");
         audioBtn.setAttribute("aria-controls", "wp-audio-dropdown");
+        speedToggleBtn.setAttribute("aria-haspopup", "true");
+        speedToggleBtn.setAttribute("aria-expanded", "false");
+        speedToggleBtn.setAttribute("aria-controls", "wp-speed-popover");
         
         const closeAllDropdownsExcept = (keepOpenBtn) => {
             if (keepOpenBtn !== qBtn) { qDropdown.classList.remove("open"); qBtn.setAttribute("aria-expanded", "false"); }
             if (keepOpenBtn !== ccBtn) { ccDropdown.classList.remove("open"); ccBtn.setAttribute("aria-expanded", "false"); }
             if (keepOpenBtn !== audioBtn) { audioDropdown.classList.remove("open"); audioBtn.setAttribute("aria-expanded", "false"); }
+            if (keepOpenBtn !== speedToggleBtn) { speedPopover.classList.remove("active"); speedToggleBtn.setAttribute("aria-expanded", "false"); }
         };
 
         on(qBtn, "click", e => {
@@ -716,6 +771,23 @@
             audioDropdown.classList.toggle("open");
             audioBtn.setAttribute("aria-expanded", audioDropdown.classList.contains("open") ? "true" : "false");
         });
+        on(speedToggleBtn, "click", e => {
+            e.stopPropagation();
+            const wasActive = speedPopover.classList.contains("active");
+            closeAllDropdownsExcept(speedToggleBtn);
+            if (!wasActive) {
+                speedPopover.classList.add("active");
+                speedToggleBtn.setAttribute("aria-expanded", "true");
+            } else {
+                speedPopover.classList.remove("active");
+                speedToggleBtn.setAttribute("aria-expanded", "false");
+            }
+        });
+        on(speedCloseBtn, "click", () => {
+            speedPopover.classList.remove("active");
+            speedToggleBtn.setAttribute("aria-expanded", "false");
+            speedToggleBtn.focus();
+        });
         on(uiWrapper, "click", e => {
             if (!e.target.closest("#wp-quality-container") && !e.target.closest("#wp-quality-btn")) {
                 qDropdown.classList.remove("open");
@@ -729,9 +801,48 @@
                 audioDropdown.classList.remove("open");
                 audioBtn.setAttribute("aria-expanded", "false");
             }
+            if (!e.target.closest("#wp-speed-popover") && !e.target.closest("#wp-speed-toggle-btn")) {
+                speedPopover.classList.remove("active");
+                speedToggleBtn.setAttribute("aria-expanded", "false");
+            }
         });
-        [qDropdown, ccDropdown, audioDropdown].forEach(dropdown => {
+        [qDropdown, ccDropdown, audioDropdown, speedPopover].forEach(dropdown => {
             on(dropdown, "keydown", (e) => {
+                if (dropdown === speedPopover) {
+                    if (e.key === "Escape") {
+                        e.preventDefault();
+                        speedPopover.classList.remove("active");
+                        speedToggleBtn.setAttribute("aria-expanded", "false");
+                        speedToggleBtn.focus();
+                        return;
+                    }
+
+                    const speedPills = Array.from(speedPillsEl.querySelectorAll(".speed-pill"));
+                    const activeEl = document.activeElement;
+                    const pillIndex = speedPills.indexOf(activeEl);
+
+                    if (pillIndex !== -1) {
+                        if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+                            e.preventDefault();
+                            if (pillIndex < speedPills.length - 1) speedPills[pillIndex + 1].focus();
+                            else speedMicroRange.focus();
+                        } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+                            e.preventDefault();
+                            if (pillIndex > 0) speedPills[pillIndex - 1].focus();
+                        } else if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            activeEl.click();
+                        }
+                        return;
+                    }
+
+                    if (activeEl === speedMicroRange && (e.key === "ArrowUp" || e.key === "ArrowLeft")) {
+                        e.preventDefault();
+                        const activePill = speedPillsEl.querySelector(".speed-pill.active") || speedPills[speedPills.length - 1];
+                        activePill?.focus();
+                    }
+                    return;
+                }
                 const options = Array.from(dropdown.querySelectorAll(".quality-option"));
                 if (!options.length) return;
                 const idx = options.indexOf(document.activeElement);
@@ -751,9 +862,11 @@
                     qDropdown.classList.remove("open");
                     ccDropdown.classList.remove("open");
                     audioDropdown.classList.remove("open");
+                    speedPopover.classList.remove("active");
                     qBtn.setAttribute("aria-expanded", "false");
                     ccBtn.setAttribute("aria-expanded", "false");
                     audioBtn.setAttribute("aria-expanded", "false");
+                    speedToggleBtn.setAttribute("aria-expanded", "false");
                 }
             });
         });
@@ -766,7 +879,13 @@
             uiWrapper.classList.add("wp-controls-visible");
             clearTimeout(hideTimer);
             hideTimer = setTimeout(() => {
-                if (!video.paused) {
+                if (
+                    !video.paused &&
+                    !qDropdown.classList.contains("open") &&
+                    !ccDropdown.classList.contains("open") &&
+                    !audioDropdown.classList.contains("open") &&
+                    !speedPopover.classList.contains("active")
+                ) {
                     uiWrapper.classList.remove("wp-controls-visible");
                 }
             }, 3000);
@@ -838,6 +957,8 @@
             uiWrapper.querySelectorAll(".speed-pill").forEach(p =>
                 p.classList.toggle("active", parseFloat(p.dataset.speed) === rate)
             );
+            if (speedMicroRange) speedMicroRange.value = rate;
+            if (speedMicroLabel) speedMicroLabel.textContent = `${rate.toFixed(2)}×`;
         };
 
         const isTextEntryTarget = (target) => {
@@ -1044,9 +1165,13 @@
             }
         });
 
-        uiWrapper.querySelectorAll(".speed-pill").forEach(pill => {
+        speedPillsEl.querySelectorAll(".speed-pill").forEach(pill => {
             on(pill, "click", () => setPlaybackRate(parseFloat(pill.dataset.speed)));
         });
+        on(speedMicroRange, "input", (e) => {
+            setPlaybackRate(parseFloat(e.target.value));
+        });
+        setPlaybackRate(video.playbackRate || 1);
 
         let rot = 0;
         on(uiWrapper.querySelector("#wp-rotate"), "click", () => {
@@ -1056,9 +1181,8 @@
         });
 
         let startX = 0, startY = 0, lastY = 0, swipeDir = null;
-        let isPointerDown = false, lastTapTime = 0, longPressTimer = null;
-        let currentBrightness = 1.0, originalSpeed = 1.0;
-        let isLongPressActive = false;
+        let isPointerDown = false, lastTapTime = 0;
+        let currentBrightness = 1.0;
 
         on(gestureZone, "contextmenu", e => e.preventDefault());
 
@@ -1076,12 +1200,6 @@
             isPointerDown = true;
             try { gestureZone.setPointerCapture(e.pointerId); } catch (_) {}
             startX = e.clientX; startY = e.clientY; lastY = e.clientY; swipeDir = null;
-            originalSpeed = video.playbackRate;
-            longPressTimer = setTimeout(() => {
-                isLongPressActive = true;
-                setPlaybackRate(2.0); // BUG FIX: sync pills
-                showFeedback("2× Speed");
-            }, 500);
         });
 
         on(gestureZone, "pointermove", e => {
@@ -1092,11 +1210,10 @@
             if (_yRatio < 0.12 || _yRatio > 0.88) return;
             const diffX = e.clientX - startX;
             const diffY = e.clientY - startY;
-            if (!swipeDir && (Math.abs(diffX) > 6 || Math.abs(diffY) > 6)) clearTimeout(longPressTimer);
 
             if (!swipeDir) {
-                if (Math.abs(diffX) > 20)      { swipeDir = "horizontal"; clearTimeout(longPressTimer); }
-                else if (Math.abs(diffY) > 20) { swipeDir = "vertical";   clearTimeout(longPressTimer); }
+                if (Math.abs(diffX) > 20)      { swipeDir = "horizontal"; }
+                else if (Math.abs(diffY) > 20) { swipeDir = "vertical"; }
             }
 
             if (swipeDir === "vertical") {
@@ -1124,16 +1241,6 @@
                     gestureZone.releasePointerCapture(e.pointerId);
                 }
             } catch (_) {}
-            clearTimeout(longPressTimer);
-
-            // BUG FIX: use isLongPressActive flag to restore and sync pills
-            if (isLongPressActive) {
-                isLongPressActive = false;
-                setPlaybackRate(originalSpeed);
-                showFeedback(`${originalSpeed}× Speed`);
-                lastTapTime = 0;
-                return;
-            }
 
             const diffX = e.clientX - startX;
             if (swipeDir === "horizontal" && Math.abs(diffX) > 40) {
