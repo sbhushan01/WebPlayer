@@ -454,6 +454,12 @@
                     </button>
                     <div class="quality-dropdown" id="wp-cc-dropdown"></div>
                 </div>
+                <div class="quality-container" id="wp-audio-container" style="display:none;">
+                    <button id="wp-audio-btn" title="Audio Track">
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M12 3v9.28c-.47-.17-.97-.28-1.5-.28C8.01 12 6 14.01 6 16.5S8.01 21 10.5 21c2.31 0 4.2-1.75 4.45-4H15V6h4V3h-7z"/></svg>
+                    </button>
+                    <div class="quality-dropdown" id="wp-audio-dropdown"></div>
+                </div>
                 <div class="speed-pills" id="wp-speed-pills">
                     <button class="speed-pill" data-speed="0.25">0.25×</button>
                     <button class="speed-pill" data-speed="0.5">0.5×</button>
@@ -491,8 +497,11 @@
         const qContainer = uiWrapper.querySelector("#wp-quality-container");
         const ccDropdown = uiWrapper.querySelector("#wp-cc-dropdown");
         const ccContainer = uiWrapper.querySelector("#wp-cc-container");
+        const audioDropdown = uiWrapper.querySelector("#wp-audio-dropdown");
+        const audioContainer = uiWrapper.querySelector("#wp-audio-container");
         qDropdown.setAttribute("role", "listbox");
         ccDropdown.setAttribute("role", "listbox");
+        audioDropdown.setAttribute("role", "listbox");
 
         if (ytPlayer && ytPlayer.getAvailableQualityLevels) {
             const updateQualityMenu = () => {
@@ -593,27 +602,115 @@
             ccDropdown.classList.remove("open");
         });
 
+        const updateAudioMenu = () => {
+            let tracks = [];
+            if (video.audioTracks && video.audioTracks.length > 1) {
+                tracks = Array.from(video.audioTracks).map((t, i) => ({ label: t.label || t.language || `Audio ${i + 1}`, value: i, type: "native" }));
+            } else if (ytPlayer && ytPlayer.getOption) {
+                // YouTube exposes audio tracks under different modules, often tracklist -> displayName
+                const ytTracks = ytPlayer.getOption('audioTrack', 'tracklist') || [];
+                if (ytTracks.length > 1) {
+                    tracks = ytTracks.map((t, i) => ({ label: t.displayName || t.id || `Audio ${i + 1}`, value: i, type: "yt", ytTrack: t }));
+                }
+            }
+
+            if (tracks.length > 1) {
+                audioContainer.style.display = "flex";
+                audioDropdown.textContent = "";
+                let activeIndex = 0;
+                if (tracks[0].type === "native") {
+                    activeIndex = Array.from(video.audioTracks).findIndex(t => t.enabled);
+                    if (activeIndex === -1) activeIndex = 0;
+                } else if (tracks[0].type === "yt") {
+                    const activeT = ytPlayer.getOption('audioTrack', 'track');
+                    if (activeT) {
+                        const found = tracks.findIndex(t => t.ytTrack.id === activeT.id);
+                        if (found !== -1) activeIndex = found;
+                    }
+                }
+                
+                tracks.forEach((t, i) => {
+                    const btn = document.createElement("button");
+                    btn.className = "quality-option" + (i === activeIndex ? " active" : "");
+                    btn.textContent = t.label;
+                    btn.dataset.value = t.value;
+                    btn.dataset.type = t.type;
+                    if (t.type === "yt") btn.dataset.yt = JSON.stringify(t.ytTrack);
+                    btn.setAttribute("role", "option");
+                    btn.setAttribute("aria-selected", i === activeIndex ? "true" : "false");
+                    btn.tabIndex = 0;
+                    audioDropdown.appendChild(btn);
+                });
+            } else {
+                audioContainer.style.display = "none";
+            }
+        };
+        updateAudioMenu();
+        on(video, "loadedmetadata", updateAudioMenu);
+        on(video, "canplay", updateAudioMenu);
+
+        on(audioDropdown, "click", e => {
+            const btn = e.target.closest(".quality-option");
+            if (!btn) return;
+            audioDropdown.querySelectorAll(".quality-option").forEach(b => {
+                b.classList.remove("active");
+                b.setAttribute("aria-selected", "false");
+            });
+            btn.classList.add("active");
+            btn.setAttribute("aria-selected", "true");
+            
+            const val = parseInt(btn.dataset.value);
+            const type = btn.dataset.type;
+            
+            if (type === "native") {
+                Array.from(video.audioTracks || []).forEach((t, i) => t.enabled = (i === val));
+            } else if (type === "yt") {
+                if (ytPlayer && ytPlayer.setOption) {
+                    try {
+                        const tObj = JSON.parse(btn.dataset.yt);
+                        ytPlayer.setOption("audioTrack", "track", tObj);
+                    } catch(err) {}
+                }
+            }
+            audioDropdown.classList.remove("open");
+        });
+
         const qBtn = uiWrapper.querySelector("#wp-quality-btn");
         const ccBtn = uiWrapper.querySelector("#wp-cc-btn");
+        const audioBtn = uiWrapper.querySelector("#wp-audio-btn");
         qBtn.setAttribute("aria-haspopup", "listbox");
         qBtn.setAttribute("aria-expanded", "false");
         qBtn.setAttribute("aria-controls", "wp-quality-dropdown");
         ccBtn.setAttribute("aria-haspopup", "listbox");
         ccBtn.setAttribute("aria-expanded", "false");
         ccBtn.setAttribute("aria-controls", "wp-cc-dropdown");
+        audioBtn.setAttribute("aria-haspopup", "listbox");
+        audioBtn.setAttribute("aria-expanded", "false");
+        audioBtn.setAttribute("aria-controls", "wp-audio-dropdown");
+        
+        const closeAllDropdownsExcept = (keepOpenBtn) => {
+            if (keepOpenBtn !== qBtn) { qDropdown.classList.remove("open"); qBtn.setAttribute("aria-expanded", "false"); }
+            if (keepOpenBtn !== ccBtn) { ccDropdown.classList.remove("open"); ccBtn.setAttribute("aria-expanded", "false"); }
+            if (keepOpenBtn !== audioBtn) { audioDropdown.classList.remove("open"); audioBtn.setAttribute("aria-expanded", "false"); }
+        };
+
         on(qBtn, "click", e => {
             e.stopPropagation();
+            closeAllDropdownsExcept(qBtn);
             qDropdown.classList.toggle("open");
-            ccDropdown.classList.remove("open");
             qBtn.setAttribute("aria-expanded", qDropdown.classList.contains("open") ? "true" : "false");
-            ccBtn.setAttribute("aria-expanded", "false");
         });
         on(ccBtn, "click", e => {
             e.stopPropagation();
+            closeAllDropdownsExcept(ccBtn);
             ccDropdown.classList.toggle("open");
-            qDropdown.classList.remove("open");
             ccBtn.setAttribute("aria-expanded", ccDropdown.classList.contains("open") ? "true" : "false");
-            qBtn.setAttribute("aria-expanded", "false");
+        });
+        on(audioBtn, "click", e => {
+            e.stopPropagation();
+            closeAllDropdownsExcept(audioBtn);
+            audioDropdown.classList.toggle("open");
+            audioBtn.setAttribute("aria-expanded", audioDropdown.classList.contains("open") ? "true" : "false");
         });
         on(uiWrapper, "click", e => {
             if (!e.target.closest("#wp-quality-container") && !e.target.closest("#wp-quality-btn")) {
@@ -624,8 +721,12 @@
                 ccDropdown.classList.remove("open");
                 ccBtn.setAttribute("aria-expanded", "false");
             }
+            if (!e.target.closest("#wp-audio-container") && !e.target.closest("#wp-audio-btn")) {
+                audioDropdown.classList.remove("open");
+                audioBtn.setAttribute("aria-expanded", "false");
+            }
         });
-        [qDropdown, ccDropdown].forEach(dropdown => {
+        [qDropdown, ccDropdown, audioDropdown].forEach(dropdown => {
             on(dropdown, "keydown", (e) => {
                 const options = Array.from(dropdown.querySelectorAll(".quality-option"));
                 if (!options.length) return;
@@ -645,8 +746,10 @@
                     e.preventDefault();
                     qDropdown.classList.remove("open");
                     ccDropdown.classList.remove("open");
+                    audioDropdown.classList.remove("open");
                     qBtn.setAttribute("aria-expanded", "false");
                     ccBtn.setAttribute("aria-expanded", "false");
+                    audioBtn.setAttribute("aria-expanded", "false");
                 }
             });
         });

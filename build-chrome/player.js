@@ -567,6 +567,10 @@ document.addEventListener("DOMContentLoaded", async () => {
                                 const tracks = d.subtitleTracks.map((t, i) => ({ label: t.name || t.lang, value: i }));
                                 populateCC(tracks);
                             }
+                            if (d.audioTracks && d.audioTracks.length > 1) {
+                                const tracks = d.audioTracks.map((t, i) => ({ label: t.name || t.lang || `Audio ${i+1}`, value: i, id: t.id }));
+                                populateAudio(tracks, currentHls.audioTrack);
+                            }
                         });
                         currentHls.on(Hls.Events.AUDIO_TRACK_LOADED, (e, d) => {
                             // Can be used to sync active track
