@@ -3,7 +3,7 @@
 **WebPlayer** is a feature-rich browser extension that injects a custom, ad-free media player UI directly into web videos. It upgrades the standard web video experience with advanced streaming support, native gesture controls, an audiophile-grade equalizer, and automatic sponsor skipping.
 
 **Author:** Sushant Bhushan  
-**Version:** 1.4.1
+**Version:** 1.4.2
 
 ---
 
