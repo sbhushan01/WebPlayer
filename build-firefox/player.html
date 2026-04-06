@@ -2,7 +2,7 @@
 <html lang="en" data-theme="blue">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#1A1D24">
     <meta name="description" content="WebPlayer — feature-rich video player for HLS, DASH, and native streams.">
     <title>WebPlayer</title>
@@ -57,6 +57,7 @@
             display: flex; flex-direction: column;
             align-items: center; justify-content: center;
             min-height: 100vh;
+            min-height: calc(var(--wp-vh, 1vh) * 100);
             min-height: 100dvh;
             color: var(--md-sys-color-on-surface);
             font-family: 'Roboto', system-ui, sans-serif;
@@ -68,6 +69,7 @@
         .video-container {
             position: relative; width: 100vw; background: #000;
             height: 100vh;
+            height: calc(var(--wp-vh, 1vh) * 100);
             height: 100dvh;
             display: flex; align-items: center; justify-content: center;
             overflow: hidden; touch-action: none;
@@ -78,7 +80,8 @@
         /* ── Title bar ───────────────────────────────────────────────────────── */
         .title-bar {
             position: absolute; top: 0; left: 0; right: 0; z-index: 30;
-            padding: 24px; background: linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, transparent 100%);
+            padding: calc(24px + env(safe-area-inset-top, 0px)) 24px 24px;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, transparent 100%);
             font-size: 1.25rem; font-weight: 500; opacity: 1; letter-spacing: 0.5px;
             text-shadow: 0 2px 8px rgba(0,0,0,0.8); transition: opacity 0.4s ease; pointer-events: none;
         }
@@ -107,7 +110,9 @@
 
         /* ── Floating Control Island (Glassmorphism) ─────────────────────────── */
         .custom-controls-wrapper {
-            position: absolute; bottom: 32px; left: 50%; transform: translateX(-50%);
+            position: absolute;
+            bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+            left: 50%; transform: translateX(-50%);
             width: min(95%, 1400px); z-index: 30; opacity: 1;
             transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease-out;
             display: flex; flex-direction: column; gap: 8px;
@@ -265,8 +270,17 @@
         .popover-card.active { display: flex; animation: slideUpScale 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
         @keyframes slideUpScale { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
 
-        .eq-popover { width: min(420px, calc(100vw - 32px)); }
-        @media (max-width: 500px) { .eq-popover { right: -10vw; transform-origin: bottom right; } }
+        .eq-popover {
+            width: min(420px, calc(100vw - 32px));
+            right: max(0px, calc(16px - env(safe-area-inset-right, 0px)));
+        }
+        @media (max-width: 500px) {
+            .eq-popover {
+                width: min(420px, calc(100vw - 16px));
+                right: 0;
+                transform-origin: bottom right;
+            }
+        }
         
         .popover-header { display: flex; justify-content: space-between; align-items: center; font-size: 1.25rem; font-weight: 600; color: var(--md-sys-color-on-surface); }
         .popover-close { opacity: 0.7; transition: opacity 0.2s; background: none; color: var(--md-sys-color-on-surface); border-radius: 50%; width: 36px; height: 36px; padding: 0; }
@@ -366,7 +380,12 @@
             #shortcuts-btn, #rotate-btn, #pip-btn { display: none; }
             .speed-pills { justify-content: center; }
             .custom-controls { padding: 8px 12px; gap: 8px; border-radius: 20px; }
-            .custom-controls-wrapper { bottom: 12px; width: calc(100% - 16px); padding: 0; }
+            .title-bar { padding: calc(12px + env(safe-area-inset-top, 0px)) 12px 12px; font-size: 1rem; }
+            .custom-controls-wrapper {
+                bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+                width: calc(100% - 16px);
+                padding: 0;
+            }
             button { width: 40px; height: 40px; flex-shrink: 0; margin: 0; }
             .material-symbols-rounded { font-size: 24px; }
             .progress-wrapper { height: 6px; }

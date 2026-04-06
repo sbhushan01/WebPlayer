@@ -20,7 +20,7 @@
 * **Brightness & Volume:** Swipe vertically on the left side to adjust brightness, or on the right side to adjust volume.
 * **Smart Seeking:** Double-tap the left or right side of the screen to seek ±10 seconds, with animated ripple feedback.
 * **Quick 2× Speed:** Long-press anywhere on the video to temporarily engage 2× playback. Speed pills automatically sync.
-* *Note: The player features a mobile-locked viewport and expanded `44px` hit targets to ensure the UI feels responsive and prevents accidental layout zooming.*
+* *Note: The player uses expanded `44px` hit targets and mobile-safe spacing to improve touch usability across devices.*
 
 ### 🌐 Advanced Stream & Network Handling
 * **Native Stream Support:** Built-in integration for HLS (`.m3u8`) and DASH (`.mpd`) streams, with auto-retry and a custom quality-level selector.
