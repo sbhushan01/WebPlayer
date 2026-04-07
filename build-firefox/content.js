@@ -975,6 +975,8 @@
             const req = container?.requestFullscreen || container?.webkitRequestFullscreen;
             try {
                 if (document.fullscreenElement || document.webkitFullscreenElement) {
+                    // Unlock orientation when exiting fullscreen
+                    try { screen.orientation?.unlock?.(); } catch (_) {}
                     await (document.exitFullscreen || document.webkitExitFullscreen).call(document);
                 } else {
                     if (req && container) {
@@ -983,11 +985,25 @@
                         const vidReq = video.requestFullscreen || video.webkitRequestFullscreen;
                         await vidReq?.call(video);
                     }
+                    // Lock to landscape on mobile for horizontal videos
+                    try {
+                        const isHorizontal = video.videoWidth >= video.videoHeight;
+                        if (isHorizontal) {
+                            await screen.orientation?.lock?.('landscape');
+                        }
+                    } catch (_) {}
                 }
             } catch (_) {
                 try {
                     const vidReq = video.requestFullscreen || video.webkitRequestFullscreen;
                     await vidReq?.call(video);
+                    // Lock to landscape on fallback fullscreen too
+                    try {
+                        const isHorizontal = video.videoWidth >= video.videoHeight;
+                        if (isHorizontal) {
+                            await screen.orientation?.lock?.('landscape');
+                        }
+                    } catch (_) {}
                 } catch (_) { showFeedback("FS Blocked"); }
             }
         });
@@ -1130,14 +1146,8 @@
                         showFeedback("+10s");
                         lastTapTime = now;
                     } else {
-                        // Double tap center toggles fullscreen for mouse, play/pause for touch
-                        if (e.pointerType === "mouse") {
-                            uiWrapper.querySelector("#wp-fs")?.click();
-                        } else {
-                            const wasPaused = video.paused;
-                            wasPaused ? safePlay(video) : safePause(video);
-                            showFeedback(wasPaused ? "Playing" : "Paused");
-                        }
+                        // Double tap center toggles fullscreen for both mouse and touch
+                        uiWrapper.querySelector("#wp-fs")?.click();
                         lastTapTime = 0;
                     }
                 } else {

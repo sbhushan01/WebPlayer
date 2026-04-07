@@ -1534,14 +1534,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                     showFeedback("+10s");
                     lastTapTime = now;
                 } else {
-                    // Double tap center toggles fullscreen for mouse, play/pause for touch
-                    if (e.pointerType === "mouse") {
-                        toggleFS(e);
-                    } else {
-                        const wasPaused = player.paused;
-                        wasPaused ? safePlay() : safePause();
-                        showFeedback(wasPaused ? "Playing" : "Paused");
-                    }
+                    // Double tap center toggles fullscreen for both mouse and touch
+                    toggleFS(e);
                     lastTapTime = 0;
                 }
             } else {
