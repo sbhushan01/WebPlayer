@@ -88,7 +88,12 @@
 
                     // Don't show popup if overlay is already active on any video
                     if (document.querySelector('video[data-custom-player-active="true"]')) return;
+                    
+                    // Remove existing popup if any
+                    document.getElementById("wp-stream-prompt")?.remove();
+                    
                     const prompt = document.createElement("div");
+                    prompt.id = "wp-stream-prompt";
                     prompt.style.cssText = `
                         position: fixed; bottom: 20px; right: 20px; z-index: 2147483647;
                         background: rgba(20, 20, 30, 0.9); backdrop-filter: blur(8px);
@@ -300,6 +305,9 @@
         video.dataset.customPlayerActive = "true";
         video.dataset.originalControls   = video.controls;
         video.controls = false;
+
+        // Remove the 'Stream Detected' popup if it exists
+        document.getElementById("wp-stream-prompt")?.remove();
 
         const root = getRootContainer();
         if (root) root.classList.add("webplayer-active");
