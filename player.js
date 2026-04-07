@@ -939,19 +939,26 @@ document.addEventListener("DOMContentLoaded", async () => {
         e.stopPropagation();
         updateProgressFromEvent(e);
     }, { passive: false });
-    progWrapper.addEventListener("touchend", (e) => {
+    const completeTouchDrag = (shouldSeek) => {
         if (!isDraggingProgress) return;
-        e.preventDefault();
         isDraggingProgress = false;
         seekPreview.classList.remove("visible");
         progWrapper.classList.remove("dragging");
-        if (isFinite(player.duration)) {
+        if (shouldSeek && isFinite(player.duration)) {
             player.currentTime = pendingSeekPct * player.duration;
             if (window.__wasPlayingBeforeDrag) {
                 player.addEventListener("seeked", () => safePlay(), { once: true });
             }
         }
+    };
+    progWrapper.addEventListener("touchend", (e) => {
+        if (!isDraggingProgress) return;
+        e.preventDefault();
+        completeTouchDrag(true);
     }, { passive: false });
+    // Catch touch events that end outside the progress bar element
+    document.addEventListener("touchend", () => completeTouchDrag(true), { passive: true });
+    document.addEventListener("touchcancel", () => completeTouchDrag(false), { passive: true });
 
     // ── Playback rate helper — keeps speed pills in sync ──────────────────────
     const speedMicroRange  = document.getElementById("speed-micro-range");
@@ -1170,6 +1177,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     syncViewportHeight();
     window.addEventListener("resize", syncViewportHeight, { passive: true });
     window.visualViewport?.addEventListener("resize", syncViewportHeight, { passive: true });
+
+    // Scroll indicator for mobile controls row (Bug #2 fix)
+    const controlsRowEl = document.querySelector('.controls-row');
+    if (controlsRowEl) {
+        const updateScrollIndicator = () => {
+            const hasOverflow = controlsRowEl.scrollWidth > controlsRowEl.clientWidth + 4;
+            const nearEnd = controlsRowEl.scrollLeft + controlsRowEl.clientWidth >= controlsRowEl.scrollWidth - 8;
+            controlsRowEl.classList.toggle('can-scroll-right', hasOverflow && !nearEnd);
+        };
+        controlsRowEl.addEventListener('scroll', updateScrollIndicator, { passive: true });
+        new ResizeObserver(updateScrollIndicator).observe(controlsRowEl);
+        updateScrollIndicator();
+    }
 
     // ── Popovers ──────────────────────────────────────────────────────────────
     const closeAllPopovers = () => {
@@ -1451,11 +1471,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     gestureZone.addEventListener("pointermove", (e) => {
-        if (!isPointerDown) return;
-        // U6: Ignore gestures near screen edges (top/bottom 12%)
+        if (!isPointerDown || isLongPressActive) return;
+        // U6: Ignore gestures near screen edges (safe-area aware)
         const _edgeRect = gestureZone.getBoundingClientRect();
         const _yRatio = (e.clientY - _edgeRect.top) / _edgeRect.height;
-        if (_yRatio < 0.12 || _yRatio > 0.88) return;
+        const _topPx = e.clientY - _edgeRect.top;
+        const _bottomPx = _edgeRect.bottom - e.clientY;
+        const _minEdgePx = 48;
+        if (_topPx < _minEdgePx || _bottomPx < _minEdgePx || _yRatio < 0.12 || _yRatio > 0.88) return;
         const diffX = e.clientX - startX;
         const diffY = e.clientY - startY;
         if (!swipeDir) {
@@ -1501,6 +1524,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         const diffX = e.clientX - startX;
         if (swipeDir === "horizontal" && Math.abs(diffX) > 40) {
+            // Ignore swipes that started near screen edges (browser back/forward zone)
+            if (startX < 40 || startX > window.innerWidth - 40) return;
             const shift = diffX > 0 ? 10 : -10;
             player.currentTime = Math.max(0, Math.min(player.duration || Infinity, player.currentTime + shift));
             showFeedback(`${shift > 0 ? "+" : ""}${shift}s`);

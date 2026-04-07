@@ -1058,11 +1058,14 @@
         });
 
         on(gestureZone, "pointermove", e => {
-            if (!isPointerDown) return;
-            // U6: Ignore gestures near screen edges (top/bottom 12%)
+            if (!isPointerDown || isLongPressActive) return;
+            // U6: Ignore gestures near screen edges (safe-area aware)
             const _edgeRect = gestureZone.getBoundingClientRect();
             const _yRatio = (e.clientY - _edgeRect.top) / _edgeRect.height;
-            if (_yRatio < 0.12 || _yRatio > 0.88) return;
+            const _topPx = e.clientY - _edgeRect.top;
+            const _bottomPx = _edgeRect.bottom - e.clientY;
+            const _minEdgePx = 48;
+            if (_topPx < _minEdgePx || _bottomPx < _minEdgePx || _yRatio < 0.12 || _yRatio > 0.88) return;
             const diffX = e.clientX - startX;
             const diffY = e.clientY - startY;
 
@@ -1114,6 +1117,8 @@
 
             const diffX = e.clientX - startX;
             if (swipeDir === "horizontal" && Math.abs(diffX) > 40) {
+                // Ignore swipes that started near screen edges (browser back/forward zone)
+                if (startX < 40 || startX > window.innerWidth - 40) return;
                 if (diffX > 0) { safeSeekForward(video, 10); showFeedback("+10s"); }
                 else           { video.currentTime = Math.max(0, video.currentTime - 10); showFeedback("−10s"); }
                 return;
@@ -1158,7 +1163,14 @@
                             wasPaused ? safePlay(video) : safePause(video);
                             showFeedback(wasPaused ? "Playing" : "Paused");
                         } else {
-                            showControls();
+                            // If controls are already visible, toggle play/pause
+                            if (uiWrapper.classList.contains("wp-controls-visible")) {
+                                const wasPaused = video.paused;
+                                wasPaused ? safePlay(video) : safePause(video);
+                                showFeedback(wasPaused ? "Playing" : "Paused");
+                            } else {
+                                showControls();
+                            }
                         }
                         lastTapTime = 0;
                     }, 250); // 250ms distinct click delay

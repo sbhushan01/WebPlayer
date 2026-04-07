@@ -206,7 +206,7 @@
             transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s, margin-left 0.3s, background 0.4s;
         }
         .volume-container:hover .volume-slider { width: 90px; opacity: 1; margin-left: 8px; }
-        @media (pointer: coarse) { .volume-container { display: none; } } /* Hide volume slider on mobile/touch, rely on physical OS buttons */
+        @media (pointer: coarse) { .volume-slider { display: none; } } /* Hide volume slider on touch but keep mute button visible */
 
         /* ── Speed controls ──────────────────────────────────────────────────── */
         .popover-anchor { position: relative; }
@@ -258,6 +258,7 @@
         .quality-option:hover { background: rgba(255,255,255,0.1); color: var(--md-sys-color-on-surface); transform: scale(1); }
         .quality-option.active { color: var(--md-sys-color-primary); background: rgba(255,255,255,0.05); }
         @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
         /* ── Popovers (EQ, Theme) ────────────────────────────────────────────── */
         .popover-card {
@@ -273,12 +274,17 @@
         .eq-popover {
             width: min(420px, calc(100vw - 32px));
             right: max(0px, calc(16px - env(safe-area-inset-right, 0px)));
+            max-height: min(80vh, 80dvh);
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.2) transparent;
         }
         @media (max-width: 500px) {
             .eq-popover {
                 width: min(420px, calc(100vw - 16px));
                 right: 0;
                 transform-origin: bottom right;
+                max-height: min(60vh, 60dvh);
             }
         }
         
@@ -297,7 +303,7 @@
         .preamp-row { display: flex; align-items: center; gap: 16px; font-size: 0.95rem; font-weight: 500; background: rgba(255,255,255,0.05); padding: 12px 16px; border-radius: 12px; }
 
         /* Theme Popover */
-        .theme-popover { width: 300px; right: 0; }
+        .theme-popover { width: 300px; right: 0; max-width: calc(100vw - 32px); }
         .theme-grid { display: flex; gap: 16px; justify-content: center; }
         .theme-btn {
             width: 48px; height: 48px; border-radius: 50%; border: 3px solid transparent; outline: none; transition: all 0.2s;
@@ -374,7 +380,12 @@
 
         /* ── Mobile Responsiveness ───────────────────────────────────────────── */
         @media (max-width: 850px) {
-            .controls-row { overflow-x: auto; padding-bottom: 4px; gap: 4px; justify-content: flex-start; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.2) transparent; }
+            .controls-row { overflow-x: auto; padding-bottom: 4px; gap: 4px; justify-content: flex-start; scrollbar-width: none; }
+            .controls-row::-webkit-scrollbar { display: none; }
+            .controls-row.can-scroll-right {
+                -webkit-mask-image: linear-gradient(to right, black calc(100% - 28px), transparent);
+                mask-image: linear-gradient(to right, black calc(100% - 28px), transparent);
+            }
             .controls-left, .controls-right { flex-wrap: nowrap; flex-shrink: 0; gap: 4px; }
             .time-display { font-size: 0.75rem; white-space: nowrap; margin-left: 4px; }
             #shortcuts-btn, #rotate-btn, #pip-btn { display: none; }
@@ -399,7 +410,9 @@
             .shortcuts-grid kbd { display: inline-block; width: fit-content; }
             /* Detach popovers from scrollable row to prevent clipping */
             .popover-anchor, .quality-container { position: static; }
-            .quality-dropdown, .speed-popover, .theme-popover { right: 0; bottom: calc(100% + 16px); }
+            .quality-dropdown, .speed-popover, .theme-popover { right: 0; bottom: calc(100% + 16px); max-height: min(55vh, 55dvh); overflow-y: auto; }
+            #seek-preview-canvas { width: 120px; height: 68px; }
+            #seek-preview { bottom: calc(100% + 18px); }
         }
 
         /* ── Error box ───────────────────────────────────────────────────────── */
