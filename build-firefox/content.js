@@ -85,7 +85,9 @@
                 if (msg.action === "stream_detected" && msg.url && !interceptedUrls.has(msg.url)) {
                     latestInterceptedUrl = msg.url;
                     markIntercepted(msg.url);
-                    
+
+                    // Don't show popup if overlay is already active on any video
+                    if (document.querySelector('video[data-custom-player-active="true"]')) return;
                     const prompt = document.createElement("div");
                     prompt.style.cssText = `
                         position: fixed; bottom: 20px; right: 20px; z-index: 2147483647;
@@ -387,9 +389,13 @@
             button:hover { background: rgba(255,255,255,0.12); transform: scale(1.05); }
             @media (max-width: 600px) {
                 .webplayer-ui-wrapper { bottom: max(16px, calc(8px + env(safe-area-inset-bottom))); padding: 12px 16px; border-radius: 20px; gap: 10px; width: calc(100% - 20px); }
-                .wp-center-row { flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; gap: 8px; padding-bottom: 2px; scrollbar-width: none; }
+                .wp-center-row { flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; gap: 8px; padding-bottom: 2px; scrollbar-width: none;
+                    -webkit-mask-image: linear-gradient(to right, black calc(100% - 24px), transparent); mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
+                }
                 .wp-center-row::-webkit-scrollbar { display: none; }
+                .wp-center-row.scrolled-end { -webkit-mask-image: none; mask-image: none; }
                 button { width: 44px; height: 44px; padding: 8px; flex-shrink: 0; }
+                #wp-pip { display: none; }
                 .wp-progress-row { font-size: 13px; gap: 8px; }
                 input[type=range] { margin: 8px 0; height: 6px; }
                 #wp-progress { margin: 6px 0; height: 5px; }
@@ -870,6 +876,7 @@
             try { overlayController.abort(); } catch (_) {}
             clearTimeout(tapTimeout);
             clearTimeout(hideTimer);
+            clearTimeout(scrubTimeout);
             ro.disconnect();
             shadowHost.remove();
             video.dataset.customPlayerActive = "";
@@ -1119,8 +1126,8 @@
             if (swipeDir === "horizontal" && Math.abs(diffX) > 40) {
                 // Ignore swipes that started near screen edges (browser back/forward zone)
                 if (startX < 40 || startX > window.innerWidth - 40) return;
-                if (diffX > 0) { safeSeekForward(video, 10); showFeedback("+10s"); }
-                else           { video.currentTime = Math.max(0, video.currentTime - 10); showFeedback("−10s"); }
+                if (diffX > 0) { safeSeekForward(video, 10); showFeedback("+10s", "right"); }
+                else           { video.currentTime = Math.max(0, video.currentTime - 10); showFeedback("−10s", "left"); }
                 return;
             }
 
@@ -1144,11 +1151,11 @@
                     // BUG FIX: Double tap on sides targets seeking, double tap in middle toggles Play/Pause or Fullscreen
                     if (e.clientX < rect.left + rect.width * 0.30) {
                         video.currentTime = Math.max(0, video.currentTime - 10);
-                        showFeedback("−10s");
+                        showFeedback("−10s", "left");
                         lastTapTime = now;
                     } else if (e.clientX > rect.left + rect.width * 0.70) {
                         safeSeekForward(video, 10);
-                        showFeedback("+10s");
+                        showFeedback("+10s", "right");
                         lastTapTime = now;
                     } else {
                         // Double tap center toggles fullscreen for both mouse and touch
@@ -1163,11 +1170,10 @@
                             wasPaused ? safePlay(video) : safePause(video);
                             showFeedback(wasPaused ? "Playing" : "Paused");
                         } else {
-                            // If controls are already visible, toggle play/pause
+                            // Standard mobile pattern: tap toggles control visibility
                             if (uiWrapper.classList.contains("wp-controls-visible")) {
-                                const wasPaused = video.paused;
-                                wasPaused ? safePlay(video) : safePause(video);
-                                showFeedback(wasPaused ? "Playing" : "Paused");
+                                uiWrapper.classList.remove("wp-controls-visible");
+                                clearTimeout(hideTimer);
                             } else {
                                 showControls();
                             }

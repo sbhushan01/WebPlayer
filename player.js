@@ -1247,15 +1247,15 @@ document.addEventListener("DOMContentLoaded", async () => {
             speedPopover.classList.remove("active");
             speedToggleBtn.setAttribute("aria-expanded", "false");
         }
-        if (!e.target.closest(".quality-dropdown") && !e.target.closest("#quality-btn")) {
+        if (!e.target.closest("#quality-dropdown") && !e.target.closest("#quality-btn")) {
             qualityDropdown.classList.remove("open");
             qualityBtn.setAttribute("aria-expanded", "false");
         }
-        if (!e.target.closest(".quality-dropdown") && !e.target.closest("#cc-btn")) {
+        if (!e.target.closest("#cc-dropdown") && !e.target.closest("#cc-btn")) {
             ccDropdown.classList.remove("open");
             ccBtn.setAttribute("aria-expanded", "false");
         }
-        if (!e.target.closest(".quality-dropdown") && !e.target.closest("#audio-btn")) {
+        if (!e.target.closest("#audio-dropdown") && !e.target.closest("#audio-btn")) {
             audioDropdown.classList.remove("open");
             audioBtn.setAttribute("aria-expanded", "false");
         }
@@ -1464,6 +1464,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         startX = e.clientX; startY = e.clientY; lastY = e.clientY; swipeDir = null;
         originalSpeed = player.playbackRate;
         longPressTimer = setTimeout(() => {
+            if (!isPointerDown) return; // Guard against cancelled gestures
             isLongPressActive = true;
             setPlaybackRate(2.0); // BUG FIX: use setPlaybackRate to sync pills
             showFeedback("2× Speed");
@@ -1528,7 +1529,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (startX < 40 || startX > window.innerWidth - 40) return;
             const shift = diffX > 0 ? 10 : -10;
             player.currentTime = Math.max(0, Math.min(player.duration || Infinity, player.currentTime + shift));
-            showFeedback(`${shift > 0 ? "+" : ""}${shift}s`);
+            showFeedback(`${shift > 0 ? "+" : ""}${shift}s`, shift > 0 ? "right" : "left");
             return;
         }
 
@@ -1552,11 +1553,11 @@ document.addEventListener("DOMContentLoaded", async () => {
                 // BUG FIX: Double tap on sides targets seeking, double tap in middle toggles Play/Pause or Fullscreen
                 if (e.clientX < rect.left + rect.width * 0.30) {
                     player.currentTime = Math.max(0, player.currentTime - 10);
-                    showFeedback("−10s");
+                    showFeedback("−10s", "left");
                     lastTapTime = now;
                 } else if (e.clientX > rect.left + rect.width * 0.70) {
                     player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 10);
-                    showFeedback("+10s");
+                    showFeedback("+10s", "right");
                     lastTapTime = now;
                 } else {
                     // Double tap center toggles fullscreen for both mouse and touch
