@@ -1051,7 +1051,7 @@
                     // Lock to landscape on mobile for horizontal videos
                     try {
                         const isHorizontal = video.videoWidth >= video.videoHeight;
-                        if (isHorizontal) {
+                        if (isHorizontal || rot % 180 !== 0) {
                             await screen.orientation?.lock?.('landscape');
                         }
                     } catch (_) {}
@@ -1068,7 +1068,7 @@
                     // Lock to landscape on fallback fullscreen too
                     try {
                         const isHorizontal = video.videoWidth >= video.videoHeight;
-                        if (isHorizontal) {
+                        if (isHorizontal || rot % 180 !== 0) {
                             await screen.orientation?.lock?.('landscape');
                         }
                     } catch (_) {}
@@ -1114,7 +1114,7 @@
 
         let startX = 0, startY = 0, lastY = 0, swipeDir = null;
         let isPointerDown = false, lastTapTime = 0;
-        let currentBrightness = 1.0, originalSpeed = 1.0;
+        let currentBrightness = 1.0, originalBrightness = 1.0, originalSpeed = 1.0;
         let longPressTimer = null;
         let isLongPressActive = false;
 
@@ -1135,6 +1135,7 @@
             clearTimeout(longPressTimer);
             longPressTimer = null;
             originalSpeed = video.playbackRate;
+            originalBrightness = currentBrightness;
             longPressTimer = setTimeout(() => {
                 if (!isPointerDown) return;
                 longPressTimer = null;
@@ -1200,6 +1201,13 @@
                     gestureZone.releasePointerCapture(e.pointerId);
                 }
             } catch (_) {}
+
+            // M5: Reset brightness filter on cancelled vertical gestures
+            if (e.type === "pointercancel" && swipeDir === "vertical") {
+                currentBrightness = originalBrightness;
+                video.style.filter = `brightness(${currentBrightness})`;
+                return;
+            }
 
             // Bug 5: Always restore speed on pointercancel, even if timer fired mid-event
             if (isLongPressActive || (e.type === "pointercancel" && video.playbackRate !== originalSpeed)) {

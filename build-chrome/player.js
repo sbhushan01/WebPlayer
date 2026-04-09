@@ -1139,9 +1139,6 @@ document.addEventListener("DOMContentLoaded", async () => {
                     if (isHorizontal || rotationDeg % 180 !== 0) {
                         await screen.orientation?.lock?.('landscape');
                     }
-                    if (rotationDeg % 180 !== 0) {
-                        player.style.transform = 'none';
-                    }
                 } catch (_) {}
             }
         } catch (err) {
@@ -1157,9 +1154,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     const onFSChange = () => {
         const isFS = document.fullscreenElement || document.webkitFullscreenElement;
         fsIcon.textContent = isFS ? "fullscreen_exit" : "fullscreen";
-        if (!isFS && rotationDeg % 180 !== 0) {
-            player.style.transform = `rotate(${rotationDeg}deg)`;
-        }
         fsBtn.setAttribute("aria-pressed", isFS ? "true" : "false");
     };
     document.addEventListener("fullscreenchange",       onFSChange);
@@ -1502,7 +1496,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     let startX = 0, startY = 0, lastY = 0, swipeDir = null;
     let isPointerDown = false, lastTapTime = 0, tapTimeout, longPressTimer;
-    let currentBrightness = 1.0, originalSpeed = 1.0;
+    let currentBrightness = 1.0, originalBrightness = 1.0, originalSpeed = 1.0;
     let isLongPressActive = false;
 
     gestureZone.addEventListener("contextmenu", e => e.preventDefault());
@@ -1518,6 +1512,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         try { gestureZone.setPointerCapture(e.pointerId); } catch (_) {}
         startX = e.clientX; startY = e.clientY; lastY = e.clientY; swipeDir = null;
         originalSpeed = player.playbackRate;
+        originalBrightness = currentBrightness;
         longPressTimer = setTimeout(() => {
             if (!isPointerDown) return; // Guard against cancelled gestures
             isLongPressActive = true;
@@ -1572,8 +1567,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         // M5: Reset brightness filter on cancelled vertical gestures
         if (e.type === "pointercancel" && swipeDir === "vertical") {
-            currentBrightness = 1.0;
-            player.style.filter = "";
+            currentBrightness = originalBrightness;
+            player.style.filter = `brightness(${currentBrightness})`;
             return;
         }
 
