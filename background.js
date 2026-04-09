@@ -216,10 +216,29 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             { header: "Content-Security-Policy",          operation: "remove"                               }
         ];
 
+        let reqHeaders = [];
+        if (request.pageUrl) {
+            try {
+                const pageOrigin = new URL(request.pageUrl).origin;
+                reqHeaders = [
+                    { header: "Referer", operation: "set", value: request.pageUrl },
+                    { header: "Origin",  operation: "set", value: pageOrigin }
+                ];
+            } catch (e) {}
+        }
+
         const playerTabId = sender?.tab?.id;
         if (!Number.isInteger(playerTabId) || playerTabId < 0) {
             sendResponse({ ok: false, error: "Invalid sender tab context" });
             return true;
+        }
+
+        const actionObj = { 
+            type: "modifyHeaders", 
+            responseHeaders: corsHeaders 
+        };
+        if (reqHeaders.length > 0) {
+            actionObj.requestHeaders = reqHeaders;
         }
 
         chrome.declarativeNetRequest.updateSessionRules(
@@ -229,7 +248,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     {
                         id: ruleId,
                         priority: 1,
-                        action: { type: "modifyHeaders", responseHeaders: corsHeaders },
+                        action: actionObj,
                         condition: {
                             urlFilter: urlFilter,
                             tabIds: [playerTabId],
@@ -240,7 +259,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     {
                         id: broadRuleId,
                         priority: 1,
-                        action: { type: "modifyHeaders", responseHeaders: corsHeaders },
+                        action: actionObj,
                         condition: {
                             regexFilter: "\\.(ts|m4s|m3u8|mpd|mp4|aac|vtt|srt|key)(\\?.*)?$",
                             tabIds: [playerTabId],
