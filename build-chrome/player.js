@@ -242,6 +242,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     let mediaElementSource, preampGain;
     const eqFilters = [];
     let isAudioInitialized = false;
+    let _previewVideo = null;
+    let _previewVideoReady = false;
 
     let currentHls = null, currentDash = null;
     function destroyEngines() {
@@ -252,7 +254,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         destroyEngines();
         if (window.audioContext?.state !== "closed") window.audioContext?.close();
         // Clean up preview video clone if created
-        if (typeof _previewVideo !== 'undefined' && _previewVideo) {
+        if (_previewVideo) {
             _previewVideo.src = "";
             _previewVideo.remove();
         }
@@ -716,6 +718,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     // case the service worker was suspended when the message arrived.
     const _canMessage = typeof chrome !== "undefined" && chrome.runtime && typeof chrome.runtime.sendMessage === "function";
     if (_canMessage && videoSrc) {
+        let _sourceAttached = false;
+        const _attachOnce = () => { if (_sourceAttached) return; _sourceAttached = true; attachSource(videoSrc); };
         const sendSetupDnr = (retriesLeft) => {
             try {
                 chrome.runtime.sendMessage(
@@ -730,12 +734,12 @@ document.addEventListener("DOMContentLoaded", async () => {
                             // All retries exhausted — proceed anyway; the
                             // open_player pre-applied rules may still be active.
                         }
-                        attachSource(videoSrc);
+                        _attachOnce();
                     }
                 );
             } catch (_) {
                 // Extension context unavailable — load directly
-                attachSource(videoSrc);
+                _attachOnce();
             }
         };
         sendSetupDnr(2);
@@ -848,8 +852,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     let lastPreviewTime    = -1;
 
     // Use a hidden clone video for thumbnail generation to avoid flicker on main player
-    let _previewVideo = null;
-    let _previewVideoReady = false;
     const getPreviewVideo = () => {
         if (_previewVideo) return _previewVideo;
         _previewVideo = document.createElement("video");

@@ -264,18 +264,19 @@
         } catch (e) {}
     }
 
-    // B1: Track play() promise to prevent AbortError on rapid play/pause
-    let _playPromise = null;
+    // B1: Track play() promise per-video to prevent AbortError on rapid play/pause
     function safePlay(video) {
         try {
-            _playPromise = video.play();
-            if (_playPromise && typeof _playPromise.catch === "function") {
-                _playPromise.catch(() => {}).finally(() => { _playPromise = null; });
+            const p = video.play();
+            video.__wpPlayPromise = p;
+            if (p && typeof p.catch === "function") {
+                p.catch(() => {}).finally(() => { if (video.__wpPlayPromise === p) video.__wpPlayPromise = null; });
             }
-        } catch (err) { _playPromise = null; }
+        } catch (err) { video.__wpPlayPromise = null; }
     }
     async function safePause(video) {
-        if (_playPromise) { try { await _playPromise; } catch (_) {} _playPromise = null; }
+        const p = video.__wpPlayPromise;
+        if (p) { try { await p; } catch (_) {} video.__wpPlayPromise = null; }
         video.pause();
     }
 
@@ -346,6 +347,7 @@
         ro.observe(video.parentElement);
 
         const shadow = shadowHost.attachShadow({ mode: "closed" });
+        const getActiveEl = () => shadow.activeElement || document.activeElement;
 
         const styles = document.createElement("style");
         styles.textContent = `
@@ -661,7 +663,7 @@
                     }
 
                     const speedPills = Array.from(speedPillsEl.querySelectorAll(".speed-pill"));
-                    const activeEl = document.activeElement;
+                    const activeEl = getActiveEl();
                     const pillIndex = speedPills.indexOf(activeEl);
 
                     if (pillIndex !== -1) {
@@ -688,7 +690,7 @@
                 }
                 const options = Array.from(dropdown.querySelectorAll(".quality-option"));
                 if (!options.length) return;
-                const idx = options.indexOf(document.activeElement);
+                const idx = options.indexOf(getActiveEl());
                 if (e.key === "ArrowDown") {
                     e.preventDefault();
                     options[(idx + 1 + options.length) % options.length].focus();
@@ -696,7 +698,7 @@
                     e.preventDefault();
                     options[(idx - 1 + options.length) % options.length].focus();
                 } else if (e.key === "Enter" || e.key === " ") {
-                    if (document.activeElement?.classList?.contains("quality-option")) {
+                    if (getActiveEl()?.classList?.contains("quality-option")) {
                         e.preventDefault();
                         document.activeElement.click();
                     }
@@ -771,7 +773,7 @@
         }
 
         // ── SponsorBlock ──────────────────────────────────────────────────────────
-        window.__isSkipping = false;
+        let _isSkipping = false;
         async function fetchSegments() {
             try {
                 const match = /(?:v=|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/.exec(window.location.href);
@@ -789,19 +791,19 @@
         const SEGMENT_LABELS = { sponsor: "Sponsor Skipped", intro: "Intro Skipped", outro: "Outro Skipped", selfpromo: "Self-Promo Skipped", interaction: "Interaction Skipped", music_offtopic: "Music Skipped", preview: "Preview Skipped" };
 
         on(video, "timeupdate", () => {
-            if (window.__isSkipping || !skipSegments.length) return;
+            if (_isSkipping || !skipSegments.length) return;
             const t = video.currentTime;
             for (const seg of skipSegments) {
                 const start = seg.segment?.[0] ?? seg.start;
                 const end   = seg.segment?.[1] ?? seg.end;
                 const segId = seg.UUID || start;
                 if (t >= start && t < end && !skippedIds.has(segId)) {
-                    window.__isSkipping = true;
+                    _isSkipping = true;
                     skippedIds.add(segId);
                     video.currentTime = end;
                     showFeedback(SEGMENT_LABELS[seg.category] || "Segment Skipped");
-                    on(video, "seeked", () => { window.__isSkipping = false; }, { once: true });
-                    setTimeout(() => { window.__isSkipping = false; }, 1000);
+                    on(video, "seeked", () => { _isSkipping = false; }, { once: true });
+                    setTimeout(() => { _isSkipping = false; }, 1000);
                     break;
                 }
             }
@@ -1141,9 +1143,11 @@
             }
 
             if (swipeDir === "vertical") {
+                // Vertical swipe (volume/brightness) intentionally disabled outside
+                // fullscreen to avoid conflicting with page scroll gestures.
                 const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
                 if (!isFS) {
-                    swipeDir = null; // Do not apply volume/brightness when inline
+                    swipeDir = null;
                     return; 
                 }
                 const rect   = gestureZone.getBoundingClientRect();

@@ -128,6 +128,22 @@ if (chrome?.alarms?.onAlarm) {
     chrome.alarms.onAlarm.addListener((alarm) => {
         if (alarm.name === "keepAlive") {
             cleanupOldVideoProgress();
+            // B4: Prune orphan DNR session rules to guard against MAX_NUMBER_OF_DYNAMIC_RULES (5000)
+            if (chrome?.declarativeNetRequest?.getSessionRules && chrome?.storage?.session?.get) {
+                chrome.declarativeNetRequest.getSessionRules((rules) => {
+                    if (rules.length > 100) {
+                        chrome.storage.session.get(null, (data) => {
+                            const validRuleIds = new Set(
+                                Object.values(data).flatMap(v => Array.isArray(v) ? v : [v]).map(Number).filter(Boolean)
+                            );
+                            const orphanIds = rules.map(r => r.id).filter(id => !validRuleIds.has(id));
+                            if (orphanIds.length) {
+                                chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: orphanIds });
+                            }
+                        });
+                    }
+                });
+            }
         }
     });
 }
@@ -169,8 +185,8 @@ function setupDNRForTab(tabId, videoUrl, callback, refererUrl) {
     }
 
     const urlFilter = domainFilter(videoUrl);
-    const ruleId      = crypto.getRandomValues(new Uint32Array(1))[0] % 1000000000 + 1;
-    const broadRuleId = ruleId + 1000000000;
+    const ruleId      = crypto.getRandomValues(new Uint32Array(1))[0] % 500000000 + 1;
+    const broadRuleId = ruleId + 500000000;
 
     const corsHeaders = [
         { header: "Access-Control-Allow-Origin",      operation: "set",    value: "*"                  },
@@ -397,24 +413,4 @@ if (chrome?.webRequest?.onHeadersReceived) {
     );
 }
 
-// B4: Guard against MAX_NUMBER_OF_DYNAMIC_RULES (5000 for session rules)
-// Periodically prune rules for tabs that no longer exist
-if (chrome?.alarms?.onAlarm && chrome?.declarativeNetRequest?.getSessionRules && chrome?.storage?.session?.get) {
-    chrome.alarms.onAlarm.addListener((alarm) => {
-        if (alarm.name === "keepAlive") {
-            chrome.declarativeNetRequest.getSessionRules((rules) => {
-                if (rules.length > 100) { // If accumulating too many rules, prune orphans
-                    chrome.storage.session.get(null, (data) => {
-                        const validRuleIds = new Set(
-                            Object.values(data).flatMap(v => Array.isArray(v) ? v : [v]).map(Number).filter(Boolean)
-                        );
-                        const orphanIds = rules.map(r => r.id).filter(id => !validRuleIds.has(id));
-                        if (orphanIds.length) {
-                            chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: orphanIds });
-                        }
-                    });
-                }
-            });
-        }
-    });
-}
+

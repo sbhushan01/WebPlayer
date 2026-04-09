@@ -13,14 +13,3 @@
     visibility: hidden !important;
 }
 
-.wp-ripple {
-    position: absolute;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.4);
-    transform: scale(0);
-    animation: wp-ripple-anim 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
-    pointer-events: none;
-}
-@keyframes wp-ripple-anim {
-    to { transform: scale(4); opacity: 0; }
-}

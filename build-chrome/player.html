@@ -274,7 +274,7 @@
         .eq-popover {
             width: min(420px, calc(100vw - 32px));
             right: max(0px, calc(16px - env(safe-area-inset-right, 0px)));
-            max-height: min(80vh, 80dvh);
+            max-height: min(80vh, 80dvh, calc(100dvh - 80px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)));
             overflow-y: auto;
             scrollbar-width: thin;
             scrollbar-color: rgba(255,255,255,0.2) transparent;
@@ -287,7 +287,7 @@
                 width: min(420px, calc(100vw - 16px));
                 right: 0;
                 transform-origin: bottom right;
-                max-height: min(60vh, 60dvh);
+                max-height: min(60vh, 60dvh, calc(100dvh - 60px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)));
                 bottom: min(calc(100% + 16px), calc(100dvh - 24px - env(safe-area-inset-top, 0px)));
             }
         }
