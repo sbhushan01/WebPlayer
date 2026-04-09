@@ -227,12 +227,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             } catch (e) {}
         }
 
-        const playerTabId = sender?.tab?.id;
-        if (!Number.isInteger(playerTabId) || playerTabId < 0) {
-            sendResponse({ ok: false, error: "Invalid sender tab context" });
-            return true;
-        }
-
         const actionObj = { 
             type: "modifyHeaders", 
             responseHeaders: corsHeaders 
@@ -241,69 +235,69 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             actionObj.requestHeaders = reqHeaders;
         }
 
-        chrome.declarativeNetRequest.updateSessionRules(
-            {
-                addRules: [
-                    // Rule 1: Domain-specific (manifest host)
-                    {
-                        id: ruleId,
-                        priority: 1,
-                        action: actionObj,
-                        condition: {
-                            urlFilter: urlFilter,
-                            tabIds: [playerTabId],
-                            resourceTypes: ["media", "xmlhttprequest", "other"]
-                        }
-                    },
-                    // Rule 2: Broad — catch CDN segment domains (.ts, .m4s, .m3u8, .mpd, etc.)
-                    {
-                        id: broadRuleId,
-                        priority: 1,
-                        action: actionObj,
-                        condition: {
-                            regexFilter: "\\.(ts|m4s|m3u8|mpd|mp4|aac|vtt|srt|key)(\\?.*)?$",
-                            tabIds: [playerTabId],
-                            resourceTypes: ["media", "xmlhttprequest", "other"],
-                            isUrlFilterCaseSensitive: false
-                        }
-                    }
-                ]
-            },
-            () => {
-                if (chrome.runtime.lastError) {
-                    console.error("[WebPlayer] Failed to add DNR rules:", chrome.runtime.lastError.message);
-                    sendResponse({ ok: false, error: chrome.runtime.lastError.message });
+        // First create the player tab, then add DNR rules scoped to the NEW tab's ID
+        // (Previously rules were scoped to the sender tab, which is the website — not the player)
+        const params = new URLSearchParams({
+            src:     videoUrl,
+            title:   request.pageTitle || "Video",
+            pageUrl: request.pageUrl   || ""
+        });
+        const playerUrl = chrome.runtime.getURL(`player.html?${params}`);
+
+        try {
+            chrome.tabs.create({ url: playerUrl }, (tab) => {
+                if (chrome.runtime.lastError || !tab) {
+                    console.error("[WebPlayer] Failed to open tab:", chrome.runtime.lastError?.message);
+                    sendResponse({ ok: false, error: chrome.runtime.lastError?.message || "Failed to open player tab" });
                     return;
                 }
+                const newTabId = tab.id;
 
-                const params = new URLSearchParams({
-                    src:     videoUrl,
-                    title:   request.pageTitle || "Video",
-                    pageUrl: request.pageUrl   || ""
-                });
-                const playerUrl = chrome.runtime.getURL(`player.html?${params}`);
-
-                try {
-                    chrome.tabs.create({ url: playerUrl }, (tab) => {
-                        if (chrome.runtime.lastError || !tab) {
-                            console.error("[WebPlayer] Failed to open tab:", chrome.runtime.lastError?.message);
-                            chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [ruleId, broadRuleId] });
-                            sendResponse({ ok: false, error: chrome.runtime.lastError?.message || "Failed to open player tab" });
-                            return;
+                // Now add DNR rules scoped to the actual player tab
+                chrome.declarativeNetRequest.updateSessionRules(
+                    {
+                        addRules: [
+                            // Rule 1: Domain-specific (manifest host)
+                            {
+                                id: ruleId,
+                                priority: 1,
+                                action: actionObj,
+                                condition: {
+                                    urlFilter: urlFilter,
+                                    tabIds: [newTabId],
+                                    resourceTypes: ["media", "xmlhttprequest", "other"]
+                                }
+                            },
+                            // Rule 2: Broad — catch CDN segment domains (.ts, .m4s, .m3u8, .mpd, etc.)
+                            {
+                                id: broadRuleId,
+                                priority: 1,
+                                action: actionObj,
+                                condition: {
+                                    regexFilter: "\\.(ts|m4s|m3u8|mpd|mp4|aac|vtt|srt|key)(\\?.*)?$",
+                                    tabIds: [newTabId],
+                                    resourceTypes: ["media", "xmlhttprequest", "other"],
+                                    isUrlFilterCaseSensitive: false
+                                }
+                            }
+                        ]
+                    },
+                    () => {
+                        if (chrome.runtime.lastError) {
+                            console.error("[WebPlayer] Failed to add DNR rules:", chrome.runtime.lastError.message);
                         }
                         // Store both rule IDs for cleanup when the tab closes
                         if (chrome?.storage?.session?.set) {
-                            chrome.storage.session.set({ [tab.id.toString()]: [ruleId, broadRuleId] });
+                            chrome.storage.session.set({ [newTabId.toString()]: [ruleId, broadRuleId] });
                         }
-                        sendResponse({ ok: true, tabId: tab.id });
-                    });
-                } catch (err) {
-                    console.error("[WebPlayer] Exception while creating tab:", err);
-                    chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [ruleId, broadRuleId] });
-                    sendResponse({ ok: false, error: err?.message || String(err) });
-                }
-            }
-        );
+                        sendResponse({ ok: true, tabId: newTabId });
+                    }
+                );
+            });
+        } catch (err) {
+            console.error("[WebPlayer] Exception while creating tab:", err);
+            sendResponse({ ok: false, error: err?.message || String(err) });
+        }
         return true;
     }
 });
