@@ -10,11 +10,11 @@ function cleanupOldVideoProgress() {
         const now = Date.now();
         const keysToRemove = [];
         for (const [key, val] of Object.entries(items)) {
-            if (key === '_wp_pending_stream' || key === '_wp_pending_streams') continue; // B2: skip queue keys
-            if (!hasUrlPrefix(key)) continue; // B12: never touch unrelated local storage keys
-            if (typeof val === 'number') { // legacy format: raw timestamp/position
+            if (key === '_wp_pending_stream' || key === '_wp_pending_streams') continue;
+            if (!hasUrlPrefix(key)) continue;
+            if (typeof val === 'number') {
                 keysToRemove.push(key);
-            } else if (val && typeof val === 'object' && typeof val.ts === 'number' && (now - val.ts > 30 * 24 * 60 * 60 * 1000)) { // B7: 30-day TTL
+            } else if (val && typeof val === 'object' && typeof val.ts === 'number' && (now - val.ts > 30 * 24 * 60 * 60 * 1000)) {
                 keysToRemove.push(key);
             }
         }
@@ -111,7 +111,7 @@ if (chrome?.runtime?.onStartup) {
                         url: pending.url,
                         pageUrl: pending.pageUrl
                     }, { frameId: 0 }, () => {
-                        if (chrome.runtime.lastError) { /* tab may not have content script */ }
+                        if (chrome.runtime.lastError) {}
                         done();
                     });
                 });
@@ -150,10 +150,7 @@ function domainFilter(rawUrl) {
     }
 }
 
-// Shared helper: sets up DNR session rules (CORS + Referer/Origin spoofing)
-// for the given tab so the CDN sees a same-origin Referer rather than the
-// extension's chrome-extension:// origin.
-function setupDNRForTab(tabId, videoUrl, callback) {
+function setupDNRForTab(tabId, videoUrl, callback, refererUrl) {
     if (!Number.isInteger(tabId) || tabId < 0) {
         callback?.(false, "Invalid tab ID");
         return;
@@ -180,8 +177,9 @@ function setupDNRForTab(tabId, videoUrl, callback) {
     let reqHeaders = [];
     try {
         const streamOrigin = new URL(videoUrl).origin;
+        const refValue = refererUrl || (streamOrigin + "/");
         reqHeaders = [
-            { header: "Referer", operation: "set", value: streamOrigin + "/" },
+            { header: "Referer", operation: "set", value: refValue },
             { header: "Origin",  operation: "set", value: streamOrigin }
         ];
     } catch (e) {}
@@ -291,11 +289,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     if (request.action === "open_player" && request.videoSrc) {
         const videoUrl  = request.videoSrc;
+        const embedUrl  = request.embedUrl || "";
 
         const params = new URLSearchParams({
-            src:     videoUrl,
-            title:   request.pageTitle || "Video",
-            pageUrl: request.pageUrl   || ""
+            src:      videoUrl,
+            title:    request.pageTitle || "Video",
+            pageUrl:  request.pageUrl   || "",
+            embedUrl: embedUrl
         });
         const playerUrl = chrome.runtime.getURL(`player.html?${params}`);
 
@@ -306,12 +306,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     sendResponse({ ok: false, error: chrome.runtime.lastError?.message || "Failed to open player tab" });
                     return;
                 }
-                // Pre-apply DNR rules immediately so they're active before
-                // player.js even loads — eliminates the SW-suspension race.
                 setupDNRForTab(tab.id, videoUrl, (ok, err) => {
                     if (!ok) console.warn("[WebPlayer] Pre-setup DNR in open_player failed:", err);
                     sendResponse({ ok: true, tabId: tab.id });
-                });
+                }, embedUrl || undefined);
             });
         } catch (err) {
             console.error("[WebPlayer] Exception while creating tab:", err);
@@ -320,15 +318,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return true;
     }
 
-    // Called by player.js BEFORE loading the stream.  Now delegates to the
-    // shared helper.  The `open_player` handler above already pre-applies
-    // rules, so this acts as a refresh / safety-net for edge cases
-    // (e.g. manual URL entry, retry after failure).
     if (request.action === "setup_dnr" && request.videoSrc) {
         const playerTabId = sender?.tab?.id;
         setupDNRForTab(playerTabId, request.videoSrc, (ok, err) => {
             sendResponse({ ok: !!ok, error: err || undefined });
-        });
+        }, request.embedUrl || undefined);
         return true;
     }
 });
@@ -359,18 +353,21 @@ if (chrome?.webRequest?.onHeadersReceived) {
                 recentlyInterceptedTabs.add(details.tabId);
                 setTimeout(() => recentlyInterceptedTabs.delete(details.tabId), 5000);
 
+                const embedUrl = details.documentUrl || details.initiator || "";
                 const nextPending = {
                     url: details.url,
                     tabId: details.tabId,
                     pageUrl: details.initiator || "",
+                    embedUrl: embedUrl,
                     ts: Date.now()
                 };
                 enqueuePendingStreamSerialized(nextPending);
 
                 chrome.tabs.sendMessage(details.tabId, {
-                    action:  "stream_detected",
-                    url:     details.url,
-                    pageUrl: details.initiator || ""
+                    action:   "stream_detected",
+                    url:      details.url,
+                    pageUrl:  details.initiator || "",
+                    embedUrl: embedUrl
                 }, { frameId: 0 }, () => {
                     if (chrome.runtime.lastError) { /* Silently ignore */ }
                 });

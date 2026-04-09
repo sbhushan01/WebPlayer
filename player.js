@@ -86,6 +86,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const urlParams  = new URLSearchParams(window.location.search);
     const videoSrc   = urlParams.get("src");
     const pageUrl    = urlParams.get("pageUrl") || "";
+    const embedUrl   = urlParams.get("embedUrl") || "";
     const isStandaloneMode = !pageUrl;
     const STANDALONE_HLS_MAX_BUFFER_BYTES = 20 * 1000 * 1000;
     const titleParam = urlParams.get("title")   || "";
@@ -714,7 +715,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const sendSetupDnr = (retriesLeft) => {
             try {
                 chrome.runtime.sendMessage(
-                    { action: "setup_dnr", videoSrc: videoSrc },
+                    { action: "setup_dnr", videoSrc: videoSrc, embedUrl: embedUrl },
                     (resp) => {
                         if (chrome.runtime.lastError) {
                             console.warn("[WebPlayer] setup_dnr attempt failed:", chrome.runtime.lastError.message);

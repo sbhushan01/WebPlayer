@@ -158,7 +158,7 @@ function domainFilter(rawUrl) {
 // Shared helper: sets up DNR session rules (CORS + Referer/Origin spoofing)
 // for the given tab so the CDN sees a same-origin Referer rather than the
 // extension's chrome-extension:// origin.
-function setupDNRForTab(tabId, videoUrl, callback) {
+function setupDNRForTab(tabId, videoUrl, callback, refererUrl) {
     if (!Number.isInteger(tabId) || tabId < 0) {
         callback?.(false, "Invalid tab ID");
         return;
@@ -182,11 +182,15 @@ function setupDNRForTab(tabId, videoUrl, callback) {
         { header: "Content-Security-Policy",          operation: "remove"                               }
     ];
 
+    // Use the embed page URL as Referer if available (CDNs often validate
+    // that the Referer matches the page that embedded the player, e.g.
+    // /e/xxxxx); fall back to the stream origin.
     let reqHeaders = [];
     try {
         const streamOrigin = new URL(videoUrl).origin;
+        const refValue = refererUrl || (streamOrigin + "/");
         reqHeaders = [
-            { header: "Referer", operation: "set", value: streamOrigin + "/" },
+            { header: "Referer", operation: "set", value: refValue },
             { header: "Origin",  operation: "set", value: streamOrigin }
         ];
     } catch (e) {}
@@ -298,11 +302,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     if (request.action === "open_player" && request.videoSrc) {
         const videoUrl  = request.videoSrc;
+        const embedUrl  = request.embedUrl || "";
 
         const params = new URLSearchParams({
-            src:     videoUrl,
-            title:   request.pageTitle || "Video",
-            pageUrl: request.pageUrl   || ""
+            src:      videoUrl,
+            title:    request.pageTitle || "Video",
+            pageUrl:  request.pageUrl   || "",
+            embedUrl: embedUrl
         });
         const playerUrl = chrome.runtime.getURL(`player.html?${params}`);
 
@@ -318,7 +324,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 setupDNRForTab(tab.id, videoUrl, (ok, err) => {
                     if (!ok) console.warn("[WebPlayer] Pre-setup DNR in open_player failed:", err);
                     sendResponse({ ok: true, tabId: tab.id });
-                });
+                }, embedUrl || undefined);
             });
         } catch (err) {
             console.error("[WebPlayer] Exception while creating tab:", err);
@@ -335,7 +341,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const playerTabId = sender?.tab?.id;
         setupDNRForTab(playerTabId, request.videoSrc, (ok, err) => {
             sendResponse({ ok: !!ok, error: err || undefined });
-        });
+        }, request.embedUrl || undefined);
         return true;
     }
 });
@@ -367,18 +373,21 @@ if (chrome?.webRequest?.onHeadersReceived) {
                 setTimeout(() => recentlyInterceptedTabs.delete(details.tabId), 5000);
 
                 // B2: Store pending stream queue in case SW dies before user confirms (serialized writes)
+                const embedUrl = details.documentUrl || details.initiator || "";
                 const nextPending = {
                     url: details.url,
                     tabId: details.tabId,
                     pageUrl: details.initiator || "",
+                    embedUrl: embedUrl,
                     ts: Date.now()
                 };
                 enqueuePendingStreamSerialized(nextPending);
 
                 chrome.tabs.sendMessage(details.tabId, {
-                    action:  "stream_detected",
-                    url:     details.url,
-                    pageUrl: details.initiator || ""
+                    action:   "stream_detected",
+                    url:      details.url,
+                    pageUrl:  details.initiator || "",
+                    embedUrl: embedUrl
                 }, { frameId: 0 }, () => {
                     if (chrome.runtime.lastError) { /* Silently ignore */ }
                 });

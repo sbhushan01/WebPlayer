@@ -140,7 +140,8 @@
                                 action:    "open_player",
                                 videoSrc:  msg.url,
                                 pageTitle: document.title,
-                                pageUrl:   window.location.href
+                                pageUrl:   window.location.href,
+                                embedUrl:  msg.embedUrl || ""
                             }, () => {
                                 const errMsg = getRuntimeLastErrorMessage();
                                 if (errMsg) console.warn("[WebPlayer] Cannot send launch message:", errMsg);
