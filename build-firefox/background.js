@@ -199,44 +199,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     if (request.action === "open_player" && request.videoSrc) {
         const videoUrl  = request.videoSrc;
-        const urlFilter = domainFilter(videoUrl);
 
-        // Generate two rule IDs — one for the manifest domain, one broad wildcard
-        // HLS/DASH segments are often served from different CDN domains
-        const ruleId      = crypto.getRandomValues(new Uint32Array(1))[0] % 1000000000 + 1;
-        const broadRuleId = ruleId + 1000000000; // offset to avoid collision
-
-        const corsHeaders = [
-            { header: "Access-Control-Allow-Origin",      operation: "set",    value: "*"                  },
-            { header: "Access-Control-Allow-Methods",     operation: "set",    value: "GET, HEAD, OPTIONS"  },
-            { header: "Access-Control-Allow-Headers",     operation: "set",    value: "*"                  },
-            { header: "Access-Control-Expose-Headers",    operation: "set",    value: "*"                  },
-            { header: "Access-Control-Allow-Credentials", operation: "remove"                               },
-            { header: "X-Frame-Options",                  operation: "remove"                               },
-            { header: "Content-Security-Policy",          operation: "remove"                               }
-        ];
-
-        let reqHeaders = [];
-        if (request.pageUrl) {
-            try {
-                const pageOrigin = new URL(request.pageUrl).origin;
-                reqHeaders = [
-                    { header: "Referer", operation: "set", value: request.pageUrl },
-                    { header: "Origin",  operation: "set", value: pageOrigin }
-                ];
-            } catch (e) {}
-        }
-
-        const actionObj = { 
-            type: "modifyHeaders", 
-            responseHeaders: corsHeaders 
-        };
-        if (reqHeaders.length > 0) {
-            actionObj.requestHeaders = reqHeaders;
-        }
-
-        // First create the player tab, then add DNR rules scoped to the NEW tab's ID
-        // (Previously rules were scoped to the sender tab, which is the website — not the player)
         const params = new URLSearchParams({
             src:     videoUrl,
             title:   request.pageTitle || "Video",
@@ -251,53 +214,98 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     sendResponse({ ok: false, error: chrome.runtime.lastError?.message || "Failed to open player tab" });
                     return;
                 }
-                const newTabId = tab.id;
-
-                // Now add DNR rules scoped to the actual player tab
-                chrome.declarativeNetRequest.updateSessionRules(
-                    {
-                        addRules: [
-                            // Rule 1: Domain-specific (manifest host)
-                            {
-                                id: ruleId,
-                                priority: 1,
-                                action: actionObj,
-                                condition: {
-                                    urlFilter: urlFilter,
-                                    tabIds: [newTabId],
-                                    resourceTypes: ["media", "xmlhttprequest", "other"]
-                                }
-                            },
-                            // Rule 2: Broad — catch CDN segment domains (.ts, .m4s, .m3u8, .mpd, etc.)
-                            {
-                                id: broadRuleId,
-                                priority: 1,
-                                action: actionObj,
-                                condition: {
-                                    regexFilter: "\\.(ts|m4s|m3u8|mpd|mp4|aac|vtt|srt|key)(\\?.*)?$",
-                                    tabIds: [newTabId],
-                                    resourceTypes: ["media", "xmlhttprequest", "other"],
-                                    isUrlFilterCaseSensitive: false
-                                }
-                            }
-                        ]
-                    },
-                    () => {
-                        if (chrome.runtime.lastError) {
-                            console.error("[WebPlayer] Failed to add DNR rules:", chrome.runtime.lastError.message);
-                        }
-                        // Store both rule IDs for cleanup when the tab closes
-                        if (chrome?.storage?.session?.set) {
-                            chrome.storage.session.set({ [newTabId.toString()]: [ruleId, broadRuleId] });
-                        }
-                        sendResponse({ ok: true, tabId: newTabId });
-                    }
-                );
+                sendResponse({ ok: true, tabId: tab.id });
             });
         } catch (err) {
             console.error("[WebPlayer] Exception while creating tab:", err);
             sendResponse({ ok: false, error: err?.message || String(err) });
         }
+        return true;
+    }
+
+    // Called by player.js BEFORE loading the stream, ensuring DNR rules are
+    // active before the first network request.  Uses sender.tab.id which is
+    // guaranteed to be the player tab itself.
+    if (request.action === "setup_dnr" && request.videoSrc) {
+        const videoUrl  = request.videoSrc;
+        const urlFilter = domainFilter(videoUrl);
+        const playerTabId = sender?.tab?.id;
+
+        if (!Number.isInteger(playerTabId) || playerTabId < 0) {
+            sendResponse({ ok: false, error: "Invalid player tab context" });
+            return true;
+        }
+
+        const ruleId      = crypto.getRandomValues(new Uint32Array(1))[0] % 1000000000 + 1;
+        const broadRuleId = ruleId + 1000000000;
+
+        const corsHeaders = [
+            { header: "Access-Control-Allow-Origin",      operation: "set",    value: "*"                  },
+            { header: "Access-Control-Allow-Methods",     operation: "set",    value: "GET, HEAD, OPTIONS"  },
+            { header: "Access-Control-Allow-Headers",     operation: "set",    value: "*"                  },
+            { header: "Access-Control-Expose-Headers",    operation: "set",    value: "*"                  },
+            { header: "Access-Control-Allow-Credentials", operation: "remove"                               },
+            { header: "X-Frame-Options",                  operation: "remove"                               },
+            { header: "Content-Security-Policy",          operation: "remove"                               }
+        ];
+
+        // Derive Referer/Origin from the stream URL's own origin so the CDN
+        // sees a same-origin Referer rather than the outer embedding page.
+        let reqHeaders = [];
+        try {
+            const streamOrigin = new URL(videoUrl).origin;
+            reqHeaders = [
+                { header: "Referer", operation: "set", value: streamOrigin + "/" },
+                { header: "Origin",  operation: "set", value: streamOrigin }
+            ];
+        } catch (e) {}
+
+        const actionObj = {
+            type: "modifyHeaders",
+            responseHeaders: corsHeaders
+        };
+        if (reqHeaders.length > 0) {
+            actionObj.requestHeaders = reqHeaders;
+        }
+
+        chrome.declarativeNetRequest.updateSessionRules(
+            {
+                addRules: [
+                    {
+                        id: ruleId,
+                        priority: 1,
+                        action: actionObj,
+                        condition: {
+                            urlFilter: urlFilter,
+                            tabIds: [playerTabId],
+                            resourceTypes: ["media", "xmlhttprequest", "other"]
+                        }
+                    },
+                    {
+                        id: broadRuleId,
+                        priority: 1,
+                        action: actionObj,
+                        condition: {
+                            regexFilter: "\\.(ts|m4s|m3u8|mpd|mp4|aac|vtt|srt|key)(\\?.*)?$",
+                            tabIds: [playerTabId],
+                            resourceTypes: ["media", "xmlhttprequest", "other"],
+                            isUrlFilterCaseSensitive: false
+                        }
+                    }
+                ]
+            },
+            () => {
+                if (chrome.runtime.lastError) {
+                    console.error("[WebPlayer] Failed to add DNR rules:", chrome.runtime.lastError.message);
+                    sendResponse({ ok: false, error: chrome.runtime.lastError.message });
+                    return;
+                }
+                if (chrome?.storage?.session?.set) {
+                    chrome.storage.session.set({ [playerTabId.toString()]: [ruleId, broadRuleId] });
+                }
+                sendResponse({ ok: true });
+            }
+        );
         return true;
     }
 });

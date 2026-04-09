@@ -705,7 +705,28 @@ document.addEventListener("DOMContentLoaded", async () => {
             bufferEl.classList.remove("is-buffering");
         }
     }
-    attachSource(videoSrc);
+    // Ask background to set up DNR rules (CORS + Referer) for this tab BEFORE
+    // loading the stream.  This eliminates race conditions where HLS.js fires
+    // the first request before rules are in place.
+    const _canMessage = typeof chrome !== "undefined" && chrome.runtime && typeof chrome.runtime.sendMessage === "function";
+    if (_canMessage && videoSrc) {
+        try {
+            chrome.runtime.sendMessage(
+                { action: "setup_dnr", videoSrc: videoSrc },
+                (resp) => {
+                    if (chrome.runtime.lastError) {
+                        console.warn("[WebPlayer] setup_dnr failed:", chrome.runtime.lastError.message);
+                    }
+                    attachSource(videoSrc);
+                }
+            );
+        } catch (_) {
+            // Extension context unavailable — load directly
+            attachSource(videoSrc);
+        }
+    } else {
+        attachSource(videoSrc);
+    }
 
     // ── SponsorBlock ──────────────────────────────────────────────────────────
     window.__isSkipping = false;
