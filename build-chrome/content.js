@@ -394,18 +394,18 @@
             button:hover { background: rgba(255,255,255,0.12); transform: scale(1.05); }
             @media (max-width: 600px) {
                 .webplayer-ui-wrapper { bottom: max(16px, calc(8px + env(safe-area-inset-bottom))); padding: 12px 16px; border-radius: 20px; gap: 10px; width: calc(100% - 20px); }
-                .wp-center-row { flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; gap: 8px; padding-bottom: 2px; scrollbar-width: none;
-                    -webkit-mask-image: linear-gradient(to right, black calc(100% - 24px), transparent); mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
-                }
+                .wp-center-row { flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; gap: 8px; padding-bottom: 2px; scrollbar-width: none; }
                 .wp-center-row::-webkit-scrollbar { display: none; }
-                .wp-center-row.scrolled-end { -webkit-mask-image: none; mask-image: none; }
+                .wp-center-row.can-scroll-right { -webkit-mask-image: linear-gradient(to right, black calc(100% - 24px), transparent); mask-image: linear-gradient(to right, black calc(100% - 24px), transparent); }
+                .wp-center-row.can-scroll-left { -webkit-mask-image: linear-gradient(to right, transparent, black 24px, black 100%); mask-image: linear-gradient(to right, transparent, black 24px, black 100%); }
+                .wp-center-row.can-scroll-left.can-scroll-right { -webkit-mask-image: linear-gradient(to right, transparent, black 24px, black calc(100% - 24px), transparent); mask-image: linear-gradient(to right, transparent, black 24px, black calc(100% - 24px), transparent); }
                 button { width: 44px; height: 44px; padding: 8px; flex-shrink: 0; }
                 #wp-pip { display: none; }
                 .wp-progress-row { font-size: 13px; gap: 8px; }
                 input[type=range] { margin: 8px 0; height: 6px; }
                 #wp-progress { margin: 6px 0; height: 5px; }
                 .popover-anchor, .quality-container { position: static; }
-                .quality-dropdown, .speed-popover { right: 0; bottom: calc(100% + 16px); }
+                .quality-dropdown, .speed-popover { right: 0; left: auto; bottom: calc(100% + 16px); max-height: min(55vh, 55dvh); overflow-y: auto; max-width: calc(100vw - 32px); }
             }
             .popover-anchor { position: relative; display: flex; align-items: center; }
             .speed-pills { display: flex; align-items: center; gap: 6px; margin: 0; flex-wrap: wrap; }
@@ -754,6 +754,22 @@
             setTimeout(() => feedbackOverlay.style.opacity = "0", 800);
         };
 
+        const centerRow = uiWrapper.querySelector('.wp-center-row');
+        let cro;
+        if (centerRow) {
+            const updateScrollIndicator = () => {
+                const hasOverflow = centerRow.scrollWidth > centerRow.clientWidth + 4;
+                const nearEnd = centerRow.scrollLeft + centerRow.clientWidth >= centerRow.scrollWidth - 8;
+                const nearStart = centerRow.scrollLeft <= 8;
+                centerRow.classList.toggle('can-scroll-right', hasOverflow && !nearEnd);
+                centerRow.classList.toggle('can-scroll-left', hasOverflow && !nearStart);
+            };
+            on(centerRow, 'scroll', updateScrollIndicator, { passive: true });
+            cro = new ResizeObserver(updateScrollIndicator);
+            cro.observe(centerRow);
+            updateScrollIndicator();
+        }
+
         // ── SponsorBlock ──────────────────────────────────────────────────────────
         window.__isSkipping = false;
         async function fetchSegments() {
@@ -884,6 +900,8 @@
             clearTimeout(hideTimer);
             clearTimeout(scrubTimeout);
             ro.disconnect();
+            if (cro) cro.disconnect();
+            if (_safeAreaProbe) _safeAreaProbe.remove();
             shadowHost.remove();
             video.dataset.customPlayerActive = "";
             video.controls = (video.dataset.originalControls === "true");
@@ -1047,6 +1065,16 @@
             video.style.transition = "transform 0.3s";
         });
 
+        const _safeAreaProbe = document.createElement('div');
+        _safeAreaProbe.style.cssText = 'position:fixed;left:env(safe-area-inset-left,0px);right:env(safe-area-inset-right,0px);pointer-events:none;visibility:hidden;';
+        root?.appendChild(_safeAreaProbe);
+        const _getEdgeExclusion = () => {
+            const cs = getComputedStyle(_safeAreaProbe);
+            const saLeft = parseInt(cs.left, 10) || 0;
+            const saRight = parseInt(cs.right, 10) || 0;
+            return { left: Math.max(40, saLeft + 20), right: Math.max(40, saRight + 20) };
+        };
+
         let startX = 0, startY = 0, lastY = 0, swipeDir = null;
         let isPointerDown = false, lastTapTime = 0;
         let currentBrightness = 1.0, originalSpeed = 1.0;
@@ -1144,7 +1172,8 @@
             const diffX = e.clientX - startX;
             if (swipeDir === "horizontal" && Math.abs(diffX) > 40) {
                 // Ignore swipes that started near screen edges (browser back/forward zone)
-                if (startX < 40 || startX > window.innerWidth - 40) return;
+                const edges = _getEdgeExclusion();
+                if (startX < edges.left || startX > window.innerWidth - edges.right) return;
                 if (diffX > 0) { safeSeekForward(video, 10); showFeedback("+10s", "right"); }
                 else           { video.currentTime = Math.max(0, video.currentTime - 10); showFeedback("−10s", "left"); }
                 return;
