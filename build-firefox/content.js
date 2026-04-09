@@ -95,7 +95,7 @@
                         border: 1px solid rgba(255,255,255,0.1); border-radius: 12px;
                         padding: 12px 20px; color: white; display: flex; align-items: center; gap: 12px;
                         box-shadow: 0 8px 24px rgba(0,0,0,0.3); font-family: system-ui, sans-serif;
-                        animation: wp-slide-in 0.3s ease-out;
+                        animation: wp-slide-in 0.3s ease-out; max-width: calc(100vw - 40px);
                     `;
                     prompt.insertAdjacentHTML('beforeend', `
                         <div style="display:flex; flex-direction:column;">
@@ -496,7 +496,7 @@
                     <div class="popover-card speed-popover" id="wp-speed-popover">
                         <div class="popover-header">
                             <span>Playback Speed</span>
-                            <button class="popover-close" id="wp-speed-close-btn" title="Close playback speed" aria-label="Close playback speed">${IC.close}</button>
+                            <button class="popover-close" id="wp-speed-close-btn" title="Close playback speed" aria-label="Close playback speed"></button>
                         </div>
                         <div class="speed-pills" id="wp-speed-pills">
                             <button class="speed-pill" data-speed="0.25">0.25×</button>
@@ -527,6 +527,7 @@
         setSVG(uiWrapper.querySelector("#wp-fs"), IC.fullscreen);
         setSVG(uiWrapper.querySelector("#wp-rotate"), IC.rotate);
         setSVG(uiWrapper.querySelector("#wp-exit"), IC.close);
+        setSVG(uiWrapper.querySelector("#wp-speed-close-btn"), IC.close);
 
         const feedbackOverlay = document.createElement("div");
         feedbackOverlay.className = "webplayer-feedback";
@@ -722,7 +723,7 @@
                 ) {
                     uiWrapper.classList.remove("wp-controls-visible");
                 }
-            }, 3000);
+            }, 4500);
         };
 
         // Ensure pausing stops the controls from hiding
@@ -858,7 +859,7 @@
                 case "ArrowDown":
                     e.preventDefault();
                     video.volume = Math.max(0, video.volume - 0.05);
-                    if (video.volume === 0) video.muted = true;
+                    if (video.volume < 0.001) video.muted = true;
                     showFeedback(`Vol: ${Math.round(video.volume * 100)}%`);
                     showControls();
                     break;
@@ -912,6 +913,7 @@
         on(prog, "input", e => {
             isScrubbing = true;
             clearTimeout(scrubTimeout);
+            showControls(); // Bug 1: Reset auto-hide timer while scrubbing
             const val = e.target.value;
             syncTimelineStyle(val);
             if (isFinite(video.duration)) {
@@ -986,6 +988,11 @@
                     try { screen.orientation?.unlock?.(); } catch (_) {}
                     await (document.exitFullscreen || document.webkitExitFullscreen).call(document);
                 } else {
+                    // Bug 4: Guard against missing user activation (Firefox mobile)
+                    if (document.userActivation && !document.userActivation.isActive) {
+                        showFeedback("FS Blocked");
+                        return;
+                    }
                     if (req && container) {
                         await req.call(container);
                     } else {
@@ -1000,7 +1007,12 @@
                         }
                     } catch (_) {}
                 }
-            } catch (_) {
+            } catch (err) {
+                const msg = String(err?.message || "");
+                if (err?.name === "NotAllowedError" || msg.includes("user gesture") || msg.includes("Permissions check failed")) {
+                    showFeedback("FS Blocked");
+                    return;
+                }
                 try {
                     const vidReq = video.requestFullscreen || video.webkitRequestFullscreen;
                     await vidReq?.call(video);
@@ -1054,7 +1066,7 @@
             startX = e.clientX; startY = e.clientY; lastY = e.clientY; swipeDir = null;
             clearTimeout(longPressTimer);
             longPressTimer = null;
-            if (!isLongPressActive) originalSpeed = video.playbackRate;
+            originalSpeed = video.playbackRate;
             longPressTimer = setTimeout(() => {
                 if (!isPointerDown) return;
                 longPressTimer = null;
@@ -1105,6 +1117,7 @@
         const handleGestureEnd = e => {
             if (!isPointerDown) return;
             isPointerDown = false;
+            // Bug 5: Clear longPressTimer FIRST to prevent race with pointercancel
             clearTimeout(longPressTimer);
             longPressTimer = null;
             try {
@@ -1113,7 +1126,8 @@
                 }
             } catch (_) {}
 
-            if (isLongPressActive) {
+            // Bug 5: Always restore speed on pointercancel, even if timer fired mid-event
+            if (isLongPressActive || (e.type === "pointercancel" && video.playbackRate !== originalSpeed)) {
                 isLongPressActive = false;
                 setPlaybackRate(originalSpeed);
                 showFeedback(`${originalSpeed}× Speed`);
@@ -1153,10 +1167,13 @@
                         video.currentTime = Math.max(0, video.currentTime - 10);
                         showFeedback("−10s", "left");
                         lastTapTime = now;
+                        // Brief cooldown to prevent accidental triple-tap double-seek
+                        setTimeout(() => { if (lastTapTime === now) lastTapTime = 0; }, 300);
                     } else if (e.clientX > rect.left + rect.width * 0.70) {
                         safeSeekForward(video, 10);
                         showFeedback("+10s", "right");
                         lastTapTime = now;
+                        setTimeout(() => { if (lastTapTime === now) lastTapTime = 0; }, 300);
                     } else {
                         // Double tap center toggles fullscreen for both mouse and touch
                         uiWrapper.querySelector("#wp-fs")?.click();
@@ -1170,6 +1187,8 @@
                             wasPaused ? safePlay(video) : safePause(video);
                             showFeedback(wasPaused ? "Playing" : "Paused");
                         } else {
+                            // Bug 2: Don't dismiss controls while user is scrubbing
+                            if (isScrubbing) return;
                             // Standard mobile pattern: tap toggles control visibility
                             if (uiWrapper.classList.contains("wp-controls-visible")) {
                                 uiWrapper.classList.remove("wp-controls-visible");

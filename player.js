@@ -246,6 +246,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     window.addEventListener("beforeunload", () => {
         destroyEngines();
         if (window.audioContext?.state !== "closed") window.audioContext?.close();
+        // Clean up preview video clone if created
+        if (typeof _previewVideo !== 'undefined' && _previewVideo) {
+            _previewVideo.src = "";
+            _previewVideo.remove();
+        }
     });
 
     // CDN fallbacks for when local libs are unreachable
@@ -806,6 +811,53 @@ document.addEventListener("DOMContentLoaded", async () => {
     let seekPreviewTimer   = null;
     let lastPreviewTime    = -1;
 
+    // Use a hidden clone video for thumbnail generation to avoid flicker on main player
+    let _previewVideo = null;
+    let _previewVideoReady = false;
+    const getPreviewVideo = () => {
+        if (_previewVideo) return _previewVideo;
+        _previewVideo = document.createElement("video");
+        _previewVideo.preload = "auto";
+        _previewVideo.muted = true;
+        _previewVideo.playsInline = true;
+        _previewVideo.style.cssText = "position:absolute;width:0;height:0;opacity:0;pointer-events:none;z-index:-1;";
+        // For native/direct sources we can clone the src directly
+        if (player.src && !player.src.startsWith("blob:")) {
+            _previewVideo.crossOrigin = "anonymous";
+            _previewVideo.src = player.src;
+        } else {
+            // HLS/DASH use blob URLs — can't clone, fall back to main player seeking
+            _previewVideo = null;
+            return null;
+        }
+        _previewVideo.addEventListener("loadeddata", () => { _previewVideoReady = true; }, { once: true });
+        document.body.appendChild(_previewVideo);
+        return _previewVideo;
+    };
+
+    const capturePreviewFrame = (time) => {
+        const pv = getPreviewVideo();
+        if (pv && _previewVideoReady) {
+            // Use clone video — no flicker on main player
+            const onSeeked = () => {
+                try { seekCtx.drawImage(pv, 0, 0, 320, 180); } catch (_) {}
+                pv.removeEventListener("seeked", onSeeked);
+            };
+            pv.addEventListener("seeked", onSeeked, { once: true });
+            pv.currentTime = time;
+        } else if (!pv && player.paused && player.readyState >= 2) {
+            // Fallback: seek main player only when paused (blob/stream sources)
+            const savedTime = player.currentTime;
+            const onSeeked = () => {
+                try { seekCtx.drawImage(player, 0, 0, 320, 180); } catch (_) {}
+                player.removeEventListener("seeked", onSeeked);
+                if (!isDraggingProgress) player.currentTime = savedTime;
+            };
+            player.addEventListener("seeked", onSeeked, { once: true });
+            player.currentTime = time;
+        }
+    };
+
     progWrapper.addEventListener("pointermove", (e) => {
         if (isDraggingProgress || !isFinite(player.duration) || player.duration === 0) {
             seekPreview.classList.remove("visible"); return;
@@ -823,26 +875,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         // Debounced canvas thumbnail
         clearTimeout(seekPreviewTimer);
         seekPreviewTimer = setTimeout(() => {
-            if (Math.abs(time - lastPreviewTime) < 0.5) return; // skip if same spot
+            if (Math.abs(time - lastPreviewTime) < 0.5) return;
             lastPreviewTime = time;
-            const savedTime = player.currentTime;
-            const wasPaused = player.paused;
-            // Seek, capture frame, restore
-            const onSeeked = () => {
-                try {
-                    seekCtx.drawImage(player, 0, 0, 320, 180);
-                } catch (_) {}
-                player.removeEventListener("seeked", onSeeked);
-                // Restore position only if not dragging
-                if (!isDraggingProgress) {
-                    player.currentTime = savedTime;
-                }
-            };
-            // Only do canvas preview if player is paused or we can safely seek
-            if (wasPaused && player.readyState >= 2) {
-                player.addEventListener("seeked", onSeeked, { once: true });
-                player.currentTime = time;
-            }
+            capturePreviewFrame(time);
         }, 200);
     });
     progWrapper.addEventListener("pointerleave", () => {
@@ -1078,6 +1113,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     // ── Fullscreen ────────────────────────────────────────────────────────────
+    let rotationDeg = 0;
     const toggleFS = async (triggerEvent) => {
         try {
             if (document.fullscreenElement || document.webkitFullscreenElement) {
@@ -1140,7 +1176,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     player.addEventListener("leavepictureinpicture", () => pipBtn.setAttribute("aria-pressed", "false"));
 
     // ── Rotate ────────────────────────────────────────────────────────────────
-    let rotationDeg = 0;
     rotateBtn.addEventListener("click", () => {
         rotationDeg = (rotationDeg + 90) % 360;
         player.style.transform  = `rotate(${rotationDeg}deg)`;
@@ -1158,7 +1193,10 @@ document.addEventListener("DOMContentLoaded", async () => {
                 !eqPopover.classList.contains("active") &&
                 !themePopover.classList.contains("active") &&
                 !shortcutsModal.classList.contains("active") &&
-                !speedPopover.classList.contains("active")) {
+                !speedPopover.classList.contains("active") &&
+                !qualityDropdown.classList.contains("open") &&
+                !ccDropdown.classList.contains("open") &&
+                !audioDropdown.classList.contains("open")) {
                 container.classList.add("idle");
             }
         }, 3000);
@@ -1184,7 +1222,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         const updateScrollIndicator = () => {
             const hasOverflow = controlsRowEl.scrollWidth > controlsRowEl.clientWidth + 4;
             const nearEnd = controlsRowEl.scrollLeft + controlsRowEl.clientWidth >= controlsRowEl.scrollWidth - 8;
+            const nearStart = controlsRowEl.scrollLeft <= 8;
             controlsRowEl.classList.toggle('can-scroll-right', hasOverflow && !nearEnd);
+            controlsRowEl.classList.toggle('can-scroll-left', hasOverflow && !nearStart);
         };
         controlsRowEl.addEventListener('scroll', updateScrollIndicator, { passive: true });
         new ResizeObserver(updateScrollIndicator).observe(controlsRowEl);
@@ -1241,8 +1281,14 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Close on outside click
     document.addEventListener("click", (e) => {
-        if (!e.target.closest("#theme-popover") && !e.target.closest("#theme-toggle-btn")) themePopover.classList.remove("active");
-        if (!e.target.closest("#eq-popover") && !e.target.closest("#eq-toggle-btn")) eqPopover.classList.remove("active");
+        if (!e.target.closest("#theme-popover") && !e.target.closest("#theme-toggle-btn")) {
+            themePopover.classList.remove("active");
+            themeToggleBtn.setAttribute("aria-expanded", "false");
+        }
+        if (!e.target.closest("#eq-popover") && !e.target.closest("#eq-toggle-btn")) {
+            eqPopover.classList.remove("active");
+            eqToggleBtn.setAttribute("aria-expanded", "false");
+        }
         if (!e.target.closest("#speed-popover") && !e.target.closest("#speed-toggle-btn")) {
             speedPopover.classList.remove("active");
             speedToggleBtn.setAttribute("aria-expanded", "false");
@@ -1402,7 +1448,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             case "ArrowDown":
                 e.preventDefault();
                 player.volume = Math.max(0, player.volume - 0.05);
-                player.muted = player.volume === 0;
+                player.muted = player.volume < 0.001;
                 volumeSlider.value = player.volume;
                 updateVolIcon();
                 showFeedback(`Vol: ${Math.round(player.volume * 100)}%`);
@@ -1440,6 +1486,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     gestureZone.style.touchAction    = "none";
     gestureZone.style.userSelect     = "none";
     gestureZone.style.webkitUserSelect = "none";
+
+    // Bug 7: Compute safe-area-aware edge exclusion zone for swipe gestures
+    const _safeAreaProbe = document.createElement('div');
+    _safeAreaProbe.style.cssText = 'position:fixed;left:env(safe-area-inset-left,0px);right:env(safe-area-inset-right,0px);pointer-events:none;visibility:hidden;';
+    document.body.appendChild(_safeAreaProbe);
+    const _getEdgeExclusion = () => {
+        const cs = getComputedStyle(_safeAreaProbe);
+        const saLeft = parseInt(cs.left, 10) || 0;
+        const saRight = parseInt(cs.right, 10) || 0;
+        return { left: Math.max(40, saLeft + 20), right: Math.max(40, saRight + 20) };
+    };
 
     let startX = 0, startY = 0, lastY = 0, swipeDir = null;
     let isPointerDown = false, lastTapTime = 0, tapTimeout, longPressTimer;
@@ -1507,15 +1564,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     const handleGestureEnd = (e) => {
         if (!isPointerDown) return;
         isPointerDown = false;
+        // Bug 5: Clear longPressTimer FIRST to prevent race with pointercancel
+        clearTimeout(longPressTimer);
         try {
             if (gestureZone.hasPointerCapture(e.pointerId)) gestureZone.releasePointerCapture(e.pointerId);
         } catch (err) {
             console.warn("[WebPlayer] Pointer capture release failed:", err);
         }
-        clearTimeout(longPressTimer);
 
-        // BUG FIX: use isLongPressActive flag to restore and sync pills
-        if (isLongPressActive) {
+        // Bug 5: Always restore speed on pointercancel, even if timer fired mid-event
+        if (isLongPressActive || (e.type === "pointercancel" && player.playbackRate !== originalSpeed)) {
             isLongPressActive = false;
             setPlaybackRate(originalSpeed);
             showFeedback(`${originalSpeed}× Speed`);
@@ -1525,8 +1583,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         const diffX = e.clientX - startX;
         if (swipeDir === "horizontal" && Math.abs(diffX) > 40) {
-            // Ignore swipes that started near screen edges (browser back/forward zone)
-            if (startX < 40 || startX > window.innerWidth - 40) return;
+            // Bug 7: Ignore swipes that started near screen edges (safe-area aware)
+            const _edge = _getEdgeExclusion();
+            if (startX < _edge.left || startX > window.innerWidth - _edge.right) return;
             const shift = diffX > 0 ? 10 : -10;
             player.currentTime = Math.max(0, Math.min(player.duration || Infinity, player.currentTime + shift));
             showFeedback(`${shift > 0 ? "+" : ""}${shift}s`, shift > 0 ? "right" : "left");
@@ -1555,10 +1614,13 @@ document.addEventListener("DOMContentLoaded", async () => {
                     player.currentTime = Math.max(0, player.currentTime - 10);
                     showFeedback("−10s", "left");
                     lastTapTime = now;
+                    // Brief cooldown to prevent accidental triple-tap double-seek
+                    setTimeout(() => { if (lastTapTime === now) lastTapTime = 0; }, 300);
                 } else if (e.clientX > rect.left + rect.width * 0.70) {
                     player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 10);
                     showFeedback("+10s", "right");
                     lastTapTime = now;
+                    setTimeout(() => { if (lastTapTime === now) lastTapTime = 0; }, 300);
                 } else {
                     // Double tap center toggles fullscreen for both mouse and touch
                     toggleFS(e);

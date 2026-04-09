@@ -135,7 +135,7 @@
             display: flex; align-items: center; box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
             touch-action: none;
         }
-        .progress-wrapper::before { content: ''; position: absolute; top: -24px; bottom: -24px; left: -8px; right: -8px; }
+        .progress-wrapper::before { content: ''; position: absolute; top: -24px; bottom: -24px; left: -8px; right: -8px; touch-action: none; }
         .progress-wrapper:hover { height: 6px; background: rgba(255,255,255,0.25); }
         .progress-buffered {
             position: absolute; left: 0; top: 0; bottom: 0; background: rgba(255,255,255,0.3);
@@ -278,6 +278,9 @@
             overflow-y: auto;
             scrollbar-width: thin;
             scrollbar-color: rgba(255,255,255,0.2) transparent;
+            /* Clamp bottom so the popover doesn't overflow the viewport top */
+            bottom: min(calc(100% + 24px), calc(100vh - 40px - env(safe-area-inset-top, 0px)));
+            bottom: min(calc(100% + 24px), calc(100dvh - 40px - env(safe-area-inset-top, 0px)));
         }
         @media (max-width: 500px) {
             .eq-popover {
@@ -285,6 +288,7 @@
                 right: 0;
                 transform-origin: bottom right;
                 max-height: min(60vh, 60dvh);
+                bottom: min(calc(100% + 16px), calc(100dvh - 24px - env(safe-area-inset-top, 0px)));
             }
         }
         
@@ -386,6 +390,15 @@
                 -webkit-mask-image: linear-gradient(to right, black calc(100% - 28px), transparent);
                 mask-image: linear-gradient(to right, black calc(100% - 28px), transparent);
             }
+            /* Bug 6: Gradient must fade left edge only, not the entire right side */
+            .controls-row.can-scroll-left {
+                -webkit-mask-image: linear-gradient(to right, transparent, black 28px, black 100%);
+                mask-image: linear-gradient(to right, transparent, black 28px, black 100%);
+            }
+            .controls-row.can-scroll-left.can-scroll-right {
+                -webkit-mask-image: linear-gradient(to right, transparent, black 28px, black calc(100% - 28px), transparent);
+                mask-image: linear-gradient(to right, transparent, black 28px, black calc(100% - 28px), transparent);
+            }
             .controls-left, .controls-right { flex-wrap: nowrap; flex-shrink: 0; gap: 4px; }
             .time-display { font-size: 0.75rem; white-space: nowrap; margin-left: 4px; }
             #shortcuts-btn, #rotate-btn, #pip-btn { display: none; }
@@ -410,7 +423,8 @@
             .shortcuts-grid kbd { display: inline-block; width: fit-content; }
             /* Detach popovers from scrollable row to prevent clipping */
             .popover-anchor, .quality-container { position: static; }
-            .quality-dropdown, .speed-popover, .theme-popover { right: 0; bottom: calc(100% + 16px); max-height: min(55vh, 55dvh); overflow-y: auto; }
+            /* Bug 3: Include theme-popover in detached rules and clamp width */
+            .quality-dropdown, .speed-popover, .theme-popover { right: 0; left: auto; bottom: calc(100% + 16px); max-height: min(55vh, 55dvh); overflow-y: auto; max-width: calc(100vw - 32px); }
             #seek-preview-canvas { width: 120px; height: 68px; }
             #seek-preview { bottom: calc(100% + 18px); }
         }
