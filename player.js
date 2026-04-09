@@ -59,6 +59,50 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const EQ_STORAGE_KEY  = "wp_eq_settings";
 
+    // ── Apply Glassmorphic Tooltips ──────────────────────────────────────────
+    document.querySelectorAll('[title]').forEach(el => {
+        el.setAttribute('data-tooltip', el.getAttribute('title'));
+        el.removeAttribute('title');
+    });
+
+    // ── Dynamic Ambilight Glow ───────────────────────────────────────────────
+    const ambilightCanvas = document.createElement('canvas');
+    ambilightCanvas.width = 16; ambilightCanvas.height = 16;
+    const ambilightCtx = ambilightCanvas.getContext('2d', { willReadFrequently: true });
+    setInterval(() => {
+        if (player.paused || !isFinite(player.duration) || player.videoWidth === 0) return;
+        try {
+            ambilightCtx.drawImage(player, 0, 0, 16, 16);
+            const frame = ambilightCtx.getImageData(0, 0, 16, 16);
+            let r = 0, g = 0, b = 0, count = 0;
+            for (let i = 0; i < frame.data.length; i += 16) {
+                r += frame.data[i]; g += frame.data[i + 1]; b += frame.data[i + 2]; count++;
+            }
+            if (count > 0) {
+                r = Math.floor(r / count); g = Math.floor(g / count); b = Math.floor(b / count);
+                const max = Math.max(r, g, b);
+                if (max > 0 && max < 255) {
+                    const mult = 255 / max;
+                    r = Math.min(255, Math.floor(r * mult * 0.8));
+                    g = Math.min(255, Math.floor(g * mult * 0.8));
+                    b = Math.min(255, Math.floor(b * mult * 0.8));
+                }
+                document.documentElement.style.setProperty('--glow-color', `rgba(${r}, ${g}, ${b}, 0.5)`);
+            }
+            const loadingBg = document.getElementById("loading-bg");
+            if (loadingBg && loadingBg.style.backgroundImage === '') {
+                loadingBg.style.backgroundImage = `url(${ambilightCanvas.toDataURL()})`;
+                loadingBg.style.backgroundSize = 'cover';
+                loadingBg.style.filter = 'blur(40px)';
+            }
+        } catch (_) {}
+    }, 2000);
+
+    const lBg = document.getElementById("loading-bg");
+    player.addEventListener("waiting", () => { if (lBg && player.currentTime < 1) lBg.style.opacity = '1'; });
+    player.addEventListener("playing", () => { if (lBg) lBg.style.opacity = '0'; });
+    player.addEventListener("loadeddata", () => { if (lBg) lBg.style.opacity = '0'; });
+
     // B1: Track play() promise to prevent AbortError on rapid play/pause
     let _playPromise = null;
     const safePlay = () => {
@@ -1607,13 +1651,23 @@ document.addEventListener("DOMContentLoaded", async () => {
                 // BUG FIX: Double tap on sides targets seeking, double tap in middle toggles Play/Pause or Fullscreen
                 if (e.clientX < rect.left + rect.width * 0.30) {
                     player.currentTime = Math.max(0, player.currentTime - 10);
-                    showFeedback("−10s", "left");
+                    const animEl = document.getElementById("seek-anim-left");
+                    if (animEl) {
+                        animEl.classList.remove("play-left");
+                        void animEl.offsetWidth; // trigger reflow
+                        animEl.classList.add("play-left");
+                    }
                     lastTapTime = now;
                     // Brief cooldown to prevent accidental triple-tap double-seek
                     setTimeout(() => { if (lastTapTime === now) lastTapTime = 0; }, 300);
                 } else if (e.clientX > rect.left + rect.width * 0.70) {
                     player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 10);
-                    showFeedback("+10s", "right");
+                    const animEl = document.getElementById("seek-anim-right");
+                    if (animEl) {
+                        animEl.classList.remove("play-right");
+                        void animEl.offsetWidth; // trigger reflow
+                        animEl.classList.add("play-right");
+                    }
                     lastTapTime = now;
                     setTimeout(() => { if (lastTapTime === now) lastTapTime = 0; }, 300);
                 } else {
