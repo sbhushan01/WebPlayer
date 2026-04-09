@@ -705,25 +705,35 @@ document.addEventListener("DOMContentLoaded", async () => {
             bufferEl.classList.remove("is-buffering");
         }
     }
-    // Ask background to set up DNR rules (CORS + Referer) for this tab BEFORE
-    // loading the stream.  This eliminates race conditions where HLS.js fires
-    // the first request before rules are in place.
+    // Ask background to refresh DNR rules (CORS + Referer) for this tab.
+    // The open_player handler already pre-applies rules when it creates the
+    // tab, so this is a refresh / safety-net.  Retry up to 2 extra times in
+    // case the service worker was suspended when the message arrived.
     const _canMessage = typeof chrome !== "undefined" && chrome.runtime && typeof chrome.runtime.sendMessage === "function";
     if (_canMessage && videoSrc) {
-        try {
-            chrome.runtime.sendMessage(
-                { action: "setup_dnr", videoSrc: videoSrc },
-                (resp) => {
-                    if (chrome.runtime.lastError) {
-                        console.warn("[WebPlayer] setup_dnr failed:", chrome.runtime.lastError.message);
+        const sendSetupDnr = (retriesLeft) => {
+            try {
+                chrome.runtime.sendMessage(
+                    { action: "setup_dnr", videoSrc: videoSrc },
+                    (resp) => {
+                        if (chrome.runtime.lastError) {
+                            console.warn("[WebPlayer] setup_dnr attempt failed:", chrome.runtime.lastError.message);
+                            if (retriesLeft > 0) {
+                                setTimeout(() => sendSetupDnr(retriesLeft - 1), 300);
+                                return;
+                            }
+                            // All retries exhausted — proceed anyway; the
+                            // open_player pre-applied rules may still be active.
+                        }
+                        attachSource(videoSrc);
                     }
-                    attachSource(videoSrc);
-                }
-            );
-        } catch (_) {
-            // Extension context unavailable — load directly
-            attachSource(videoSrc);
-        }
+                );
+            } catch (_) {
+                // Extension context unavailable — load directly
+                attachSource(videoSrc);
+            }
+        };
+        sendSetupDnr(2);
     } else {
         attachSource(videoSrc);
     }

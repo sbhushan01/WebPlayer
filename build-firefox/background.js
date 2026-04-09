@@ -45,7 +45,6 @@ function enqueuePendingStream(next, done) {
         const filtered = pendingItems.filter(p => !(p.tabId === next.tabId && p.url === next.url));
         filtered.push(next);
         chrome.storage.local.set({ _wp_pending_streams: filtered }, () => {
-            // Keep legacy key cleaned only after successful queue write
             chrome.storage.local.remove('_wp_pending_stream', () => done?.());
         });
     });
@@ -69,7 +68,6 @@ if (chrome?.runtime?.onInstalled) {
     chrome.runtime.onInstalled.addListener((details) => {
         setupAlarms();
         cleanupOldVideoProgress();
-        // B9: Clean up stale DNR session rules from previous extension loads
         if (chrome?.declarativeNetRequest?.getSessionRules && chrome?.declarativeNetRequest?.updateSessionRules) {
             chrome.declarativeNetRequest.getSessionRules((rules) => {
                 const ids = rules.map(r => r.id);
@@ -86,14 +84,12 @@ if (chrome?.runtime?.onStartup) {
     chrome.runtime.onStartup.addListener(() => {
         setupAlarms();
         cleanupOldVideoProgress();
-        // B4: Also clean stale DNR rules on browser startup
         if (chrome?.declarativeNetRequest?.getSessionRules && chrome?.declarativeNetRequest?.updateSessionRules) {
             chrome.declarativeNetRequest.getSessionRules((rules) => {
                 const ids = rules.map(r => r.id);
                 if (ids.length) chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: ids });
             });
         }
-        // B2: Re-fire pending stream launches interrupted by SW termination
         chrome.storage.local.get(['_wp_pending_stream', '_wp_pending_streams'], (res) => {
             const pendingItems = getPendingStreams(res);
             if (!pendingItems.length) return;
@@ -138,7 +134,6 @@ if (chrome?.tabs?.onRemoved) {
         const tabKey = tabId.toString();
         const data = await chrome.storage.session.get(tabKey);
         if (data[tabKey]) {
-            // Handle both array (new) and single-ID (legacy) formats
             const ruleIds = Array.isArray(data[tabKey]) ? data[tabKey] : [data[tabKey]];
             chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: ruleIds });
             chrome.storage.session.remove(tabKey);
@@ -152,6 +147,103 @@ function domainFilter(rawUrl) {
         return `${u.protocol}//${u.host}/*`;
     } catch (_) {
         return rawUrl;
+    }
+}
+
+// Shared helper: sets up DNR session rules (CORS + Referer/Origin spoofing)
+// for the given tab so the CDN sees a same-origin Referer rather than the
+// extension's chrome-extension:// origin.
+function setupDNRForTab(tabId, videoUrl, callback) {
+    if (!Number.isInteger(tabId) || tabId < 0) {
+        callback?.(false, "Invalid tab ID");
+        return;
+    }
+    if (!chrome?.declarativeNetRequest?.updateSessionRules) {
+        callback?.(false, "declarativeNetRequest unavailable");
+        return;
+    }
+
+    const urlFilter = domainFilter(videoUrl);
+    const ruleId      = crypto.getRandomValues(new Uint32Array(1))[0] % 1000000000 + 1;
+    const broadRuleId = ruleId + 1000000000;
+
+    const corsHeaders = [
+        { header: "Access-Control-Allow-Origin",      operation: "set",    value: "*"                  },
+        { header: "Access-Control-Allow-Methods",     operation: "set",    value: "GET, HEAD, OPTIONS"  },
+        { header: "Access-Control-Allow-Headers",     operation: "set",    value: "*"                  },
+        { header: "Access-Control-Expose-Headers",    operation: "set",    value: "*"                  },
+        { header: "Access-Control-Allow-Credentials", operation: "remove"                               },
+        { header: "X-Frame-Options",                  operation: "remove"                               },
+        { header: "Content-Security-Policy",          operation: "remove"                               }
+    ];
+
+    let reqHeaders = [];
+    try {
+        const streamOrigin = new URL(videoUrl).origin;
+        reqHeaders = [
+            { header: "Referer", operation: "set", value: streamOrigin + "/" },
+            { header: "Origin",  operation: "set", value: streamOrigin }
+        ];
+    } catch (e) {}
+
+    const actionObj = {
+        type: "modifyHeaders",
+        responseHeaders: corsHeaders
+    };
+    if (reqHeaders.length > 0) {
+        actionObj.requestHeaders = reqHeaders;
+    }
+
+    const tabKey = tabId.toString();
+    const addNewRules = (removeRuleIds) => {
+        chrome.declarativeNetRequest.updateSessionRules(
+            {
+                removeRuleIds: removeRuleIds,
+                addRules: [
+                    {
+                        id: ruleId,
+                        priority: 1,
+                        action: actionObj,
+                        condition: {
+                            urlFilter: urlFilter,
+                            tabIds: [tabId],
+                            resourceTypes: ["media", "xmlhttprequest", "other"]
+                        }
+                    },
+                    {
+                        id: broadRuleId,
+                        priority: 1,
+                        action: actionObj,
+                        condition: {
+                            regexFilter: "\\.(ts|m4s|m3u8|mpd|mp4|aac|vtt|srt|key)(\\?.*)?$",
+                            tabIds: [tabId],
+                            resourceTypes: ["media", "xmlhttprequest", "other"],
+                            isUrlFilterCaseSensitive: false
+                        }
+                    }
+                ]
+            },
+            () => {
+                if (chrome.runtime.lastError) {
+                    console.error("[WebPlayer] Failed to add DNR rules:", chrome.runtime.lastError.message);
+                    callback?.(false, chrome.runtime.lastError.message);
+                    return;
+                }
+                if (chrome?.storage?.session?.set) {
+                    chrome.storage.session.set({ [tabKey]: [ruleId, broadRuleId] });
+                }
+                callback?.(true);
+            }
+        );
+    };
+
+    if (chrome?.storage?.session?.get) {
+        chrome.storage.session.get(tabKey, (data) => {
+            const existing = data[tabKey] ? (Array.isArray(data[tabKey]) ? data[tabKey] : [data[tabKey]]) : [];
+            addNewRules(existing);
+        });
+    } else {
+        addNewRules([]);
     }
 }
 
@@ -214,7 +306,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     sendResponse({ ok: false, error: chrome.runtime.lastError?.message || "Failed to open player tab" });
                     return;
                 }
-                sendResponse({ ok: true, tabId: tab.id });
+                // Pre-apply DNR rules immediately so they're active before
+                // player.js even loads — eliminates the SW-suspension race.
+                setupDNRForTab(tab.id, videoUrl, (ok, err) => {
+                    if (!ok) console.warn("[WebPlayer] Pre-setup DNR in open_player failed:", err);
+                    sendResponse({ ok: true, tabId: tab.id });
+                });
             });
         } catch (err) {
             console.error("[WebPlayer] Exception while creating tab:", err);
@@ -223,89 +320,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return true;
     }
 
-    // Called by player.js BEFORE loading the stream, ensuring DNR rules are
-    // active before the first network request.  Uses sender.tab.id which is
-    // guaranteed to be the player tab itself.
+    // Called by player.js BEFORE loading the stream.  Now delegates to the
+    // shared helper.  The `open_player` handler above already pre-applies
+    // rules, so this acts as a refresh / safety-net for edge cases
+    // (e.g. manual URL entry, retry after failure).
     if (request.action === "setup_dnr" && request.videoSrc) {
-        const videoUrl  = request.videoSrc;
-        const urlFilter = domainFilter(videoUrl);
         const playerTabId = sender?.tab?.id;
-
-        if (!Number.isInteger(playerTabId) || playerTabId < 0) {
-            sendResponse({ ok: false, error: "Invalid player tab context" });
-            return true;
-        }
-
-        const ruleId      = crypto.getRandomValues(new Uint32Array(1))[0] % 1000000000 + 1;
-        const broadRuleId = ruleId + 1000000000;
-
-        const corsHeaders = [
-            { header: "Access-Control-Allow-Origin",      operation: "set",    value: "*"                  },
-            { header: "Access-Control-Allow-Methods",     operation: "set",    value: "GET, HEAD, OPTIONS"  },
-            { header: "Access-Control-Allow-Headers",     operation: "set",    value: "*"                  },
-            { header: "Access-Control-Expose-Headers",    operation: "set",    value: "*"                  },
-            { header: "Access-Control-Allow-Credentials", operation: "remove"                               },
-            { header: "X-Frame-Options",                  operation: "remove"                               },
-            { header: "Content-Security-Policy",          operation: "remove"                               }
-        ];
-
-        // Derive Referer/Origin from the stream URL's own origin so the CDN
-        // sees a same-origin Referer rather than the outer embedding page.
-        let reqHeaders = [];
-        try {
-            const streamOrigin = new URL(videoUrl).origin;
-            reqHeaders = [
-                { header: "Referer", operation: "set", value: streamOrigin + "/" },
-                { header: "Origin",  operation: "set", value: streamOrigin }
-            ];
-        } catch (e) {}
-
-        const actionObj = {
-            type: "modifyHeaders",
-            responseHeaders: corsHeaders
-        };
-        if (reqHeaders.length > 0) {
-            actionObj.requestHeaders = reqHeaders;
-        }
-
-        chrome.declarativeNetRequest.updateSessionRules(
-            {
-                addRules: [
-                    {
-                        id: ruleId,
-                        priority: 1,
-                        action: actionObj,
-                        condition: {
-                            urlFilter: urlFilter,
-                            tabIds: [playerTabId],
-                            resourceTypes: ["media", "xmlhttprequest", "other"]
-                        }
-                    },
-                    {
-                        id: broadRuleId,
-                        priority: 1,
-                        action: actionObj,
-                        condition: {
-                            regexFilter: "\\.(ts|m4s|m3u8|mpd|mp4|aac|vtt|srt|key)(\\?.*)?$",
-                            tabIds: [playerTabId],
-                            resourceTypes: ["media", "xmlhttprequest", "other"],
-                            isUrlFilterCaseSensitive: false
-                        }
-                    }
-                ]
-            },
-            () => {
-                if (chrome.runtime.lastError) {
-                    console.error("[WebPlayer] Failed to add DNR rules:", chrome.runtime.lastError.message);
-                    sendResponse({ ok: false, error: chrome.runtime.lastError.message });
-                    return;
-                }
-                if (chrome?.storage?.session?.set) {
-                    chrome.storage.session.set({ [playerTabId.toString()]: [ruleId, broadRuleId] });
-                }
-                sendResponse({ ok: true });
-            }
-        );
+        setupDNRForTab(playerTabId, request.videoSrc, (ok, err) => {
+            sendResponse({ ok: !!ok, error: err || undefined });
+        });
         return true;
     }
 });
@@ -336,7 +359,6 @@ if (chrome?.webRequest?.onHeadersReceived) {
                 recentlyInterceptedTabs.add(details.tabId);
                 setTimeout(() => recentlyInterceptedTabs.delete(details.tabId), 5000);
 
-                // B2: Store pending stream queue in case SW dies before user confirms (serialized writes)
                 const nextPending = {
                     url: details.url,
                     tabId: details.tabId,
@@ -358,13 +380,11 @@ if (chrome?.webRequest?.onHeadersReceived) {
     );
 }
 
-// B4: Guard against MAX_NUMBER_OF_DYNAMIC_RULES (5000 for session rules)
-// Periodically prune rules for tabs that no longer exist
 if (chrome?.alarms?.onAlarm && chrome?.declarativeNetRequest?.getSessionRules && chrome?.storage?.session?.get) {
     chrome.alarms.onAlarm.addListener((alarm) => {
         if (alarm.name === "keepAlive") {
             chrome.declarativeNetRequest.getSessionRules((rules) => {
-                if (rules.length > 100) { // If accumulating too many rules, prune orphans
+                if (rules.length > 100) {
                     chrome.storage.session.get(null, (data) => {
                         const validRuleIds = new Set(
                             Object.values(data).flatMap(v => Array.isArray(v) ? v : [v]).map(Number).filter(Boolean)
