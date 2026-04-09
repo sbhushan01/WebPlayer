@@ -100,7 +100,7 @@
                         box-shadow: 0 8px 24px rgba(0,0,0,0.3); font-family: system-ui, sans-serif;
                         animation: wp-slide-in 0.3s ease-out; max-width: calc(100vw - 40px);
                     `;
-                    prompt.insertAdjacentHTML('beforeend', `
+                    const tempDoc = new DOMParser().parseFromString(`
                         <div style="display:flex; flex-direction:column;">
                             <span style="font-weight: 600; font-size: 14px;">Stream Detected</span>
                             <span style="font-size: 12px; color: #aaa;">HLS/DASH stream available</span>
@@ -109,7 +109,8 @@
                             <button class="wp-prompt-ignore" style="background: rgba(255,255,255,0.1); border: none; padding: 6px 12px; border-radius: 6px; color: white; cursor: pointer; font-size: 12px; transition: 0.2s;">Ignore</button>
                             <button class="wp-prompt-launch" style="background: #4A9EFF; border: none; padding: 6px 12px; border-radius: 6px; color: white; cursor: pointer; font-size: 12px; font-weight: bold; transition: 0.2s;">Launch Player</button>
                         </div>
-                    `);
+                    `, 'text/html');
+                    while (tempDoc.body.firstChild) prompt.appendChild(tempDoc.body.firstChild);
                     
                     if (!document.getElementById("wp-prompt-style")) {
                         const s = document.createElement("style");
