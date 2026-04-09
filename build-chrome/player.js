@@ -188,6 +188,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Catch native video errors
     player.addEventListener("error", () => {
+        if (currentHls || currentDash) {
+            console.warn("[WebPlayer] Suppressing native video error in favor of MSE engine events:", player.error);
+            return;
+        }
         const err = player.error;
         const typeMap = { 1: "Aborted", 2: "Network Error", 3: "Decode Error", 4: "Source Not Supported" };
         const errTypeBase = err ? (typeMap[err.code] || "Unknown Error") : "Playback Error";
