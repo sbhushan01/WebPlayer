@@ -10,11 +10,11 @@ function cleanupOldVideoProgress() {
         const now = Date.now();
         const keysToRemove = [];
         for (const [key, val] of Object.entries(items)) {
-            if (key === '_wp_pending_stream' || key === '_wp_pending_streams') continue;
-            if (!hasUrlPrefix(key)) continue;
-            if (typeof val === 'number') {
+            if (key === '_wp_pending_stream' || key === '_wp_pending_streams') continue; // B2: skip queue keys
+            if (!hasUrlPrefix(key)) continue; // B12: never touch unrelated local storage keys
+            if (typeof val === 'number') { // legacy format: raw timestamp/position
                 keysToRemove.push(key);
-            } else if (val && typeof val === 'object' && typeof val.ts === 'number' && (now - val.ts > 30 * 24 * 60 * 60 * 1000)) {
+            } else if (val && typeof val === 'object' && typeof val.ts === 'number' && (now - val.ts > 30 * 24 * 60 * 60 * 1000)) { // B7: 30-day TTL
                 keysToRemove.push(key);
             }
         }
@@ -45,6 +45,7 @@ function enqueuePendingStream(next, done) {
         const filtered = pendingItems.filter(p => !(p.tabId === next.tabId && p.url === next.url));
         filtered.push(next);
         chrome.storage.local.set({ _wp_pending_streams: filtered }, () => {
+            // Keep legacy key cleaned only after successful queue write
             chrome.storage.local.remove('_wp_pending_stream', () => done?.());
         });
     });
@@ -68,6 +69,7 @@ if (chrome?.runtime?.onInstalled) {
     chrome.runtime.onInstalled.addListener((details) => {
         setupAlarms();
         cleanupOldVideoProgress();
+        // B9: Clean up stale DNR session rules from previous extension loads
         if (chrome?.declarativeNetRequest?.getSessionRules && chrome?.declarativeNetRequest?.updateSessionRules) {
             chrome.declarativeNetRequest.getSessionRules((rules) => {
                 const ids = rules.map(r => r.id);
@@ -84,12 +86,14 @@ if (chrome?.runtime?.onStartup) {
     chrome.runtime.onStartup.addListener(() => {
         setupAlarms();
         cleanupOldVideoProgress();
+        // B4: Also clean stale DNR rules on browser startup
         if (chrome?.declarativeNetRequest?.getSessionRules && chrome?.declarativeNetRequest?.updateSessionRules) {
             chrome.declarativeNetRequest.getSessionRules((rules) => {
                 const ids = rules.map(r => r.id);
                 if (ids.length) chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: ids });
             });
         }
+        // B2: Re-fire pending stream launches interrupted by SW termination
         chrome.storage.local.get(['_wp_pending_stream', '_wp_pending_streams'], (res) => {
             const pendingItems = getPendingStreams(res);
             if (!pendingItems.length) return;
@@ -111,7 +115,7 @@ if (chrome?.runtime?.onStartup) {
                         url: pending.url,
                         pageUrl: pending.pageUrl
                     }, { frameId: 0 }, () => {
-                        if (chrome.runtime.lastError) {}
+                        if (chrome.runtime.lastError) { /* tab may not have content script */ }
                         done();
                     });
                 });
@@ -150,6 +154,7 @@ if (chrome?.tabs?.onRemoved) {
         const tabKey = tabId.toString();
         const data = await chrome.storage.session.get(tabKey);
         if (data[tabKey]) {
+            // Handle both array (new) and single-ID (legacy) formats
             const ruleIds = Array.isArray(data[tabKey]) ? data[tabKey] : [data[tabKey]];
             chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: ruleIds });
             chrome.storage.session.remove(tabKey);
@@ -166,6 +171,9 @@ function domainFilter(rawUrl) {
     }
 }
 
+// Shared helper: sets up DNR session rules (CORS + Referer/Origin spoofing)
+// for the given tab so the CDN sees a same-origin Referer rather than the
+// extension's chrome-extension:// origin.
 function setupDNRForTab(tabId, videoUrl, callback, refererUrl) {
     if (!Number.isInteger(tabId) || tabId < 0) {
         callback?.(false, "Invalid tab ID");
@@ -190,6 +198,9 @@ function setupDNRForTab(tabId, videoUrl, callback, refererUrl) {
         { header: "Content-Security-Policy",          operation: "remove"                               }
     ];
 
+    // Use the embed page URL as Referer if available (CDNs often validate
+    // that the Referer matches the page that embedded the player, e.g.
+    // /e/xxxxx); fall back to the stream origin.
     let reqHeaders = [];
     try {
         const streamOrigin = new URL(videoUrl).origin;
@@ -208,6 +219,7 @@ function setupDNRForTab(tabId, videoUrl, callback, refererUrl) {
         actionObj.requestHeaders = reqHeaders;
     }
 
+    // Remove any existing rules for this tab first, then add new ones
     const tabKey = tabId.toString();
     const addNewRules = (removeRuleIds) => {
         chrome.declarativeNetRequest.updateSessionRules(
@@ -251,6 +263,7 @@ function setupDNRForTab(tabId, videoUrl, callback, refererUrl) {
         );
     };
 
+    // Check for existing rules to clean up before adding new ones
     if (chrome?.storage?.session?.get) {
         chrome.storage.session.get(tabKey, (data) => {
             const existing = data[tabKey] ? (Array.isArray(data[tabKey]) ? data[tabKey] : [data[tabKey]]) : [];
@@ -303,6 +316,27 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return true;
     }
 
+    if (request.action === "get_pending_stream") {
+        const senderTabId = sender?.tab?.id;
+        if (typeof senderTabId !== 'number') {
+            sendResponse({ url: null });
+            return;
+        }
+        chrome.storage.local.get(['_wp_pending_stream', '_wp_pending_streams'], (res) => {
+            const pendingItems = getPendingStreams(res);
+            // Find the most recent pending stream for this tab
+            const match = pendingItems
+                .filter(p => p.tabId === senderTabId)
+                .sort((a, b) => (b.ts || 0) - (a.ts || 0))[0];
+            if (match) {
+                sendResponse({ url: match.url, embedUrl: match.embedUrl || "", pageUrl: match.pageUrl || "" });
+            } else {
+                sendResponse({ url: null });
+            }
+        });
+        return true;
+    }
+
     if (request.action === "open_player" && request.videoSrc) {
         const videoUrl  = request.videoSrc;
         const embedUrl  = request.embedUrl || "";
@@ -322,6 +356,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     sendResponse({ ok: false, error: chrome.runtime.lastError?.message || "Failed to open player tab" });
                     return;
                 }
+                // Pre-apply DNR rules immediately so they're active before
+                // player.js even loads — eliminates the SW-suspension race.
                 setupDNRForTab(tab.id, videoUrl, (ok, err) => {
                     if (!ok) console.warn("[WebPlayer] Pre-setup DNR in open_player failed:", err);
                     sendResponse({ ok: true, tabId: tab.id });
@@ -334,6 +370,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return true;
     }
 
+    // Called by player.js BEFORE loading the stream.  Now delegates to the
+    // shared helper.  The `open_player` handler above already pre-applies
+    // rules, so this acts as a refresh / safety-net for edge cases
+    // (e.g. manual URL entry, retry after failure).
     if (request.action === "setup_dnr" && request.videoSrc) {
         const playerTabId = sender?.tab?.id;
         setupDNRForTab(playerTabId, request.videoSrc, (ok, err) => {
@@ -369,6 +409,7 @@ if (chrome?.webRequest?.onHeadersReceived) {
                 recentlyInterceptedTabs.add(details.tabId);
                 setTimeout(() => recentlyInterceptedTabs.delete(details.tabId), 5000);
 
+                // B2: Store pending stream queue in case SW dies before user confirms (serialized writes)
                 const embedUrl = details.documentUrl || details.initiator || "";
                 const nextPending = {
                     url: details.url,

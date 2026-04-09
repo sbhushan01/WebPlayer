@@ -316,6 +316,27 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return true;
     }
 
+    if (request.action === "get_pending_stream") {
+        const senderTabId = sender?.tab?.id;
+        if (typeof senderTabId !== 'number') {
+            sendResponse({ url: null });
+            return;
+        }
+        chrome.storage.local.get(['_wp_pending_stream', '_wp_pending_streams'], (res) => {
+            const pendingItems = getPendingStreams(res);
+            // Find the most recent pending stream for this tab
+            const match = pendingItems
+                .filter(p => p.tabId === senderTabId)
+                .sort((a, b) => (b.ts || 0) - (a.ts || 0))[0];
+            if (match) {
+                sendResponse({ url: match.url, embedUrl: match.embedUrl || "", pageUrl: match.pageUrl || "" });
+            } else {
+                sendResponse({ url: null });
+            }
+        });
+        return true;
+    }
+
     if (request.action === "open_player" && request.videoSrc) {
         const videoUrl  = request.videoSrc;
         const embedUrl  = request.embedUrl || "";

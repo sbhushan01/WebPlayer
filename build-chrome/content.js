@@ -37,6 +37,7 @@
     const interceptedUrlTimers = new Map();
     const INTERCEPT_DEDUPE_TTL_MS = 5 * 60 * 1000;
     let latestInterceptedUrl = null;
+    let latestInterceptedEmbedUrl = "";
     let findVideosTimer = null;
 
     function markIntercepted(url) {
@@ -84,6 +85,7 @@
             chrome.runtime.onMessage.addListener((msg) => {
                 if (msg.action === "stream_detected" && msg.url && !interceptedUrls.has(msg.url)) {
                     latestInterceptedUrl = msg.url;
+                    latestInterceptedEmbedUrl = msg.embedUrl || "";
                     markIntercepted(msg.url);
 
                     // Only show popup in the top-level frame to prevent duplicates
@@ -973,15 +975,35 @@
 
         on(uiWrapper.querySelector("#wp-skip-back"), "click", () => { video.currentTime = Math.max(0, video.currentTime - 10); showFeedback("−10s"); });
         on(uiWrapper.querySelector("#wp-skip-fwd"), "click",  () => { safeSeekForward(video, 10); showFeedback("+10s"); });
-        on(uiWrapper.querySelector("#wp-standalone"), "click", () => {
+        on(uiWrapper.querySelector("#wp-standalone"), "click", async () => {
             let src = video.src;
+            let embedUrl = latestInterceptedEmbedUrl || "";
             if (!src || src.startsWith("blob:")) {
                 const sourceEl = video.querySelector("source");
                 if (sourceEl) src = sourceEl.src;
                 else if (latestInterceptedUrl) src = latestInterceptedUrl;
             }
+            // Fallback: query background for any pending/detected stream for this tab
+            if ((!src || src.startsWith("blob:")) && hasValidExtensionContext()) {
+                try {
+                    const resp = await new Promise((resolve) => {
+                        chrome.runtime.sendMessage({ action: "get_pending_stream" }, (r) => {
+                            if (chrome.runtime.lastError) resolve(null);
+                            else resolve(r);
+                        });
+                    });
+                    if (resp && resp.url) {
+                        src = resp.url;
+                        embedUrl = resp.embedUrl || embedUrl;
+                    }
+                } catch (_) {}
+            }
             if (!src || src.startsWith("blob:")) {
                 showFeedback("Cannot extract URL", "center");
+                return;
+            }
+            if (!hasValidExtensionContext()) {
+                showFeedback("Extension error");
                 return;
             }
             try {
@@ -989,7 +1011,8 @@
                     action: "open_player",
                     videoSrc: src,
                     pageTitle: document.title,
-                    pageUrl: window.location.href
+                    pageUrl: window.location.href,
+                    embedUrl: embedUrl
                 });
             } catch (err) {
                 showFeedback("Error launching");
