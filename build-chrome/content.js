@@ -86,6 +86,9 @@
                     latestInterceptedUrl = msg.url;
                     markIntercepted(msg.url);
 
+                    // Only show popup in the top-level frame to prevent duplicates
+                    if (window !== window.top) return;
+
                     // Don't show popup if overlay is already active on any video
                     if (document.querySelector('video[data-custom-player-active="true"]')) return;
                     const prompt = document.createElement("div");

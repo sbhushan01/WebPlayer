@@ -114,7 +114,7 @@ if (chrome?.runtime?.onStartup) {
                         action: 'stream_detected',
                         url: pending.url,
                         pageUrl: pending.pageUrl
-                    }, () => {
+                    }, { frameId: 0 }, () => {
                         if (chrome.runtime.lastError) { /* tab may not have content script */ }
                         done();
                     });
@@ -328,7 +328,7 @@ if (chrome?.webRequest?.onHeadersReceived) {
                     action:  "stream_detected",
                     url:     details.url,
                     pageUrl: details.initiator || ""
-                }, () => {
+                }, { frameId: 0 }, () => {
                     if (chrome.runtime.lastError) { /* Silently ignore */ }
                 });
             }
