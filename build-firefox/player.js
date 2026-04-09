@@ -905,7 +905,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         const time = pct * player.duration;
 
         // Position the preview tooltip
-        const leftPx = Math.max(85, Math.min(rect.width - 85, e.clientX - rect.left));
+        const _previewHW = (seekPreviewCanvas.clientWidth || 160) / 2 + 10;
+        const leftPx = Math.max(_previewHW, Math.min(rect.width - _previewHW, e.clientX - rect.left));
         seekPreview.style.left = `${leftPx}px`;
         seekPreviewTime.textContent = formatTime(time);
         seekPreview.classList.add("visible");
@@ -941,7 +942,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         
         // Show and update seek thumbnail during drag
         const time = pendingSeekPct * player.duration;
-        const leftPx = Math.max(85, Math.min(rect.width - 85, pendingSeekPct * rect.width));
+        const _previewHW2 = (seekPreviewCanvas.clientWidth || 160) / 2 + 10;
+        const leftPx = Math.max(_previewHW2, Math.min(rect.width - _previewHW2, pendingSeekPct * rect.width));
         seekPreview.style.left = `${leftPx}px`;
         seekPreviewTime.textContent = formatTime(time);
         seekPreview.classList.add("visible");
@@ -1221,7 +1223,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (controlsRowEl) {
         const updateScrollIndicator = () => {
             const hasOverflow = controlsRowEl.scrollWidth > controlsRowEl.clientWidth + 4;
-            const nearEnd = controlsRowEl.scrollLeft + controlsRowEl.clientWidth >= controlsRowEl.scrollWidth - 8;
+            const nearEnd = controlsRowEl.scrollLeft + controlsRowEl.clientWidth >= controlsRowEl.scrollWidth - 2;
             const nearStart = controlsRowEl.scrollLeft <= 8;
             controlsRowEl.classList.toggle('can-scroll-right', hasOverflow && !nearEnd);
             controlsRowEl.classList.toggle('can-scroll-left', hasOverflow && !nearStart);
@@ -1505,15 +1507,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     gestureZone.addEventListener("contextmenu", e => e.preventDefault());
 
-    gestureZone.addEventListener("dblclick", (e) => {
-        e.preventDefault();
-        // Fallback for native dblclick if pointer events miss the timing, 
-        // but restrict to fullscreen to avoid duplicated seeks.
-        const rect = gestureZone.getBoundingClientRect();
-        if (e.clientX > rect.left + rect.width * 0.30 && e.clientX < rect.left + rect.width * 0.70) {
-            toggleFS(e);
-        }
-    });
+    // M7: Pointer-based gesture handler already covers double-tap.
+    // This listener only prevents the browser's native dblclick
+    // from selecting text or triggering unintended zoom.
+    gestureZone.addEventListener("dblclick", (e) => e.preventDefault());
 
     gestureZone.addEventListener("pointerdown", (e) => {
         window.__wasIdleBeforeTap = container.classList.contains("idle");
@@ -1571,6 +1568,13 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (gestureZone.hasPointerCapture(e.pointerId)) gestureZone.releasePointerCapture(e.pointerId);
         } catch (err) {
             console.warn("[WebPlayer] Pointer capture release failed:", err);
+        }
+
+        // M5: Reset brightness filter on cancelled vertical gestures
+        if (e.type === "pointercancel" && swipeDir === "vertical") {
+            currentBrightness = 1.0;
+            player.style.filter = "";
+            return;
         }
 
         // Bug 5: Always restore speed on pointercancel, even if timer fired mid-event

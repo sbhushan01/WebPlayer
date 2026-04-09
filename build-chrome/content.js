@@ -459,6 +459,7 @@
             .webplayer-gesture-zone {
                 position: absolute; inset: 0; pointer-events: auto;
                 touch-action: pan-y; user-select: none; -webkit-user-select: none;
+                overflow: hidden;
             }
             .wp-ripple {
                 position: absolute; border-radius: 50%; background: #A8C7FA;
@@ -1078,6 +1079,10 @@
         const updateTouchAction = () => {
             const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
             gestureZone.style.touchAction = isFS ? "none" : "pan-y";
+            // M9: Unlock orientation when exiting fullscreen via any path (e.g., system back gesture)
+            if (!isFS) {
+                try { screen.orientation?.unlock?.(); } catch (_) {}
+            }
         };
         on(document, "fullscreenchange", updateTouchAction);
         on(document, "webkitfullscreenchange", updateTouchAction);
@@ -1115,15 +1120,10 @@
 
         on(gestureZone, "contextmenu", e => e.preventDefault());
 
-        on(gestureZone, "dblclick", e => {
-            e.preventDefault();
-            // Fallback for native dblclick if pointer events miss the timing, 
-            // but restrict to fullscreen to avoid duplicated seeks.
-            const rect = gestureZone.getBoundingClientRect();
-            if (e.clientX > rect.left + rect.width * 0.30 && e.clientX < rect.left + rect.width * 0.70) {
-                uiWrapper.querySelector("#wp-fs")?.click();
-            }
-        });
+        // M7: Pointer-based gesture handler already covers double-tap.
+        // This listener only prevents the browser's native dblclick
+        // from selecting text or triggering unintended zoom.
+        on(gestureZone, "dblclick", e => e.preventDefault());
 
         let wasControlsVisibleBeforeTap = false;
 
@@ -1170,7 +1170,7 @@
                 // fullscreen to avoid conflicting with page scroll gestures.
                 const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
                 if (!isFS) {
-                    swipeDir = null;
+                    swipeDir = "vertical-blocked";
                     return; 
                 }
                 const rect   = gestureZone.getBoundingClientRect();
