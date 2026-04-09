@@ -278,7 +278,7 @@
     }
     async function safePause(video) {
         const p = video.__wpPlayPromise;
-        if (p) { try { await p; } catch (_) {} video.__wpPlayPromise = null; }
+        if (p) { try { await p; } catch (_) {} if (video.__wpPlayPromise === p) video.__wpPlayPromise = null; }
         video.pause();
     }
 

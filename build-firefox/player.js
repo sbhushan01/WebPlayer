@@ -63,14 +63,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     let _playPromise = null;
     const safePlay = () => {
         try {
-            _playPromise = player.play();
-            if (_playPromise && typeof _playPromise.catch === "function") {
-                _playPromise.catch(() => {}).finally(() => { _playPromise = null; });
+            const p = player.play();
+            _playPromise = p;
+            if (p && typeof p.catch === "function") {
+                p.catch(() => {}).finally(() => { if (_playPromise === p) _playPromise = null; });
             }
         } catch (err) { _playPromise = null; }
     };
     const safePause = async () => {
-        if (_playPromise) { try { await _playPromise; } catch (_) {} _playPromise = null; }
+        const p = _playPromise;
+        if (p) { try { await p; } catch (_) {} if (_playPromise === p) _playPromise = null; }
         player.pause();
     };
 
@@ -468,15 +470,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         qualityBtn.setAttribute("aria-expanded", "false");
         ccBtn.setAttribute("aria-expanded", "false");
     });
-    document.addEventListener("click", () => {
-        qualityDropdown.classList.remove("open");
-        ccDropdown.classList.remove("open");
-        audioDropdown.classList.remove("open");
-        qualityBtn.setAttribute("aria-expanded", "false");
-        ccBtn.setAttribute("aria-expanded", "false");
-        audioBtn.setAttribute("aria-expanded", "false");
-    });
-
     // ── Theme ─────────────────────────────────────────────────────────────────
     const currentTheme = localStorage.getItem("wp_theme") || "blue";
     document.documentElement.setAttribute("data-theme", currentTheme);
@@ -1511,6 +1504,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         isPointerDown = true;
         try { gestureZone.setPointerCapture(e.pointerId); } catch (_) {}
         startX = e.clientX; startY = e.clientY; lastY = e.clientY; swipeDir = null;
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
         originalSpeed = player.playbackRate;
         originalBrightness = currentBrightness;
         longPressTimer = setTimeout(() => {
@@ -1533,8 +1528,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         const diffX = e.clientX - startX;
         const diffY = e.clientY - startY;
         if (!swipeDir) {
-            if (Math.abs(diffX) > 20)      { swipeDir = "horizontal"; clearTimeout(longPressTimer); }
-            else if (Math.abs(diffY) > 20) { swipeDir = "vertical";   clearTimeout(longPressTimer); }
+            if (Math.abs(diffX) > 20)      { swipeDir = "horizontal"; clearTimeout(longPressTimer); longPressTimer = null; }
+            else if (Math.abs(diffY) > 20) { swipeDir = "vertical";   clearTimeout(longPressTimer); longPressTimer = null; }
         }
         if (swipeDir === "vertical") {
             const rect   = gestureZone.getBoundingClientRect();
