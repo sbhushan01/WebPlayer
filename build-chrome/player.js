@@ -1620,6 +1620,11 @@ document.addEventListener("DOMContentLoaded", async () => {
             return;
         }
 
+        if (e.type === "pointercancel") {
+            lastTapTime = 0;
+            return;
+        }
+
         const diffX = e.clientX - startX;
         if (swipeDir === "horizontal" && Math.abs(diffX) > 40) {
             // Bug 7: Ignore swipes that started near screen edges (safe-area aware)

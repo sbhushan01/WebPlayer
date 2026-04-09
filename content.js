@@ -743,6 +743,7 @@
         on(gestureZone, "pointermove", showControls);
         on(gestureZone, "pointerdown", showControls);
         on(uiWrapper, "pointermove", showControls);
+        on(uiWrapper, "pointerdown", showControls);
         // Fallback: shadowHost has pointer-events:none which can block pointermove
         // from reaching the shadow DOM in some browsers, so also listen on the
         // underlying video element (events pass through when the host is transparent).
@@ -1215,6 +1216,11 @@
                 setPlaybackRate(originalSpeed);
                 showFeedback(`${originalSpeed}× Speed`);
                 // Prevent immediate tap/double-tap actions from the same release after long-press.
+                lastTapTime = 0;
+                return;
+            }
+
+            if (e.type === "pointercancel") {
                 lastTapTime = 0;
                 return;
             }
