@@ -1818,7 +1818,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                         const div = document.createElement("div");
                         div.className = "eq-band";
                         const divInput = document.createElement("input");
-                        divInput.type = "range"; divInput.min = "-12"; divInput.max = "12"; divInput.step = "0.5"; divInput.value = savedGain;
+                        divInput.type = "range"; divInput.setAttribute("orient", "vertical"); divInput.min = "-12"; divInput.max = "12"; divInput.step = "0.5"; divInput.value = savedGain;
                         const divMark = document.createElement("div"); divMark.className = "eq-zero-mark";
                         const divSpan = document.createElement("span"); divSpan.textContent = freq >= 1000 ? freq / 1000 + "k" : freq;
                         div.append(divInput, divMark, divSpan);

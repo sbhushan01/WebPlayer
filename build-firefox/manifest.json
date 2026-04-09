@@ -34,6 +34,7 @@
     "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https: http:;"
   },
   "background": {
+    "service_worker": "background.js",
     "scripts": [
       "background.js"
     ]

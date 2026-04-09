@@ -17,8 +17,10 @@ function packExtension(browserType) {
     const bm = JSON.parse(JSON.stringify(manifest));
     
     if (browserType === 'firefox') {
-        // Deliberately use scripts for broad AMO compatibility/lint cleanliness in Firefox packaging
+        // Provide both service_worker and scripts fallback for broad AMO compatibility/lint cleanliness
+        // Firefox parses 'scripts' by default but 'service_worker' validates MV3 requirements under certain lint rules.
         bm.background = {
+            "service_worker": "background.js",
             "scripts": ["background.js"]
         };
     } else {
