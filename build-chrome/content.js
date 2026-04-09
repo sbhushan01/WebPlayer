@@ -454,7 +454,7 @@
             .webplayer-feedback.feedback-right { left: auto; right: 15%; transform: none; }
             .webplayer-gesture-zone {
                 position: absolute; inset: 0; pointer-events: auto;
-                touch-action: none; user-select: none; -webkit-user-select: none;
+                touch-action: pan-y; user-select: none; -webkit-user-select: none;
             }
             .wp-ripple {
                 position: absolute; border-radius: 50%; background: #A8C7FA;
@@ -1050,6 +1050,13 @@
             }
         });
 
+        const updateTouchAction = () => {
+            const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
+            gestureZone.style.touchAction = isFS ? "none" : "pan-y";
+        };
+        on(document, "fullscreenchange", updateTouchAction);
+        on(document, "webkitfullscreenchange", updateTouchAction);
+
         speedPillsEl.querySelectorAll(".speed-pill").forEach(pill => {
             on(pill, "click", () => setPlaybackRate(parseFloat(pill.dataset.speed)));
         });
@@ -1093,7 +1100,10 @@
             }
         });
 
+        let wasControlsVisibleBeforeTap = false;
+
         on(gestureZone, "pointerdown", e => {
+            wasControlsVisibleBeforeTap = uiWrapper.classList.contains("wp-controls-visible");
             isPointerDown = true;
             try { gestureZone.setPointerCapture(e.pointerId); } catch (_) {}
             startX = e.clientX; startY = e.clientY; lastY = e.clientY; swipeDir = null;
@@ -1131,6 +1141,11 @@
             }
 
             if (swipeDir === "vertical") {
+                const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
+                if (!isFS) {
+                    swipeDir = null; // Do not apply volume/brightness when inline
+                    return; 
+                }
                 const rect   = gestureZone.getBoundingClientRect();
                 const deltaY = e.clientY - lastY;
                 lastY = e.clientY;
@@ -1224,7 +1239,7 @@
                             // Bug 2: Don't dismiss controls while user is scrubbing
                             if (isScrubbing) return;
                             // Standard mobile pattern: tap toggles control visibility
-                            if (uiWrapper.classList.contains("wp-controls-visible")) {
+                            if (wasControlsVisibleBeforeTap) {
                                 uiWrapper.classList.remove("wp-controls-visible");
                                 clearTimeout(hideTimer);
                             } else {

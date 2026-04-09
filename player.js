@@ -992,44 +992,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         window.addEventListener("pointercancel", onUp);
     });
 
-    // Touch event fallback for mobile devices where pointer events may not fire reliably
-    progWrapper.addEventListener("touchstart", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        isDraggingProgress = true;
-        
-        window.__wasPlayingBeforeDrag = !player.paused;
-        if (window.__wasPlayingBeforeDrag) safePause();
-        
-        progWrapper.classList.add("dragging");
-        updateProgressFromEvent(e);
-    }, { passive: false });
-    progWrapper.addEventListener("touchmove", (e) => {
-        if (!isDraggingProgress) return;
-        e.preventDefault();
-        e.stopPropagation();
-        updateProgressFromEvent(e);
-    }, { passive: false });
-    const completeTouchDrag = (shouldSeek) => {
-        if (!isDraggingProgress) return;
-        isDraggingProgress = false;
-        seekPreview.classList.remove("visible");
-        progWrapper.classList.remove("dragging");
-        if (shouldSeek && isFinite(player.duration)) {
-            player.currentTime = pendingSeekPct * player.duration;
-            if (window.__wasPlayingBeforeDrag) {
-                player.addEventListener("seeked", () => safePlay(), { once: true });
-            }
-        }
-    };
-    progWrapper.addEventListener("touchend", (e) => {
-        if (!isDraggingProgress) return;
-        e.preventDefault();
-        completeTouchDrag(true);
-    }, { passive: false });
-    // Catch touch events that end outside the progress bar element
-    document.addEventListener("touchend", () => completeTouchDrag(true), { passive: true });
-    document.addEventListener("touchcancel", () => completeTouchDrag(false), { passive: true });
 
     // ── Playback rate helper — keeps speed pills in sync ──────────────────────
     const speedMicroRange  = document.getElementById("speed-micro-range");
@@ -1552,6 +1514,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     gestureZone.addEventListener("pointerdown", (e) => {
+        window.__wasIdleBeforeTap = container.classList.contains("idle");
         isPointerDown = true;
         try { gestureZone.setPointerCapture(e.pointerId); } catch (_) {}
         startX = e.clientX; startY = e.clientY; lastY = e.clientY; swipeDir = null;
@@ -1670,7 +1633,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                         wasPaused ? safePlay() : safePause();
                         showFeedback(wasPaused ? "Playing" : "Paused");
                     } else {
-                        if (container.classList.contains("idle")) {
+                        if (window.__wasIdleBeforeTap) {
                             resetIdle(); // show and start timer
                         } else {
                             container.classList.add("idle"); // hide immediately
