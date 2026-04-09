@@ -447,7 +447,7 @@
                 width: 100%; accent-color: #A8C7FA; cursor: pointer; height: 6px;
             }
             .webplayer-feedback {
-                position: absolute; top: 18%;
+                position: absolute; top: max(18%, calc(env(safe-area-inset-top, 0px) + 12px));
                 background: rgba(10, 10, 15, 0.75); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
                 padding: 12px 32px; border-radius: 32px; font-size: 1.15rem; font-weight: 600;
                 opacity: 0; pointer-events: none; transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1), left 0.15s ease, right 0.15s ease;
@@ -1159,7 +1159,7 @@
             const diffY = e.clientY - startY;
 
             if (!swipeDir) {
-                if (Math.abs(diffX) > 20)      { swipeDir = "horizontal"; }
+                if (Math.abs(diffX) > 20)      { swipeDir = "horizontal"; gestureZone.style.touchAction = "none"; }
                 else if (Math.abs(diffY) > 20) { swipeDir = "vertical"; }
                 if (swipeDir) {
                     clearTimeout(longPressTimer);
@@ -1194,6 +1194,9 @@
         const handleGestureEnd = e => {
             if (!isPointerDown) return;
             isPointerDown = false;
+            // Restore touch-action for page scrolling after horizontal swipe lock
+            const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
+            gestureZone.style.touchAction = isFS ? "none" : "pan-y";
             // Bug 5: Clear longPressTimer FIRST to prevent race with pointercancel
             clearTimeout(longPressTimer);
             longPressTimer = null;
@@ -1266,7 +1269,12 @@
                         setTimeout(() => { if (lastTapTime === now) lastTapTime = 0; }, 300);
                     } else {
                         // Double tap center toggles fullscreen for both mouse and touch
-                        uiWrapper.querySelector("#wp-fs")?.click();
+                        // Directly invoke fullscreen logic to preserve user activation (avoids synthetic click losing gesture on Firefox mobile)
+                        const fsBtn = uiWrapper.querySelector("#wp-fs");
+                        if (fsBtn) {
+                            const fsClickEvent = new PointerEvent("click", { bubbles: true, cancelable: true, ...e });
+                            fsBtn.dispatchEvent(fsClickEvent);
+                        }
                         lastTapTime = 0;
                     }
                 } else {

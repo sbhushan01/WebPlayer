@@ -1656,6 +1656,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 // BUG FIX: Double tap on sides targets seeking, double tap in middle toggles Play/Pause or Fullscreen
                 if (e.clientX < rect.left + rect.width * 0.30) {
                     player.currentTime = Math.max(0, player.currentTime - 10);
+                    showFeedback("−10s", "left");
                     const animEl = document.getElementById("seek-anim-left");
                     if (animEl) {
                         animEl.classList.remove("play-left");
@@ -1667,6 +1668,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     setTimeout(() => { if (lastTapTime === now) lastTapTime = 0; }, 300);
                 } else if (e.clientX > rect.left + rect.width * 0.70) {
                     player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 10);
+                    showFeedback("+10s", "right");
                     const animEl = document.getElementById("seek-anim-right");
                     if (animEl) {
                         animEl.classList.remove("play-right");

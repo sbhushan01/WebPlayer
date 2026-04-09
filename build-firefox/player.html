@@ -137,6 +137,7 @@
         .video-container.idle .custom-controls-wrapper { opacity: 0; transform: translate(-50%, 10px); pointer-events: none; }
         
         .custom-controls {
+            position: relative;
             background: var(--md-sys-color-surface-container);
             backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
             border: var(--glass-border); border-radius: 28px;
@@ -339,7 +340,7 @@
 
         /* ── Feedback & Badges ───────────────────────────────────────────────── */
         .feedback-overlay {
-            position: absolute; top: 18%;
+            position: absolute; top: max(18%, calc(env(safe-area-inset-top, 0px) + 12px));
             left: 50%; transform: translateX(-50%);
             background: rgba(10, 10, 15, 0.75); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
             padding: 12px 32px; border-radius: 32px; font-size: 1.15rem; font-weight: 600;
