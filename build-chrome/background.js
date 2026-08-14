@@ -26,11 +26,11 @@ function getPendingStreams(res) {
     const single = res._wp_pending_stream;
     const many = Array.isArray(res._wp_pending_streams) ? res._wp_pending_streams : [];
     const merged = [...many];
-    if (single && single.tabId) merged.push(single);
+    if (single && Number.isInteger(single.tabId) && single.tabId >= 0 && single.url) merged.push(single);
     const dedup = [];
     const seen = new Set();
     for (const p of merged) {
-        if (!p || !p.tabId || !p.url) continue;
+        if (!p || !Number.isInteger(p.tabId) || p.tabId < 0 || !p.url) continue;
         const k = `${p.tabId}|${p.url}`;
         if (seen.has(k)) continue;
         seen.add(k);
@@ -433,5 +433,4 @@ if (chrome?.webRequest?.onHeadersReceived) {
         { urls: ["<all_urls>"], types: ["xmlhttprequest", "media"] }
     );
 }
-
 
