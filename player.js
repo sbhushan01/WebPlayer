@@ -49,9 +49,21 @@ document.addEventListener("DOMContentLoaded", async () => {
     const eqToggleBtn     = document.getElementById("eq-toggle-btn");
     const eqPopover       = document.getElementById("eq-popover");
     const eqCloseBtn      = document.getElementById("eq-close-btn");
+    const eqResetBtn      = document.getElementById("eq-reset-btn");
     const eqBandsContainer= document.getElementById("eq-bands-container");
     const preampSlider    = document.getElementById("eq-preamp");
     const preampLabel     = document.getElementById("preamp-label");
+
+    // Video Enhancer elements
+    const enhanceToggleBtn= document.getElementById("enhance-toggle-btn");
+    const enhancePopover  = document.getElementById("enhance-popover");
+    const enhanceCloseBtn = document.getElementById("enhance-close-btn");
+    const enhanceSharpen  = document.getElementById("enhance-sharpen");
+    const enhanceSaturate = document.getElementById("enhance-saturate");
+    const enhanceContrast = document.getElementById("enhance-contrast");
+    const enhanceBrightness = document.getElementById("enhance-brightness");
+    const enhancePresets  = document.querySelectorAll("#enhance-presets .eq-preset-pill");
+    const sharpenMatrix   = document.getElementById("wp-sharpen-matrix");
 
     const shortcutsModal  = document.getElementById("shortcuts-modal");
     const shortcutsBtn    = document.getElementById("shortcuts-btn");
@@ -69,7 +81,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     const ambilightCanvas = document.createElement('canvas');
     ambilightCanvas.width = 16; ambilightCanvas.height = 16;
     const ambilightCtx = ambilightCanvas.getContext('2d', { willReadFrequently: true });
-    setInterval(() => {
+    const lBg = document.getElementById("loading-bg");
+    const ambilightInterval = setInterval(() => {
         if (player.paused || !isFinite(player.duration) || player.videoWidth === 0) return;
         try {
             ambilightCtx.drawImage(player, 0, 0, 16, 16);
@@ -81,7 +94,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (count > 0) {
                 r = Math.floor(r / count); g = Math.floor(g / count); b = Math.floor(b / count);
                 const max = Math.max(r, g, b);
-                if (max > 0 && max < 255) {
+                if (max > 0) {
                     const mult = 255 / max;
                     r = Math.min(255, Math.floor(r * mult * 0.8));
                     g = Math.min(255, Math.floor(g * mult * 0.8));
@@ -89,16 +102,14 @@ document.addEventListener("DOMContentLoaded", async () => {
                 }
                 document.documentElement.style.setProperty('--glow-color', `rgba(${r}, ${g}, ${b}, 0.5)`);
             }
-            const loadingBg = document.getElementById("loading-bg");
-            if (loadingBg && loadingBg.style.backgroundImage === '') {
-                loadingBg.style.backgroundImage = `url(${ambilightCanvas.toDataURL()})`;
-                loadingBg.style.backgroundSize = 'cover';
-                loadingBg.style.filter = 'blur(40px)';
+            if (lBg && lBg.style.backgroundImage === '') {
+                lBg.style.backgroundImage = `url(${ambilightCanvas.toDataURL()})`;
+                lBg.style.backgroundSize = 'cover';
+                lBg.style.filter = 'blur(40px)';
             }
         } catch (_) {}
     }, 2000);
 
-    const lBg = document.getElementById("loading-bg");
     player.addEventListener("waiting", () => { if (lBg && player.currentTime < 1) lBg.style.opacity = '1'; });
     player.addEventListener("playing", () => { if (lBg) lBg.style.opacity = '0'; });
     player.addEventListener("loadeddata", () => { if (lBg) lBg.style.opacity = '0'; });
@@ -225,11 +236,22 @@ document.addEventListener("DOMContentLoaded", async () => {
         }).catch(() => {});
     });
 
-    document.getElementById("error-retry").addEventListener("click", () => {
+    const retryBtn = document.getElementById("error-retry");
+    retryBtn.addEventListener("click", () => {
         if (!videoSrc) { showError("No video source provided.", "Missing Source"); return; }
-        errorBox.style.display = "none";
-        bufferEl.classList.add("is-buffering");
-        attachSource(videoSrc);
+        
+        const origText = retryBtn.textContent;
+        retryBtn.textContent = "Retrying...";
+        retryBtn.style.pointerEvents = "none";
+        
+        // Brief delay to allow UI to show "Retrying..." before hiding
+        setTimeout(() => {
+            retryBtn.textContent = origText;
+            retryBtn.style.pointerEvents = "auto";
+            errorBox.style.display = "none";
+            bufferEl.classList.add("is-buffering");
+            attachSource(videoSrc);
+        }, 150);
     });
 
     // Catch native video errors
@@ -297,6 +319,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (currentDash) { currentDash.reset();   currentDash = null; }
     }
     window.addEventListener("beforeunload", () => {
+        clearInterval(ambilightInterval);
         destroyEngines();
         if (window.audioContext?.state !== "closed") window.audioContext?.close();
         // Clean up preview video clone if created
@@ -324,6 +347,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     const cdn = CDN_FALLBACKS[path];
                     if (cdn) {
                         console.warn(`[WebPlayer] Local ${path} failed, trying CDN fallback...`);
+                        try { showFeedback("Loading player engine\u2026"); } catch (_) {}
                         const sf = document.createElement("script");
                         sf.src = cdn;
                         sf.onload  = resolve;
@@ -377,7 +401,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 currentDash.setQualityFor('video', val);
             }
         }
-        qualityIcon.textContent = val === -1 ? "hd" : "settings";
+        qualityIcon.textContent = val === -1 ? "settings" : "hd";
         qualityDropdown.classList.remove("open");
     });
 
@@ -515,13 +539,28 @@ document.addEventListener("DOMContentLoaded", async () => {
         ccBtn.setAttribute("aria-expanded", "false");
     });
     // ── Theme ─────────────────────────────────────────────────────────────────
-    const currentTheme = localStorage.getItem("wp_theme") || "blue";
-    document.documentElement.setAttribute("data-theme", currentTheme);
+    const defaultTheme = localStorage.getItem("wp_theme") || "blue";
+    document.documentElement.setAttribute("data-theme", defaultTheme);
+    
+    // U6: Sync theme to chrome.storage.local for content.js to consume
+    if (hasChromeStorage) {
+        try {
+            chrome.storage.local.get(["wp_theme"], (res) => {
+                const currentTheme = res.wp_theme || defaultTheme;
+                document.documentElement.setAttribute("data-theme", currentTheme);
+                themeBtns.forEach(btn => {
+                    btn.classList.toggle("active", btn.dataset.value === currentTheme);
+                });
+            });
+        } catch (_) {}
+    }
+
     themeBtns.forEach(btn => {
-        btn.classList.toggle("active", btn.dataset.value === currentTheme);
+        btn.classList.toggle("active", btn.dataset.value === defaultTheme);
         btn.addEventListener("click", () => {
             const t = btn.dataset.value;
             localStorage.setItem("wp_theme", t);
+            if (hasChromeStorage) try { chrome.storage.local.set({ wp_theme: t }); } catch (_) {}
             document.documentElement.setAttribute("data-theme", t);
             themeBtns.forEach(b => b.classList.remove("active"));
             btn.classList.add("active");
@@ -817,14 +856,59 @@ document.addEventListener("DOMContentLoaded", async () => {
         preview:        "Preview Skipped",
     };
 
-    function showSkipBadge(category = "sponsor") {
+    const SEGMENT_COLORS = {
+        sponsor:        "var(--md-sys-color-primary)",
+        intro:          "#757575",
+        outro:          "#757575",
+        selfpromo:      "#42A5F5",
+        interaction:    "#BA68C8",
+        music_offtopic: "#FFCA28",
+        preview:        "#26A69A",
+    };
+
+    let _skipBadgeTimer = null;
+    let _lastSkipStartTime = null;
+    const skipUndoBtn = document.getElementById("skip-undo-btn");
+
+    function showSkipBadge(category = "sponsor", startTime = null) {
+        clearTimeout(_skipBadgeTimer);
+        _lastSkipStartTime = startTime;
         skipBadge.textContent = SEGMENT_LABELS[category] || "Segment Skipped";
+        skipBadge.style.background = SEGMENT_COLORS[category] || "var(--md-sys-color-primary)";
+        skipBadge.style.color = category === "music_offtopic" ? "var(--md-sys-color-background)" : "var(--md-sys-color-on-primary)";
         skipBadge.style.display = "block";
         requestAnimationFrame(() => skipBadge.classList.add("showing"));
-        setTimeout(() => {
+        // Show undo button alongside badge
+        if (skipUndoBtn && startTime !== null) {
+            skipUndoBtn.style.display = "";
+            requestAnimationFrame(() => skipUndoBtn.classList.add("showing"));
+        }
+        _skipBadgeTimer = setTimeout(() => {
             skipBadge.classList.remove("showing");
-            setTimeout(() => { skipBadge.style.display = "none"; }, 200);
-        }, 2500); // U12: Visible for 2.5s for readability
+            if (skipUndoBtn) skipUndoBtn.classList.remove("showing");
+            _skipBadgeTimer = setTimeout(() => {
+                skipBadge.style.display = "none";
+                if (skipUndoBtn) { skipUndoBtn.style.display = "none"; skipUndoBtn.classList.remove("showing"); }
+            }, 200);
+        }, 3500); // Extended to 3.5s for undo opportunity
+    }
+
+    // U12: SponsorBlock undo
+    if (skipUndoBtn) {
+        skipUndoBtn.addEventListener("click", () => {
+            if (_lastSkipStartTime !== null) {
+                clearTimeout(_skipBadgeTimer);
+                player.currentTime = _lastSkipStartTime;
+                _lastSkipStartTime = null;
+                skipBadge.classList.remove("showing");
+                skipUndoBtn.classList.remove("showing");
+                setTimeout(() => {
+                    skipBadge.style.display = "none";
+                    skipUndoBtn.style.display = "none";
+                }, 200);
+                showFeedback("Skip Undone");
+            }
+        });
     }
 
     player.addEventListener("timeupdate", () => {
@@ -838,7 +922,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 window.__isSkipping = true;
                 skippedIds.add(segId);
                 player.currentTime = end;
-                showSkipBadge(seg.category);
+                showSkipBadge(seg.category, start);
                 player.addEventListener("seeked", () => { window.__isSkipping = false; }, { once: true });
                 setTimeout(() => { window.__isSkipping = false; }, 1000);
                 break;
@@ -859,7 +943,24 @@ document.addEventListener("DOMContentLoaded", async () => {
     let isDraggingProgress = false;
 
     player.addEventListener("loadedmetadata", () => {
-        timeDur.textContent = isFinite(player.duration) ? formatTime(player.duration) : "Live";
+        if (isFinite(player.duration)) {
+            timeDur.textContent = formatTime(player.duration);
+        } else {
+            timeDur.textContent = "";
+            // U3: Live indicator badge — guard against duplicates (B8)
+            if (!document.getElementById("wp-live-badge")) {
+                const liveDot = document.createElement("span");
+                liveDot.id = "wp-live-badge";
+                liveDot.style.cssText = "display:inline-flex;align-items:center;gap:5px;color:#F44336;font-weight:700;font-size:0.85rem;letter-spacing:0.5px;";
+                liveDot.innerHTML = '<span style="width:8px;height:8px;border-radius:50%;background:#F44336;display:inline-block;animation:live-pulse 1.5s ease-in-out infinite;"></span>LIVE';
+                if (!document.getElementById("wp-live-pulse-style")) {
+                    const ls = document.createElement("style"); ls.id = "wp-live-pulse-style";
+                    ls.textContent = "@keyframes live-pulse{0%,100%{opacity:1}50%{opacity:0.4}}";
+                    document.head.appendChild(ls);
+                }
+                timeDur.parentElement.appendChild(liveDot);
+            }
+        }
     });
     player.addEventListener("timeupdate", () => {
         if (isDraggingProgress) return;
@@ -985,17 +1086,26 @@ document.addEventListener("DOMContentLoaded", async () => {
         seekPreviewTime.textContent = formatTime(time);
         seekPreview.classList.add("visible");
         
+        // B6: Cancel previous seeked listener to prevent stacking
         clearTimeout(seekPreviewTimer);
+        if (window.__wpDragSeekedHandler) {
+            const _pv = getPreviewVideo();
+            (_pv || player).removeEventListener("seeked", window.__wpDragSeekedHandler);
+            window.__wpDragSeekedHandler = null;
+        }
         seekPreviewTimer = setTimeout(() => {
             if (Math.abs(time - lastPreviewTime) < 0.5) return;
             lastPreviewTime = time;
-            const onSeeked = () => {
-                try { seekCtx.drawImage(player, 0, 0, 320, 180); } catch (_) {}
-                player.removeEventListener("seeked", onSeeked);
-            };
-            if (player.readyState >= 2) {
-                player.addEventListener("seeked", onSeeked, { once: true });
-                player.currentTime = time;
+            // B6: Use clone video for drag previews to avoid main player jank
+            const pv = getPreviewVideo();
+            if (pv && _previewVideoReady) {
+                const onSeeked = () => {
+                    try { seekCtx.drawImage(pv, 0, 0, 320, 180); } catch (_) {}
+                    window.__wpDragSeekedHandler = null;
+                };
+                window.__wpDragSeekedHandler = onSeeked;
+                pv.addEventListener("seeked", onSeeked, { once: true });
+                pv.currentTime = time;
             }
         }, 150);
     };
@@ -1267,6 +1377,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     // ── Popovers ──────────────────────────────────────────────────────────────
     const closeAllPopovers = () => {
         eqPopover.classList.remove("active");
+        enhancePopover.classList.remove("active");
         themePopover.classList.remove("active");
         speedPopover.classList.remove("active");
         qualityDropdown.classList.remove("open");
@@ -1274,6 +1385,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         audioDropdown.classList.remove("open");
         themeToggleBtn.setAttribute("aria-expanded", "false");
         eqToggleBtn.setAttribute("aria-expanded", "false");
+        enhanceToggleBtn.setAttribute("aria-expanded", "false");
         qualityBtn.setAttribute("aria-expanded", "false");
         ccBtn.setAttribute("aria-expanded", "false");
         audioBtn.setAttribute("aria-expanded", "false");
@@ -1312,6 +1424,22 @@ document.addEventListener("DOMContentLoaded", async () => {
         resetIdle();
     });
 
+    enhanceToggleBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const wasActive = enhancePopover.classList.contains("active");
+        closeAllPopovers();
+        if (!wasActive) {
+            enhancePopover.classList.add("active");
+            enhanceToggleBtn.setAttribute("aria-expanded", "true");
+        }
+        resetIdle();
+    });
+    enhanceCloseBtn.addEventListener("click", () => {
+        enhancePopover.classList.remove("active");
+        enhanceToggleBtn.setAttribute("aria-expanded", "false");
+        resetIdle();
+    });
+
     // Close on outside click
     document.addEventListener("click", (e) => {
         if (!e.target.closest("#theme-popover") && !e.target.closest("#theme-toggle-btn")) {
@@ -1321,6 +1449,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (!e.target.closest("#eq-popover") && !e.target.closest("#eq-toggle-btn")) {
             eqPopover.classList.remove("active");
             eqToggleBtn.setAttribute("aria-expanded", "false");
+        }
+        if (!e.target.closest("#enhance-popover") && !e.target.closest("#enhance-toggle-btn")) {
+            enhancePopover.classList.remove("active");
+            enhanceToggleBtn.setAttribute("aria-expanded", "false");
         }
         if (!e.target.closest("#speed-popover") && !e.target.closest("#speed-toggle-btn")) {
             speedPopover.classList.remove("active");
@@ -1497,6 +1629,11 @@ document.addEventListener("DOMContentLoaded", async () => {
             case "F":
                 toggleFS(e);
                 break;
+            // U8: PiP keyboard shortcut
+            case "p":
+            case "P":
+                pipBtn.click();
+                break;
             case "r":
             case "R":
                 rotateBtn.click();
@@ -1505,8 +1642,9 @@ document.addEventListener("DOMContentLoaded", async () => {
                 toggleShortcuts();
                 break;
             case "Escape":
-                // Close any open modals/popovers
-                if (shortcutsModal.classList.contains("active")) { closeShortcuts(); }
+                // Close any open modals/popovers or error box
+                if (errorBox.style.display === "flex") { errorBox.style.display = "none"; }
+                else if (shortcutsModal.classList.contains("active")) { closeShortcuts(); }
                 else { closeAllPopovers(); }
                 break;
             default:
@@ -1533,6 +1671,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     let startX = 0, startY = 0, lastY = 0, swipeDir = null;
     let isPointerDown = false, lastTapTime = 0, tapTimeout, longPressTimer;
+    // B7/U1: Track brightness for reset support
     let currentBrightness = 1.0, originalBrightness = 1.0, originalSpeed = 1.0;
     let isLongPressActive = false;
 
@@ -1572,8 +1711,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         const diffX = e.clientX - startX;
         const diffY = e.clientY - startY;
         if (!swipeDir) {
-            if (Math.abs(diffX) > 20)      { swipeDir = "horizontal"; clearTimeout(longPressTimer); longPressTimer = null; }
-            else if (Math.abs(diffY) > 20) { swipeDir = "vertical";   clearTimeout(longPressTimer); longPressTimer = null; }
+            if (Math.abs(diffX) > 30)      { swipeDir = "horizontal"; clearTimeout(longPressTimer); longPressTimer = null; }
+            else if (Math.abs(diffY) > 30) { swipeDir = "vertical";   clearTimeout(longPressTimer); longPressTimer = null; }
         }
         if (swipeDir === "vertical") {
             const rect   = gestureZone.getBoundingClientRect();
@@ -1586,8 +1725,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                 updateVolIcon();
                 showFeedback(`Vol: ${Math.round(player.volume * 100)}%`, "right");
             } else {
-                currentBrightness       = Math.max(0.1, Math.min(2.5, currentBrightness - deltaY * 0.01));
-                player.style.filter     = `brightness(${currentBrightness})`;
+                currentBrightness = Math.max(0.1, Math.min(2.5, currentBrightness - deltaY * 0.01));
+                updateEnhanceVal("brightness", currentBrightness);
                 showFeedback(`Brightness: ${Math.round(currentBrightness * 100)}%`, "left");
             }
         }
@@ -1607,7 +1746,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         // M5: Reset brightness filter on cancelled vertical gestures
         if (e.type === "pointercancel" && swipeDir === "vertical") {
             currentBrightness = originalBrightness;
-            player.style.filter = `brightness(${currentBrightness})`;
+            updateEnhanceVal("brightness", currentBrightness);
             return;
         }
 
@@ -1679,6 +1818,12 @@ document.addEventListener("DOMContentLoaded", async () => {
                     setTimeout(() => { if (lastTapTime === now) lastTapTime = 0; }, 300);
                 } else {
                     // Double tap center toggles fullscreen for both mouse and touch
+                    // U1/B7: Reset brightness on double tap center
+                    if (currentBrightness !== 1.0) {
+                        currentBrightness = 1.0;
+                        updateEnhanceVal("brightness", 1.0);
+                        showFeedback("Brightness Reset");
+                    }
                     toggleFS(e);
                     lastTapTime = 0;
                 }
@@ -1706,6 +1851,125 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     gestureZone.addEventListener("pointerup", handleGestureEnd);
     gestureZone.addEventListener("pointercancel", handleGestureEnd);
+
+
+    // ── Video Enhancer ─────────────────────────────────────────────────────────
+    const ENHANCE_STORAGE_KEY = "wp_enhancer_settings";
+    let enhanceState = {
+        sharpen: 0,
+        saturate: 1,
+        contrast: 1,
+        brightness: 1,
+        preset: "reset"
+    };
+
+    const ENHANCE_PRESETS = {
+        "reset":  { sharpen: 0,   saturate: 1.0, contrast: 1.0, brightness: 1.0 },
+        "anime":  { sharpen: 0.8, saturate: 1.3, contrast: 1.1, brightness: 1.0 },
+        "cinema": { sharpen: 0.3, saturate: 0.9, contrast: 1.2, brightness: 1.0 },
+        "sports": { sharpen: 0.5, saturate: 1.2, contrast: 1.1, brightness: 1.1 }
+    };
+
+    const applyEnhancements = () => {
+        const { sharpen, saturate, contrast, brightness } = enhanceState;
+
+        // Update SVG Sharpen Matrix
+        if (sharpen > 0) {
+            const center = 1 + (4 * sharpen);
+            const edge = -sharpen;
+            sharpenMatrix.setAttribute("kernelMatrix", `0 ${edge} 0 ${edge} ${center} ${edge} 0 ${edge} 0`);
+        }
+
+        // Apply CSS Filters
+        let filterStr = "";
+        if (brightness !== 1) filterStr += `brightness(${brightness}) `;
+        if (contrast !== 1)   filterStr += `contrast(${contrast}) `;
+        if (saturate !== 1)   filterStr += `saturate(${saturate}) `;
+        if (sharpen > 0)      filterStr += `url(#wp-sharpen) `;
+
+        player.style.filter = filterStr.trim();
+        currentBrightness = brightness; // sync with vertical swipe gesture variable
+    };
+
+    const saveEnhanceSettings = () => {
+        if (!hasChromeStorage) return;
+        try {
+            chrome.storage.local.set({ [ENHANCE_STORAGE_KEY]: enhanceState });
+        } catch (_) {}
+    };
+
+    const loadEnhanceSettings = () => {
+        if (!hasChromeStorage) return;
+        try {
+            chrome.storage.local.get([ENHANCE_STORAGE_KEY], (res) => {
+                if (res[ENHANCE_STORAGE_KEY]) {
+                    enhanceState = { ...enhanceState, ...res[ENHANCE_STORAGE_KEY] };
+                    syncEnhanceUI();
+                    applyEnhancements();
+                }
+            });
+        } catch (_) {}
+    };
+
+    const syncEnhanceUI = () => {
+        enhanceSharpen.value = enhanceState.sharpen;
+        enhanceSaturate.value = enhanceState.saturate;
+        enhanceContrast.value = enhanceState.contrast;
+        enhanceBrightness.value = enhanceState.brightness;
+
+        // U4: Update value labels
+        const _sharpVal = document.getElementById("enhance-sharpen-val");
+        const _satVal = document.getElementById("enhance-saturate-val");
+        const _contVal = document.getElementById("enhance-contrast-val");
+        const _brightVal = document.getElementById("enhance-brightness-val");
+        if (_sharpVal) _sharpVal.textContent = parseFloat(enhanceState.sharpen).toFixed(1);
+        if (_satVal) _satVal.textContent = parseFloat(enhanceState.saturate).toFixed(1);
+        if (_contVal) _contVal.textContent = parseFloat(enhanceState.contrast).toFixed(1);
+        if (_brightVal) _brightVal.textContent = parseFloat(enhanceState.brightness).toFixed(1);
+
+        enhancePresets.forEach(btn => {
+            btn.classList.toggle("active", btn.dataset.preset === enhanceState.preset);
+        });
+    };
+
+    const updateEnhanceVal = (key, val) => {
+        enhanceState[key] = parseFloat(val);
+        enhanceState.preset = null;
+        syncEnhanceUI();
+        applyEnhancements();
+        saveEnhanceSettings();
+    };
+
+    enhanceSharpen.addEventListener("input", e => updateEnhanceVal("sharpen", e.target.value));
+    enhanceSaturate.addEventListener("input", e => updateEnhanceVal("saturate", e.target.value));
+    enhanceContrast.addEventListener("input", e => updateEnhanceVal("contrast", e.target.value));
+    enhanceBrightness.addEventListener("input", e => updateEnhanceVal("brightness", e.target.value));
+
+    enhancePresets.forEach(btn => {
+        btn.addEventListener("click", () => {
+            const presetName = btn.dataset.preset;
+            const presetVals = ENHANCE_PRESETS[presetName];
+            if (presetVals) {
+                enhanceState = { ...presetVals, preset: presetName };
+                syncEnhanceUI();
+                applyEnhancements();
+                saveEnhanceSettings();
+            }
+        });
+    });
+
+    loadEnhanceSettings();
+
+    // U3: Enhance reset button
+    const enhanceResetBtn = document.getElementById("enhance-reset-btn");
+    if (enhanceResetBtn) {
+        enhanceResetBtn.addEventListener("click", () => {
+            enhanceState = { ...ENHANCE_PRESETS["reset"], preset: "reset" };
+            syncEnhanceUI();
+            applyEnhancements();
+            saveEnhanceSettings();
+        });
+    }
 
 
     // ── Web Audio API — Equalizer with persistence ────────────────────────────
@@ -1827,10 +2091,15 @@ document.addEventListener("DOMContentLoaded", async () => {
                         const divInput = document.createElement("input");
                         divInput.type = "range"; divInput.setAttribute("orient", "vertical"); divInput.min = "-12"; divInput.max = "12"; divInput.step = "0.5"; divInput.value = savedGain;
                         const divMark = document.createElement("div"); divMark.className = "eq-zero-mark";
+                        const divGain = document.createElement("span");
+                        divGain.style.cssText = "font-size:0.65rem;color:var(--md-sys-color-primary);font-weight:600;font-variant-numeric:tabular-nums;min-width:28px;text-align:center;";
+                        divGain.textContent = savedGain > 0 ? `+${savedGain}` : `${savedGain}`;
                         const divSpan = document.createElement("span"); divSpan.textContent = freq >= 1000 ? freq / 1000 + "k" : freq;
-                        div.append(divInput, divMark, divSpan);
+                        div.append(divInput, divMark, divGain, divSpan);
                         divInput.addEventListener("input", (e) => {
-                            eqFilters[i].gain.value = parseFloat(e.target.value);
+                            const val = parseFloat(e.target.value);
+                            eqFilters[i].gain.value = val;
+                            divGain.textContent = val > 0 ? `+${val}` : `${val}`;
                             updatePresetHighlight(null); // manual adjustment clears preset
                             saveEqSettings();
                         });
@@ -1854,7 +2123,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     };
 
     // U11: EQ Reset button — now also resets preset to Flat
-    const eqResetBtn = document.getElementById("eq-reset-btn");
     if (eqResetBtn) {
         eqResetBtn.addEventListener("click", () => {
             eqFilters.forEach(f => { f.gain.value = 0; });

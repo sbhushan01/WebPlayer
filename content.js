@@ -193,7 +193,7 @@
         btn.appendChild(iconEl);
         btn.appendChild(labelEl);
         btn.style.cssText = `
-            position: absolute; z-index: 2147483647; background: rgba(20, 20, 30, 0.6);
+            position: fixed; z-index: 2147483647; background: rgba(20, 20, 30, 0.6);
             backdrop-filter: blur(4px); color: white; border: 1px solid rgba(255,255,255,0.1);
             padding: 6px 10px; border-radius: 6px; font-size: 12px; cursor: pointer;
             display: flex; align-items: center; transition: background 0.2s;
@@ -229,8 +229,8 @@
                 const r = video.getBoundingClientRect();
                 if (r.width <= 0) { btn.style.display = "none"; return; }
                 btn.style.display = btnVisible ? "" : "none";
-                btn.style.left = `${r.left + window.scrollX + 10}px`;
-                btn.style.top  = `${r.top  + window.scrollY + 10}px`;
+                btn.style.left = `${Math.max(0, r.left + 10)}px`;
+                btn.style.top  = `${Math.max(0, r.top + 10)}px`;
             } catch (_) { cleanupBtn(); }
         };
         const cleanupBtn = () => {
@@ -356,10 +356,15 @@
             * { box-sizing: border-box; font-family: system-ui, sans-serif; }
             .webplayer-ui-wrapper {
                 position: absolute; bottom: max(30px, calc(14px + env(safe-area-inset-bottom))); left: 50%; transform: translateX(-50%);
-                background: rgba(26, 29, 36, 0.65); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+                background: rgba(26, 29, 36, 0.85); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
                 padding: 16px 24px; border-radius: 28px; display: flex; flex-direction: column; gap: 12px; opacity: 0;
                 transition: opacity 0.4s ease, transform 0.4s ease; pointer-events: auto; border: 1px solid rgba(255,255,255,0.08);
                 width: 95%; max-width: 800px; color: #E3E3E3; box-shadow: 0px 8px 16px 2px rgba(0,0,0,0.2);
+            }
+            @supports (backdrop-filter: blur(24px)) {
+                .webplayer-ui-wrapper {
+                    background: rgba(26, 29, 36, 0.65);
+                }
             }
             .video-container.idle .webplayer-ui-wrapper { opacity: 0; transform: translate(-50%, 20px); pointer-events: none; }
             .wp-controls-visible { opacity: 1; transform: translateX(-50%); }
@@ -376,7 +381,7 @@
             }
             input[type=range]::-webkit-slider-thumb {
                 -webkit-appearance: none; appearance: none;
-                width: 16px; height: 16px; border-radius: 50%; background: #A8C7FA; 
+                width: 16px; height: 16px; border-radius: 50%; background: var(--wp-primary, #A8C7FA); 
                 cursor: pointer; box-shadow: 0 0 8px rgba(0,0,0,0.4); transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             }
             #wp-progress::-webkit-slider-thumb {
@@ -385,7 +390,7 @@
             }
             input[type=range]:active::-webkit-slider-thumb { transform: scale(1.3); }
             input[type=range]::-moz-range-thumb {
-                width: 16px; height: 16px; border-radius: 50%; background: #A8C7FA; 
+                width: 16px; height: 16px; border-radius: 50%; background: var(--wp-primary, #A8C7FA); 
                 cursor: pointer; border: none; box-shadow: 0 0 8px rgba(0,0,0,0.4); transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             }
             #wp-progress::-moz-range-thumb {
@@ -410,6 +415,11 @@
                 #wp-progress { margin: 6px 0; height: 5px; }
                 .popover-anchor, .quality-container { position: static; }
                 .quality-dropdown, .speed-popover { right: 0; left: auto; bottom: calc(100% + 16px); max-height: min(55vh, 55dvh); overflow-y: auto; max-width: calc(100vw - 32px); }
+            }
+            @media (max-width: 350px) {
+                button { width: 38px; height: 38px; padding: 6px; }
+                .material-symbols-rounded { font-size: 20px; }
+                .webplayer-ui-wrapper { padding: 10px 12px; }
             }
             .popover-anchor { position: relative; display: flex; align-items: center; }
             .speed-pills { display: flex; align-items: center; gap: 6px; margin: 0; flex-wrap: wrap; }
@@ -478,9 +488,21 @@
             @keyframes wp-slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
             .quality-option { font-size: 13px; font-weight: 500; padding: 10px 16px; border-radius: 10px; width: 100%; text-align: left; background: none; color: #C4C7C5; border: none; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: flex-start; }
             .quality-option:hover { background: rgba(255,255,255,0.1); color: #E3E3E3; }
-            .quality-option.active { color: #A8C7FA; background: rgba(255,255,255,0.05); }
+            .quality-option.active { color: var(--wp-primary, #A8C7FA); background: rgba(255,255,255,0.05); }
         `;
         shadow.appendChild(styles);
+
+        // U6: Sync theme
+        const applyThemeColor = (themeName) => {
+            const colors = { blue: "#A8C7FA", amethyst: "#D0BCFF", emerald: "#82C99E" };
+            shadowHost.style.setProperty("--wp-primary", colors[themeName] || colors.blue);
+        };
+        try {
+            chrome.storage.local.get(["wp_theme"], (res) => applyThemeColor(res.wp_theme));
+            chrome.storage.onChanged.addListener((changes) => {
+                if (changes.wp_theme) applyThemeColor(changes.wp_theme.newValue);
+            });
+        } catch (_) {}
 
         const uiWrapper = document.createElement("div");
         uiWrapper.className = "webplayer-ui-wrapper";
@@ -528,7 +550,19 @@
                 <button id="wp-exit"></button>
             </div>
         `, 'text/html');
+        while (tempUiDoc.head.firstChild) uiWrapper.appendChild(tempUiDoc.head.firstChild);
         while (tempUiDoc.body.firstChild) uiWrapper.appendChild(tempUiDoc.body.firstChild);
+
+        // U12: Add hidden SVG filter for Video Enhancer sharpening
+        const svgContainer = document.createElement("div");
+        svgContainer.innerHTML = `
+            <svg style="position: absolute; pointer-events: none; width: 0; height: 0;">
+                <filter id="wp-sharpen-content">
+                    <feConvolveMatrix id="wp-sharpen-matrix-content" order="3 3" preserveAlpha="true" kernelMatrix="0 0 0 0 1 0 0 0 0"/>
+                </filter>
+            </svg>
+        `;
+        uiWrapper.appendChild(svgContainer.firstElementChild);
         setSVG(uiWrapper.querySelector("#wp-skip-back"), IC.skipBack);
         setSVG(uiWrapper.querySelector("#wp-play"), IC.play);
         setSVG(uiWrapper.querySelector("#wp-skip-fwd"), IC.skipFwd);
@@ -548,6 +582,54 @@
         shadow.appendChild(gestureZone);
         shadow.appendChild(uiWrapper);
         shadow.appendChild(feedbackOverlay);
+
+        // --- Video Enhancer Sync ---
+        const sharpenMatrixContent = shadow.querySelector("#wp-sharpen-matrix-content");
+        let enhanceStateContent = { sharpen: 0, saturate: 1, contrast: 1, brightness: 1 };
+        
+        const applyContentEnhancements = (settings) => {
+            if (!settings) return;
+            enhanceStateContent = { ...enhanceStateContent, ...settings };
+            const { sharpen, saturate, contrast, brightness } = enhanceStateContent;
+            
+            if (sharpen > 0 && sharpenMatrixContent) {
+                const center = 1 + (4 * sharpen);
+                const edge = -sharpen;
+                sharpenMatrixContent.setAttribute("kernelMatrix", `0 ${edge} 0 ${edge} ${center} ${edge} 0 ${edge} 0`);
+            }
+
+            let filterStr = "";
+            if (brightness !== 1) filterStr += `brightness(${brightness}) `;
+            if (contrast !== 1)   filterStr += `contrast(${contrast}) `;
+            if (saturate !== 1)   filterStr += `saturate(${saturate}) `;
+            if (sharpen > 0)      filterStr += `url(#wp-sharpen-content) `;
+
+            // Apply directly to the injected video element
+            video.style.filter = filterStr.trim();
+            
+            // Sync with local swipe variable
+            currentBrightness = brightness;
+        };
+
+        const updateEnhanceValContent = (key, val) => {
+            enhanceStateContent[key] = parseFloat(val);
+            try {
+                chrome.storage.local.set({ wp_enhancer_settings: enhanceStateContent });
+            } catch (_) {}
+            applyContentEnhancements(enhanceStateContent);
+        };
+
+        try {
+            chrome.storage.local.get(["wp_enhancer_settings"], (res) => applyContentEnhancements(res.wp_enhancer_settings));
+            chrome.storage.onChanged.addListener((changes) => {
+                if (changes.wp_enhancer_settings) applyContentEnhancements(changes.wp_enhancer_settings.newValue);
+            });
+        } catch (_) {}
+        // ---------------------------
+
+        let state = {
+            isPlaying: false,
+        };
 
         const ytPlayer = document.querySelector(".html5-video-player") || video.closest('.html5-video-player');
         const qDropdown = uiWrapper.querySelector("#wp-quality-dropdown");
@@ -703,7 +785,7 @@
                 } else if (e.key === "Enter" || e.key === " ") {
                     if (getActiveEl()?.classList?.contains("quality-option")) {
                         e.preventDefault();
-                        document.activeElement.click();
+                        getActiveEl().click();
                     }
                 } else if (e.key === "Escape") {
                     e.preventDefault();
@@ -751,13 +833,44 @@
         on(video, "pointerdown", showControls);
         showControls();
 
+        // B5: Track and clear feedback timer to prevent collision
+        let _overlayFeedbackTimer;
         const showFeedback = (text, position) => {
             feedbackOverlay.innerText = text;
             feedbackOverlay.classList.remove("feedback-left", "feedback-right");
             if (position === "left")  feedbackOverlay.classList.add("feedback-left");
             if (position === "right") feedbackOverlay.classList.add("feedback-right");
             feedbackOverlay.style.opacity = "1";
-            setTimeout(() => feedbackOverlay.style.opacity = "0", 800);
+            clearTimeout(_overlayFeedbackTimer);
+            _overlayFeedbackTimer = setTimeout(() => feedbackOverlay.style.opacity = "0", 800);
+        };
+
+        // U5: Seek animations for overlay mode
+        const showSeekAnim = (dir) => {
+            const anim = document.createElement("div");
+            anim.className = "wp-seek-anim";
+            anim.style.cssText = `position:absolute; top:50%; ${dir === 'left' ? 'left:25%' : 'right:25%'}; transform:translate(${dir === 'left' ? '-50%' : '50%'}, -50%); display:flex; flex-direction:column; align-items:center; justify-content:center; width:80px; height:80px; background:rgba(0,0,0,0.6); border-radius:50%; pointer-events:none; z-index:999; animation:wp-seek-pulse 0.4s ease-out forwards;`;
+            
+            const iconSpan = document.createElement("span");
+            iconSpan.className = "material-symbols-rounded";
+            iconSpan.style.cssText = "font-size:32px; color:var(--wp-primary, #A8C7FA); margin-bottom: 4px;";
+            iconSpan.textContent = dir === 'left' ? 'fast_rewind' : 'fast_forward';
+            
+            const textDiv = document.createElement("div");
+            textDiv.style.cssText = "font-size:14px; color:#E3E3E3; font-weight: 600;";
+            textDiv.textContent = dir === 'left' ? '-10s' : '+10s';
+
+            anim.appendChild(iconSpan);
+            anim.appendChild(textDiv);
+            
+            if (!shadow.querySelector('#wp-seek-style')) {
+                const s = document.createElement("style");
+                s.id = 'wp-seek-style';
+                s.textContent = `@keyframes wp-seek-pulse { 0% { opacity: 0; transform: translate(${dir === 'left' ? '-50%' : '50%'}, -50%) scale(0.8); } 50% { opacity: 1; transform: translate(${dir === 'left' ? '-50%' : '50%'}, -50%) scale(1.1); } 100% { opacity: 0; transform: translate(${dir === 'left' ? '-50%' : '50%'}, -50%) scale(1.3); } }`;
+                shadow.appendChild(s);
+            }
+            shadow.appendChild(anim);
+            setTimeout(() => anim.remove(), 400);
         };
 
         const centerRow = uiWrapper.querySelector('.wp-center-row');
@@ -905,6 +1018,7 @@
             clearTimeout(tapTimeout);
             clearTimeout(hideTimer);
             clearTimeout(scrubTimeout);
+            clearTimeout(_overlayFeedbackTimer);
             ro.disconnect();
             if (cro) cro.disconnect();
             if (_safeAreaProbe) _safeAreaProbe.remove();
@@ -1023,6 +1137,8 @@
         on(uiWrapper.querySelector("#wp-pip"), "click", async () => {
             document.pictureInPictureElement ? await document.exitPictureInPicture() : await video.requestPictureInPicture();
         });
+        // B3: rot must be declared before the fullscreen handler that references it
+        let rot = 0;
         on(uiWrapper.querySelector("#wp-fs"), "click", async () => {
             const ytFsBtn = document.querySelector(".ytp-fullscreen-button");
             if (ytFsBtn) {
@@ -1079,7 +1195,7 @@
 
         const updateTouchAction = () => {
             const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
-            gestureZone.style.touchAction = isFS ? "none" : "pan-y";
+            gestureZone.style.touchAction = isFS ? "none" : "pan-y pinch-zoom";
             // M9: Unlock orientation when exiting fullscreen via any path (e.g., system back gesture)
             if (!isFS) {
                 try { screen.orientation?.unlock?.(); } catch (_) {}
@@ -1096,7 +1212,7 @@
         });
         setPlaybackRate(video.playbackRate || 1);
 
-        let rot = 0;
+
         on(uiWrapper.querySelector("#wp-rotate"), "click", () => {
             rot = (rot + 90) % 360;
             video.style.transform  = `rotate(${rot}deg)`;
@@ -1184,8 +1300,8 @@
                     video.muted = false;
                     showFeedback(`Vol: ${Math.round(video.volume * 100)}%`, "right");
                 } else {
-                    currentBrightness       = Math.max(0.1, Math.min(2.5, currentBrightness - deltaY * 0.01));
-                    video.style.filter      = `brightness(${currentBrightness})`;
+                    currentBrightness = Math.max(0.1, Math.min(2.5, currentBrightness - deltaY * 0.01));
+                    updateEnhanceValContent("brightness", currentBrightness);
                     showFeedback(`Brightness: ${Math.round(currentBrightness * 100)}%`, "left");
                 }
             }
@@ -1196,7 +1312,7 @@
             isPointerDown = false;
             // Restore touch-action for page scrolling after horizontal swipe lock
             const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
-            gestureZone.style.touchAction = isFS ? "none" : "pan-y";
+            gestureZone.style.touchAction = isFS ? "none" : "pan-y pinch-zoom";
             // Bug 5: Clear longPressTimer FIRST to prevent race with pointercancel
             clearTimeout(longPressTimer);
             longPressTimer = null;
@@ -1206,10 +1322,9 @@
                 }
             } catch (_) {}
 
-            // M5: Reset brightness filter on cancelled vertical gestures
             if (e.type === "pointercancel" && swipeDir === "vertical") {
                 currentBrightness = originalBrightness;
-                video.style.filter = `brightness(${currentBrightness})`;
+                updateEnhanceValContent("brightness", currentBrightness);
                 return;
             }
 
@@ -1233,8 +1348,8 @@
                 // Ignore swipes that started near screen edges (browser back/forward zone)
                 const edges = _getEdgeExclusion();
                 if (startX < edges.left || startX > window.innerWidth - edges.right) return;
-                if (diffX > 0) { safeSeekForward(video, 10); showFeedback("+10s", "right"); }
-                else           { video.currentTime = Math.max(0, video.currentTime - 10); showFeedback("−10s", "left"); }
+                if (diffX > 0) { safeSeekForward(video, 10); showFeedback("+10s", "right"); showSeekAnim("right"); }
+                else           { video.currentTime = Math.max(0, video.currentTime - 10); showFeedback("−10s", "left"); showSeekAnim("left"); }
                 return;
             }
 
@@ -1259,16 +1374,25 @@
                     if (e.clientX < rect.left + rect.width * 0.30) {
                         video.currentTime = Math.max(0, video.currentTime - 10);
                         showFeedback("−10s", "left");
+                        showSeekAnim("left");
                         lastTapTime = now;
                         // Brief cooldown to prevent accidental triple-tap double-seek
                         setTimeout(() => { if (lastTapTime === now) lastTapTime = 0; }, 300);
                     } else if (e.clientX > rect.left + rect.width * 0.70) {
                         safeSeekForward(video, 10);
                         showFeedback("+10s", "right");
+                        showSeekAnim("right");
                         lastTapTime = now;
                         setTimeout(() => { if (lastTapTime === now) lastTapTime = 0; }, 300);
                     } else {
                         // Double tap center toggles fullscreen for both mouse and touch
+                        // U1/B7: Reset brightness on double tap center
+                        if (currentBrightness !== 1.0) {
+                            currentBrightness = 1.0;
+                            updateEnhanceValContent("brightness", 1.0);
+                            showFeedback("Brightness Reset");
+                        }
+
                         // Directly invoke fullscreen logic to preserve user activation (avoids synthetic click losing gesture on Firefox mobile)
                         const fsBtn = uiWrapper.querySelector("#wp-fs");
                         if (fsBtn) {
