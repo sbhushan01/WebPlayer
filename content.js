@@ -30,6 +30,7 @@
         rotate:   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M7.11 8.53 5.7 7.11C4.8 8.27 4.24 9.61 4.07 11h2.02c.14-.87.49-1.72 1.02-2.47zM6.09 13H4.07c.17 1.39.72 2.73 1.62 3.89l1.41-1.42c-.52-.75-.87-1.59-1.01-2.47zm1.01 5.32c1.16.9 2.51 1.44 3.9 1.61V17.9c-.87-.15-1.71-.49-2.46-1.03L7.1 18.32zM13 4.07V1L8.45 5.55 13 10V6.09c2.84.48 5 2.94 5 5.91s-2.16 5.43-5 5.91v2.02c3.95-.49 7-3.85 7-7.93s-3.05-7.44-7-7.93z"/></svg>`,
         close:    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>`,
         launch:   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M8 5.14v14l11-7-11-7z"/></svg>`,
+        enhance:  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M19 4h-2l-1-2h-4l-1 2H9v2h10V4zm-3.5 6l-1.5-3-1.5 3-3 1.5 3 1.5 1.5 3 1.5-3 3-1.5-3-1.5zM12 10.5L10.5 7 9 10.5 5.5 12 9 13.5 10.5 17l1.5-3.5L15.5 12 12 10.5z"/></svg>`,
     };
 
     const buttonRegistry = new WeakMap();
@@ -489,6 +490,15 @@
             .quality-option { font-size: 13px; font-weight: 500; padding: 10px 16px; border-radius: 10px; width: 100%; text-align: left; background: none; color: #C4C7C5; border: none; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: flex-start; }
             .quality-option:hover { background: rgba(255,255,255,0.1); color: #E3E3E3; }
             .quality-option.active { color: var(--wp-primary, #A8C7FA); background: rgba(255,255,255,0.05); }
+            .eq-presets { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+            .eq-preset-pill { font-size: 13px; font-weight: 600; padding: 0 12px; height: 32px; border-radius: 16px; background: rgba(255,255,255,0.06); color: #C4C7C5; transition: all 0.3s ease; border: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+            .eq-preset-pill:hover { background: rgba(255,255,255,0.15); color: #E3E3E3; transform: scale(1); }
+            .eq-preset-pill.active { background: linear-gradient(135deg, var(--wp-primary, #A8C7FA), #062E6F); color: #FFF; border-color: transparent; box-shadow: 0 0 16px rgba(168, 199, 250, 0.4); }
+            .eq-sliders { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+            .preamp-row { display: flex; align-items: center; gap: 12px; font-size: 13px; font-weight: 500; color: #E3E3E3; }
+            #wp-enhance-reset-btn { width: 100%; padding: 8px; border-radius: 12px; background: rgba(255,255,255,0.06); color: #C4C7C5; font-size: 13px; font-weight: 600; border: 1px solid rgba(255,255,255,0.08); transition: all 0.2s; margin-top: 8px; justify-content: center; cursor: pointer; }
+            #wp-enhance-reset-btn:hover { background: rgba(255,255,255,0.12); color: #E3E3E3; }
+            .enhance-popover { width: min(340px, calc(100vw - 48px)); right: 0; gap: 12px; }
         `;
         shadow.appendChild(styles);
 
@@ -543,6 +553,40 @@
                         </div>
                     </div>
                 </div>
+                <div class="popover-anchor">
+                    <button id="wp-enhance-toggle-btn" title="Video Enhancer" aria-label="Video Enhancer"></button>
+                    <div class="popover-card enhance-popover" id="wp-enhance-popover">
+                        <div class="popover-header">
+                            <span>Video Enhancer</span>
+                            <button class="popover-close" id="wp-enhance-close-btn" title="Close enhancer" aria-label="Close enhancer"></button>
+                        </div>
+                        <div class="eq-presets" id="wp-enhance-presets">
+                            <button class="eq-preset-pill active" data-preset="reset">Reset</button>
+                            <button class="eq-preset-pill" data-preset="anime">Anime</button>
+                            <button class="eq-preset-pill" data-preset="cinema">Cinema</button>
+                            <button class="eq-preset-pill" data-preset="sports">Sports</button>
+                        </div>
+                        <div class="eq-sliders">
+                            <div class="preamp-row">
+                                <label style="flex:1">Sharpen (<span id="wp-enhance-sharpen-val">0.0</span>)</label>
+                                <input type="range" id="wp-enhance-sharpen" min="0" max="2" step="0.1" value="0" style="flex:2">
+                            </div>
+                            <div class="preamp-row">
+                                <label style="flex:1">Saturation (<span id="wp-enhance-saturate-val">1.0</span>)</label>
+                                <input type="range" id="wp-enhance-saturate" min="0" max="3" step="0.1" value="1" style="flex:2">
+                            </div>
+                            <div class="preamp-row">
+                                <label style="flex:1">Contrast (<span id="wp-enhance-contrast-val">1.0</span>)</label>
+                                <input type="range" id="wp-enhance-contrast" min="0.5" max="2.5" step="0.1" value="1" style="flex:2">
+                            </div>
+                            <div class="preamp-row">
+                                <label style="flex:1">Brightness (<span id="wp-enhance-brightness-val">1.0</span>)</label>
+                                <input type="range" id="wp-enhance-brightness" min="0.1" max="2.5" step="0.1" value="1" style="flex:2">
+                            </div>
+                        </div>
+                        <button id="wp-enhance-reset-btn">Reset Enhancer</button>
+                    </div>
+                </div>
                 <button id="wp-standalone" title="Launch Standalone Player"></button>
                 <button id="wp-pip"></button>
                 <button id="wp-fs"></button>
@@ -572,6 +616,8 @@
         setSVG(uiWrapper.querySelector("#wp-rotate"), IC.rotate);
         setSVG(uiWrapper.querySelector("#wp-exit"), IC.close);
         setSVG(uiWrapper.querySelector("#wp-speed-close-btn"), IC.close);
+        setSVG(uiWrapper.querySelector("#wp-enhance-toggle-btn"), IC.enhance);
+        setSVG(uiWrapper.querySelector("#wp-enhance-close-btn"), IC.close);
 
         const feedbackOverlay = document.createElement("div");
         feedbackOverlay.className = "webplayer-feedback";
@@ -609,15 +655,77 @@
             
             // Sync with local swipe variable
             currentBrightness = brightness;
+            if (typeof syncEnhanceUIContent === "function") syncEnhanceUIContent();
+        };
+
+        const enhanceSharpen = uiWrapper.querySelector("#wp-enhance-sharpen");
+        const enhanceSaturate = uiWrapper.querySelector("#wp-enhance-saturate");
+        const enhanceContrast = uiWrapper.querySelector("#wp-enhance-contrast");
+        const enhanceBrightness = uiWrapper.querySelector("#wp-enhance-brightness");
+        const enhancePresets = uiWrapper.querySelectorAll("#wp-enhance-presets .eq-preset-pill");
+        const enhanceResetBtn = uiWrapper.querySelector("#wp-enhance-reset-btn");
+
+        const ENHANCE_PRESETS = {
+            reset:  { sharpen: 0,   saturate: 1.0, contrast: 1.0, brightness: 1.0 },
+            anime:  { sharpen: 0.8, saturate: 1.3, contrast: 1.1, brightness: 1.1 },
+            cinema: { sharpen: 0.3, saturate: 0.8, contrast: 1.2, brightness: 0.9 },
+            sports: { sharpen: 0.6, saturate: 1.2, contrast: 1.0, brightness: 1.1 },
+        };
+
+        const syncEnhanceUIContent = () => {
+            if (!enhanceSharpen) return;
+            enhanceSharpen.value = enhanceStateContent.sharpen;
+            enhanceSaturate.value = enhanceStateContent.saturate;
+            enhanceContrast.value = enhanceStateContent.contrast;
+            enhanceBrightness.value = enhanceStateContent.brightness;
+            
+            const _sharpVal = uiWrapper.querySelector("#wp-enhance-sharpen-val");
+            const _satVal = uiWrapper.querySelector("#wp-enhance-saturate-val");
+            const _contVal = uiWrapper.querySelector("#wp-enhance-contrast-val");
+            const _brightVal = uiWrapper.querySelector("#wp-enhance-brightness-val");
+            if (_sharpVal) _sharpVal.textContent = parseFloat(enhanceStateContent.sharpen).toFixed(1);
+            if (_satVal) _satVal.textContent = parseFloat(enhanceStateContent.saturate).toFixed(1);
+            if (_contVal) _contVal.textContent = parseFloat(enhanceStateContent.contrast).toFixed(1);
+            if (_brightVal) _brightVal.textContent = parseFloat(enhanceStateContent.brightness).toFixed(1);
+
+            enhancePresets.forEach(btn => {
+                btn.classList.toggle("active", btn.dataset.preset === (enhanceStateContent.preset || "reset"));
+            });
         };
 
         const updateEnhanceValContent = (key, val) => {
             enhanceStateContent[key] = parseFloat(val);
-            try {
-                chrome.storage.local.set({ wp_enhancer_settings: enhanceStateContent });
-            } catch (_) {}
+            enhanceStateContent.preset = null;
+            try { chrome.storage.local.set({ wp_enhancer_settings: enhanceStateContent }); } catch (_) {}
             applyContentEnhancements(enhanceStateContent);
         };
+
+        [enhanceSharpen, enhanceSaturate, enhanceContrast, enhanceBrightness].forEach(el => {
+            if (!el) return;
+            on(el, "input", () => {
+                if (el === enhanceSharpen) updateEnhanceValContent("sharpen", el.value);
+                if (el === enhanceSaturate) updateEnhanceValContent("saturate", el.value);
+                if (el === enhanceContrast) updateEnhanceValContent("contrast", el.value);
+                if (el === enhanceBrightness) updateEnhanceValContent("brightness", el.value);
+            });
+        });
+
+        enhancePresets.forEach(btn => {
+            on(btn, "click", () => {
+                const p = btn.dataset.preset;
+                enhanceStateContent = { ...ENHANCE_PRESETS[p], preset: p };
+                try { chrome.storage.local.set({ wp_enhancer_settings: enhanceStateContent }); } catch (_) {}
+                applyContentEnhancements(enhanceStateContent);
+            });
+        });
+
+        if (enhanceResetBtn) {
+            on(enhanceResetBtn, "click", () => {
+                enhanceStateContent = { ...ENHANCE_PRESETS["reset"], preset: "reset" };
+                try { chrome.storage.local.set({ wp_enhancer_settings: enhanceStateContent }); } catch (_) {}
+                applyContentEnhancements(enhanceStateContent);
+            });
+        }
 
         try {
             chrome.storage.local.get(["wp_enhancer_settings"], (res) => applyContentEnhancements(res.wp_enhancer_settings));
@@ -698,9 +806,14 @@
         speedToggleBtn.setAttribute("aria-expanded", "false");
         speedToggleBtn.setAttribute("aria-controls", "wp-speed-popover");
         
+        const enhanceToggleBtn = uiWrapper.querySelector("#wp-enhance-toggle-btn");
+        const enhancePopover = uiWrapper.querySelector("#wp-enhance-popover");
+        const enhanceCloseBtn = uiWrapper.querySelector("#wp-enhance-close-btn");
+
         const closeAllDropdownsExcept = (keepOpenBtn) => {
             if (keepOpenBtn !== qBtn) { qDropdown.classList.remove("open"); qBtn.setAttribute("aria-expanded", "false"); }
             if (keepOpenBtn !== speedToggleBtn) { speedPopover.classList.remove("active"); speedToggleBtn.setAttribute("aria-expanded", "false"); }
+            if (keepOpenBtn !== enhanceToggleBtn) { enhancePopover.classList.remove("active"); enhanceToggleBtn.setAttribute("aria-expanded", "false"); }
         };
 
         on(qBtn, "click", e => {
@@ -726,6 +839,25 @@
             speedToggleBtn.setAttribute("aria-expanded", "false");
             speedToggleBtn.focus();
         });
+        if (enhanceToggleBtn) {
+            on(enhanceToggleBtn, "click", e => {
+                e.stopPropagation();
+                const wasActive = enhancePopover.classList.contains("active");
+                closeAllDropdownsExcept(enhanceToggleBtn);
+                if (!wasActive) {
+                    enhancePopover.classList.add("active");
+                    enhanceToggleBtn.setAttribute("aria-expanded", "true");
+                } else {
+                    enhancePopover.classList.remove("active");
+                    enhanceToggleBtn.setAttribute("aria-expanded", "false");
+                }
+            });
+            on(enhanceCloseBtn, "click", () => {
+                enhancePopover.classList.remove("active");
+                enhanceToggleBtn.setAttribute("aria-expanded", "false");
+                enhanceToggleBtn.focus();
+            });
+        }
         on(uiWrapper, "click", e => {
             if (!e.target.closest("#wp-quality-container") && !e.target.closest("#wp-quality-btn")) {
                 qDropdown.classList.remove("open");
@@ -735,8 +867,12 @@
                 speedPopover.classList.remove("active");
                 speedToggleBtn.setAttribute("aria-expanded", "false");
             }
+            if (enhancePopover && !e.target.closest("#wp-enhance-popover") && !e.target.closest("#wp-enhance-toggle-btn")) {
+                enhancePopover.classList.remove("active");
+                if (enhanceToggleBtn) enhanceToggleBtn.setAttribute("aria-expanded", "false");
+            }
         });
-        [qDropdown, speedPopover].forEach(dropdown => {
+        [qDropdown, speedPopover, enhancePopover].filter(Boolean).forEach(dropdown => {
             on(dropdown, "keydown", (e) => {
                 if (dropdown === speedPopover) {
                     if (e.key === "Escape") {
