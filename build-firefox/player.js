@@ -327,6 +327,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             _previewVideo.src = "";
             _previewVideo.remove();
         }
+        // B6: Clean up safe-area probe div
+        try { _safeAreaProbe?.remove(); } catch (_) {}
     });
 
     // CDN fallbacks for when local libs are unreachable
@@ -351,7 +353,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                         const sf = document.createElement("script");
                         sf.src = cdn;
                         sf.onload  = resolve;
-                        sf.onerror = () => { delete loadedScripts[path]; reject(new Error(`Failed to load ${path} (CDN fallback also failed)`)); };
+                        sf.onerror = () => { delete loadedScripts[path]; reject(new Error("Could not load the streaming engine. Please check your connection and try again.")); };
                         document.head.appendChild(sf);
                     } else {
                         delete loadedScripts[path];
@@ -992,20 +994,21 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Use a hidden clone video for thumbnail generation to avoid flicker on main player
     const getPreviewVideo = () => {
         if (_previewVideo) return _previewVideo;
-        _previewVideo = document.createElement("video");
-        _previewVideo.preload = "auto";
-        _previewVideo.muted = true;
-        _previewVideo.playsInline = true;
-        _previewVideo.style.cssText = "position:absolute;width:0;height:0;opacity:0;pointer-events:none;z-index:-1;";
+        // B4: Don't assign to _previewVideo until we confirm the source is valid
+        const pv = document.createElement("video");
+        pv.preload = "auto";
+        pv.muted = true;
+        pv.playsInline = true;
+        pv.style.cssText = "position:absolute;width:0;height:0;opacity:0;pointer-events:none;z-index:-1;";
         // For native/direct sources we can clone the src directly
         if (player.src && !player.src.startsWith("blob:")) {
-            _previewVideo.crossOrigin = "anonymous";
-            _previewVideo.src = player.src;
+            pv.crossOrigin = "anonymous";
+            pv.src = player.src;
         } else {
             // HLS/DASH use blob URLs — can't clone, fall back to main player seeking
-            _previewVideo = null;
             return null;
         }
+        _previewVideo = pv;
         _previewVideo.addEventListener("loadeddata", () => { _previewVideoReady = true; }, { once: true });
         document.body.appendChild(_previewVideo);
         return _previewVideo;
@@ -1256,7 +1259,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     speedCloseBtn.addEventListener("click", () => {
-        speedPopover.classList.remove("active");
+        closePopoverAnimated(speedPopover);
         speedToggleBtn.setAttribute("aria-expanded", "false");
         resetIdle();
     });
@@ -1334,6 +1337,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         idleTimer = setTimeout(() => {
             if (!player.paused && !isDraggingProgress &&
                 !eqPopover.classList.contains("active") &&
+                !enhancePopover.classList.contains("active") &&
                 !themePopover.classList.contains("active") &&
                 !shortcutsModal.classList.contains("active") &&
                 !speedPopover.classList.contains("active") &&
@@ -1375,11 +1379,20 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // ── Popovers ──────────────────────────────────────────────────────────────
+    // U9: Animated popover close helper
+    const closePopoverAnimated = (popoverEl) => {
+        if (!popoverEl.classList.contains("active")) return;
+        popoverEl.classList.add("closing");
+        popoverEl.addEventListener("animationend", () => {
+            popoverEl.classList.remove("active", "closing");
+        }, { once: true });
+    };
+
     const closeAllPopovers = () => {
-        eqPopover.classList.remove("active");
-        enhancePopover.classList.remove("active");
-        themePopover.classList.remove("active");
-        speedPopover.classList.remove("active");
+        closePopoverAnimated(eqPopover);
+        closePopoverAnimated(enhancePopover);
+        closePopoverAnimated(themePopover);
+        closePopoverAnimated(speedPopover);
         qualityDropdown.classList.remove("open");
         ccDropdown.classList.remove("open");
         audioDropdown.classList.remove("open");
@@ -1403,7 +1416,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         resetIdle();
     });
     themeCloseBtn.addEventListener("click", () => {
-        themePopover.classList.remove("active");
+        closePopoverAnimated(themePopover);
         themeToggleBtn.setAttribute("aria-expanded", "false");
         resetIdle();
     });
@@ -1419,7 +1432,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         resetIdle();
     });
     eqCloseBtn.addEventListener("click", () => {
-        eqPopover.classList.remove("active");
+        closePopoverAnimated(eqPopover);
         eqToggleBtn.setAttribute("aria-expanded", "false");
         resetIdle();
     });
@@ -1435,7 +1448,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         resetIdle();
     });
     enhanceCloseBtn.addEventListener("click", () => {
-        enhancePopover.classList.remove("active");
+        closePopoverAnimated(enhancePopover);
         enhanceToggleBtn.setAttribute("aria-expanded", "false");
         resetIdle();
     });
@@ -1443,19 +1456,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Close on outside click
     document.addEventListener("click", (e) => {
         if (!e.target.closest("#theme-popover") && !e.target.closest("#theme-toggle-btn")) {
-            themePopover.classList.remove("active");
+            closePopoverAnimated(themePopover);
             themeToggleBtn.setAttribute("aria-expanded", "false");
         }
         if (!e.target.closest("#eq-popover") && !e.target.closest("#eq-toggle-btn")) {
-            eqPopover.classList.remove("active");
+            closePopoverAnimated(eqPopover);
             eqToggleBtn.setAttribute("aria-expanded", "false");
         }
         if (!e.target.closest("#enhance-popover") && !e.target.closest("#enhance-toggle-btn")) {
-            enhancePopover.classList.remove("active");
+            closePopoverAnimated(enhancePopover);
             enhanceToggleBtn.setAttribute("aria-expanded", "false");
         }
         if (!e.target.closest("#speed-popover") && !e.target.closest("#speed-toggle-btn")) {
-            speedPopover.classList.remove("active");
+            closePopoverAnimated(speedPopover);
             speedToggleBtn.setAttribute("aria-expanded", "false");
         }
         if (!e.target.closest("#quality-dropdown") && !e.target.closest("#quality-btn")) {
@@ -1641,11 +1654,31 @@ document.addEventListener("DOMContentLoaded", async () => {
             case "?":
                 toggleShortcuts();
                 break;
+            // U6: Speed adjustment keyboard shortcuts
+            case ",":
+            case "<":
+                e.preventDefault();
+                setPlaybackRate(Math.max(0.25, Math.round((player.playbackRate - 0.25) * 100) / 100));
+                showFeedback(`${player.playbackRate.toFixed(2)}× Speed`);
+                break;
+            case ".":
+            case ">":
+                e.preventDefault();
+                setPlaybackRate(Math.min(3, Math.round((player.playbackRate + 0.25) * 100) / 100));
+                showFeedback(`${player.playbackRate.toFixed(2)}× Speed`);
+                break;
             case "Escape":
                 // Close any open modals/popovers or error box
                 if (errorBox.style.display === "flex") { errorBox.style.display = "none"; }
                 else if (shortcutsModal.classList.contains("active")) { closeShortcuts(); }
                 else { closeAllPopovers(); }
+                break;
+            // U8: Enter key triggers Retry when error box is visible
+            case "Enter":
+                if (errorBox.style.display === "flex") {
+                    e.preventDefault();
+                    retryBtn.click();
+                }
                 break;
             default:
                 return; // Don't call resetIdle for unbound keys
@@ -1696,6 +1729,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             isLongPressActive = true;
             setPlaybackRate(2.0); // BUG FIX: use setPlaybackRate to sync pills
             showFeedback("2× Speed");
+            // M6: Haptic feedback on long-press speed boost
+            if (navigator.vibrate) try { navigator.vibrate(30); } catch (_) {}
         }, 500);
     });
 
@@ -1719,7 +1754,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             const deltaY = e.clientY - lastY;
             lastY = e.clientY;
             if (e.clientX > rect.left + rect.width / 2) {
-                player.volume      = Math.max(0, Math.min(1, player.volume - deltaY * 0.005));
+                // B7: Round volume to avoid floating-point drift
+                player.volume      = Math.max(0, Math.min(1, Math.round((player.volume - deltaY * 0.005) * 100) / 100));
                 player.muted       = false;
                 volumeSlider.value = player.volume;
                 updateVolIcon();
@@ -1769,9 +1805,13 @@ document.addEventListener("DOMContentLoaded", async () => {
             // Bug 7: Ignore swipes that started near screen edges (safe-area aware)
             const _edge = _getEdgeExclusion();
             if (startX < _edge.left || startX > window.innerWidth - _edge.right) return;
-            const shift = diffX > 0 ? 10 : -10;
+            // M5: Scale seek amount by swipe distance (10s per 80px, clamped 5–60s)
+            const seekAmt = Math.max(5, Math.min(60, Math.round(Math.abs(diffX) / 80) * 10));
+            const shift = diffX > 0 ? seekAmt : -seekAmt;
             player.currentTime = Math.max(0, Math.min(player.duration || Infinity, player.currentTime + shift));
             showFeedback(`${shift > 0 ? "+" : ""}${shift}s`, shift > 0 ? "right" : "left");
+            // M6: Haptic feedback on swipe seek
+            if (navigator.vibrate) try { navigator.vibrate(15); } catch (_) {}
             return;
         }
 
@@ -1805,6 +1845,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                     lastTapTime = now;
                     // Brief cooldown to prevent accidental triple-tap double-seek
                     setTimeout(() => { if (lastTapTime === now) lastTapTime = 0; }, 300);
+                    // M6: Haptic feedback on double-tap seek
+                    if (navigator.vibrate) try { navigator.vibrate(15); } catch (_) {}
                 } else if (e.clientX > rect.left + rect.width * 0.70) {
                     player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 10);
                     showFeedback("+10s", "right");
@@ -1816,15 +1858,20 @@ document.addEventListener("DOMContentLoaded", async () => {
                     }
                     lastTapTime = now;
                     setTimeout(() => { if (lastTapTime === now) lastTapTime = 0; }, 300);
+                    // M6: Haptic feedback on double-tap seek
+                    if (navigator.vibrate) try { navigator.vibrate(15); } catch (_) {}
                 } else {
-                    // Double tap center toggles fullscreen for both mouse and touch
-                    // U1/B7: Reset brightness on double tap center
+                    // Double tap center — brightness reset OR fullscreen toggle
+                    // B5: Make brightness reset and fullscreen mutually exclusive
                     if (currentBrightness !== 1.0) {
                         currentBrightness = 1.0;
                         updateEnhanceVal("brightness", 1.0);
                         showFeedback("Brightness Reset");
+                    } else {
+                        toggleFS(e);
                     }
-                    toggleFS(e);
+                    // M6: Haptic feedback on double-tap
+                    if (navigator.vibrate) try { navigator.vibrate(20); } catch (_) {}
                     lastTapTime = 0;
                 }
             } else {
@@ -1889,6 +1936,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         player.style.filter = filterStr.trim();
         currentBrightness = brightness; // sync with vertical swipe gesture variable
+
+        // U1: Toggle active-effect indicator on Enhance button
+        const isEnhanceActive = sharpen !== 0 || saturate !== 1 || contrast !== 1 || brightness !== 1;
+        enhanceToggleBtn.classList.toggle("has-active-effect", isEnhanceActive);
     };
 
     const saveEnhanceSettings = () => {
@@ -1999,6 +2050,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         try {
             eqStorage.set(data).catch?.(() => { try { chrome.storage.local.set(data); } catch (_) {} });
         } catch (_) { try { chrome.storage.local.set(data); } catch (_e) {} }
+
+        // U1: Toggle active-effect indicator on EQ button
+        const isEqActive = eqFilters.some(f => f.gain.value !== 0) || (preampGain && preampGain.gain.value !== 1.0);
+        eqToggleBtn.classList.toggle("has-active-effect", isEqActive);
     };
 
     const updatePresetHighlight = (name) => {

@@ -125,10 +125,18 @@ if (chrome?.runtime?.onStartup) {
     });
 }
 
+// B8: Throttle cleanupOldVideoProgress to once per 15 minutes
+let _lastCleanupTs = 0;
+const CLEANUP_INTERVAL_MS = 15 * 60 * 1000;
+
 if (chrome?.alarms?.onAlarm) {
     chrome.alarms.onAlarm.addListener((alarm) => {
         if (alarm.name === "keepAlive") {
-            cleanupOldVideoProgress();
+            const now = Date.now();
+            if (now - _lastCleanupTs > CLEANUP_INTERVAL_MS) {
+                _lastCleanupTs = now;
+                cleanupOldVideoProgress();
+            }
             // B4: Prune orphan DNR session rules to guard against MAX_NUMBER_OF_DYNAMIC_RULES (5000)
             if (chrome?.declarativeNetRequest?.getSessionRules && chrome?.storage?.session?.get) {
                 chrome.declarativeNetRequest.getSessionRules((rules) => {

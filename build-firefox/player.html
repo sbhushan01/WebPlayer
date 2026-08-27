@@ -2,7 +2,7 @@
 <html lang="en" data-theme="blue">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#1A1D24">
     <meta name="description" content="WebPlayer — feature-rich video player for HLS, DASH, and native streams.">
     <title>WebPlayer</title>
@@ -275,6 +275,7 @@
         .quality-option:hover { background: rgba(255,255,255,0.1); color: var(--md-sys-color-on-surface); transform: scale(1); }
         .quality-option.active { color: var(--md-sys-color-primary); background: rgba(255,255,255,0.05); }
         @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideDown { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(10px); } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
         /* ── Popovers (EQ, Theme) ────────────────────────────────────────────── */
@@ -286,6 +287,7 @@
             transition: background 0.4s;
         }
         .popover-card.active { display: flex; animation: slideUpScale 0.2s cubic-bezier(0.4, 0, 0.2, 1); pointer-events: auto; }
+        .popover-card.closing { animation: slideDownScale 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards; pointer-events: none; }
         
         /* Mobile drag handle for popovers */
         @media (max-width: 850px) {
@@ -300,6 +302,7 @@
         }
         
         @keyframes slideUpScale { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+        @keyframes slideDownScale { from { opacity: 1; transform: scale(1) translateY(0); } to { opacity: 0; transform: scale(0.95) translateY(10px); } }
 
         .eq-popover {
             width: min(420px, calc(100vw - 32px));
@@ -332,7 +335,7 @@
         .preamp-row input { accent-color: var(--md-sys-color-error); cursor: pointer; }
         .eq-sliders { display: flex; justify-content: space-around; height: 160px; align-items: flex-end; overflow-x: auto; }
         .eq-band { display: flex; flex-direction: column; align-items: center; gap: 12px; position: relative; }
-        .eq-band input[type="range"] { writing-mode: vertical-lr; direction: rtl; width: 24px; height: 110px; margin: 0; appearance: slider-vertical; -webkit-appearance: slider-vertical; }
+        .eq-band input[type="range"] { writing-mode: vertical-lr; direction: rtl; width: 24px; height: 110px; margin: 0; }
         .eq-zero-mark { position: absolute; top: calc(50% - 12px); width: 16px; height: 2px; background: rgba(255,255,255,0.25); pointer-events: none; border-radius: 1px; }
         .eq-band span { font-size: 0.75rem; color: var(--md-sys-color-on-surface-variant); font-weight: 600; }
         .preamp-row { display: flex; align-items: center; gap: 16px; font-size: 0.95rem; font-weight: 500; background: rgba(255,255,255,0.05); padding: 12px 16px; border-radius: 12px; }
@@ -448,10 +451,21 @@
         #eq-reset-btn:hover { background: rgba(255,255,255,0.12) !important; }
         #enhance-reset-btn:hover { background: rgba(255,255,255,0.12) !important; }
 
+        /* ── Active-effect indicator dot on EQ/Enhancer buttons (U1) ────────── */
+        button.has-active-effect { position: relative; }
+        button.has-active-effect::after {
+            content: ''; position: absolute; bottom: 5px; right: 5px;
+            width: 7px; height: 7px; border-radius: 50%;
+            background: var(--md-sys-color-primary);
+            box-shadow: 0 0 6px var(--glow-color);
+            transition: opacity 0.2s ease;
+        }
+
         /* ── Mobile Responsiveness ───────────────────────────────────────────── */
         @media (max-width: 850px) {
-            .controls-row { overflow-x: auto; padding-bottom: 4px; gap: 4px; justify-content: flex-start; scrollbar-width: none; }
+            .controls-row { overflow-x: auto; padding-bottom: 4px; gap: 4px; justify-content: flex-start; scrollbar-width: none; scroll-snap-type: x proximity; }
             .controls-row::-webkit-scrollbar { display: none; }
+            .controls-row > * { scroll-snap-align: start; }
             .controls-row.can-scroll-right {
                 -webkit-mask-image: linear-gradient(to right, black calc(100% - 28px), transparent);
                 mask-image: linear-gradient(to right, black calc(100% - 28px), transparent);
@@ -484,24 +498,30 @@
             .progress-wrapper:hover .progress-thumb, .progress-wrapper.dragging .progress-thumb {
                 transform: translateX(-50%) scale(1.2);
             }
-            #shortcuts-modal { width: 100%; max-width: 100%; border-left: none; }
+            /* M8: Shortcuts modal safe area padding on mobile */
+            #shortcuts-modal { width: 100%; max-width: 100%; border-left: none; padding: 0 env(safe-area-inset-right, 0px) 0 env(safe-area-inset-left, 0px); }
             .shortcuts-grid { grid-template-columns: 1fr; gap: 8px; }
             .shortcuts-grid kbd { display: inline-block; width: fit-content; }
             /* Detach popovers from scrollable row to prevent clipping */
             .popover-anchor, .quality-container { position: static; }
             /* Bug 3: Include theme-popover in detached rules and clamp width */
+            /* M1: Also clamp speed-popover and enhance-popover height */
             .quality-dropdown, .speed-popover, .theme-popover { right: 0; left: auto; bottom: calc(100% + 16px); max-height: min(55vh, 55dvh); overflow-y: auto; max-width: calc(100vw - 32px); }
-            #seek-preview-canvas { width: 120px; height: 68px; }
+            #enhance-popover { max-height: min(60vh, 60dvh, calc(100dvh - 80px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))); overflow-y: auto; }
+            /* M7: Larger seek preview on mobile */
+            #seek-preview-canvas { width: 150px; height: 84px; }
             #seek-preview { bottom: calc(100% + 18px); }
         }
 
         /* ── Error box ───────────────────────────────────────────────────────── */
+        /* M8: Safe-area-aware error box positioning */
         #error-box {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             z-index: 100; display: none; flex-direction: column; align-items: center; gap: 20px;
             background: var(--md-sys-color-surface-container); border: var(--glass-border); color: var(--md-sys-color-on-surface);
             padding: 32px 40px; border-radius: 28px; box-shadow: var(--md-elevation-8); backdrop-filter: blur(24px);
             font-size: 1rem; font-weight: 500; text-align: center; max-width: 500px; width: 90vw;
+            margin: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
         }
         #error-box .error-icon { font-size: 48px; color: var(--md-sys-color-error); }
         #error-type {
@@ -799,6 +819,7 @@
                 <kbd>F</kbd>         <span>Toggle fullscreen</span>
                 <kbd>P</kbd>         <span>Picture in picture</span>
                 <kbd>R</kbd>         <span>Rotate video</span>
+                <kbd>&lt; / &gt;</kbd>     <span>Speed ±0.25×</span>
                 <kbd>?</kbd>         <span>Show / hide this help</span>
             </div>
             <p class="shortcuts-hint">Double-tap left/right to seek ±10s on touch screens.</p>
