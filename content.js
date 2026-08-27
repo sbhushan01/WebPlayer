@@ -940,6 +940,7 @@
         let isScrubbing = false;
         let scrubTimeout;
         const showControls = () => {
+            if (uiWrapper.dataset.longPress === "true") return;
             uiWrapper.classList.add("wp-controls-visible");
             clearTimeout(hideTimer);
             hideTimer = setTimeout(() => {
@@ -1399,8 +1400,12 @@
                 if (!isPointerDown) return;
                 longPressTimer = null;
                 isLongPressActive = true;
+                uiWrapper.dataset.longPress = "true";
                 setPlaybackRate(2.0);
                 showFeedback("2× Speed");
+                setTimeout(() => {
+                    if (isLongPressActive) uiWrapper.classList.remove("wp-controls-visible");
+                }, 500);
             }, 500);
         });
 
@@ -1473,6 +1478,7 @@
             // Bug 5: Always restore speed on pointercancel, even if timer fired mid-event
             if (isLongPressActive || (e.type === "pointercancel" && video.playbackRate !== originalSpeed)) {
                 isLongPressActive = false;
+                uiWrapper.dataset.longPress = "false";
                 setPlaybackRate(originalSpeed);
                 showFeedback(`${originalSpeed}× Speed`);
                 // Prevent immediate tap/double-tap actions from the same release after long-press.

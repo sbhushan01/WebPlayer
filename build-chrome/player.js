@@ -1333,6 +1333,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     // ── Idle (auto-hide controls) ─────────────────────────────────────────────
     let idleTimer;
     const resetIdle = () => {
+        if (container.dataset.longPress === "true") return;
         container.classList.remove("idle");
         clearTimeout(idleTimer);
         idleTimer = setTimeout(() => {
@@ -1728,10 +1729,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         longPressTimer = setTimeout(() => {
             if (!isPointerDown) return; // Guard against cancelled gestures
             isLongPressActive = true;
+            container.dataset.longPress = "true";
             setPlaybackRate(2.0); // BUG FIX: use setPlaybackRate to sync pills
             showFeedback("2× Speed");
             // M6: Haptic feedback on long-press speed boost
             if (navigator.vibrate) try { navigator.vibrate(30); } catch (_) {}
+            setTimeout(() => {
+                if (isLongPressActive) container.classList.add("idle");
+            }, 500);
         }, 500);
     });
 
@@ -1790,6 +1795,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         // Bug 5: Always restore speed on pointercancel, even if timer fired mid-event
         if (isLongPressActive || (e.type === "pointercancel" && player.playbackRate !== originalSpeed)) {
             isLongPressActive = false;
+            container.dataset.longPress = "false";
             setPlaybackRate(originalSpeed);
             showFeedback(`${originalSpeed}× Speed`);
             lastTapTime = 0;
