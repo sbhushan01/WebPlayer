@@ -12,9 +12,13 @@
 ### 🎛️ Audio & Playback Enhancements
 * **10-Band Graphic Equalizer & Preamp:** Full 10-band EQ (31Hz to 16kHz) with a Preamp/Boost slider and a **Reset** button. All settings are **persistently synced** via `chrome.storage.sync` (with `local` fallback) — your EQ curve is restored automatically on every session.
 * **Playback State Persistence:** Automatically saves your video progress every 5 seconds. If you close a stream and return later, the player resumes exactly where you left off. Stale data is automatically cleaned up in the background.
-* **SponsorBlock Integration:** Automatically fetches and skips sponsor, intro, outro, self-promo, and interaction segments via the SponsorBlock API. Skip badges display the exact segment category that was skipped.
+* **SponsorBlock Integration:** Automatically fetches and skips sponsor, intro, outro, self-promo, and interaction segments via the SponsorBlock API. Skip badges display the exact segment category that was skipped. Includes an instant **Skip Undo** button to easily revert skips.
 * **Media Session API Sync:** Full integration with your OS's native media controls and keyboard media keys.
 * **Video Rotation:** Rotate playback in 90° increments with smooth CSS transitions.
+
+### 🎨 Video Enhancements
+* **Advanced Video Enhancer:** Apply real-time visual adjustments including Brightness, Contrast, Saturation, and a custom SVG-based **Sharpening filter**.
+* **Enhancer Presets:** Includes predefined visual presets with the ability to quickly toggle or reset adjustments on the fly.
 
 ### 🤌 Smart Gesture Engine (Fully Mobile Optimized)
 * **Brightness & Volume:** Swipe vertically on the left side to adjust brightness, or on the right side to adjust volume.
