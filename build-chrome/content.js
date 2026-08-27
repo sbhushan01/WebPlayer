@@ -987,10 +987,14 @@
             anim.className = "wp-seek-anim";
             anim.style.cssText = `position:absolute; top:50%; ${dir === 'left' ? 'left:25%' : 'right:25%'}; transform:translate(${dir === 'left' ? '-50%' : '50%'}, -50%); display:flex; flex-direction:column; align-items:center; justify-content:center; width:80px; height:80px; background:rgba(0,0,0,0.6); border-radius:50%; pointer-events:none; z-index:999; animation:wp-seek-pulse 0.4s ease-out forwards;`;
             
-            const iconSpan = document.createElement("span");
-            iconSpan.className = "material-symbols-rounded";
-            iconSpan.style.cssText = "font-size:32px; color:var(--wp-primary, #A8C7FA); margin-bottom: 4px;";
-            iconSpan.textContent = dir === 'left' ? 'fast_rewind' : 'fast_forward';
+            const iconSpan = document.createElement("div");
+            iconSpan.style.cssText = "color:var(--wp-primary, #A8C7FA); margin-bottom: 4px; display:flex; justify-content:center; align-items:center;";
+            iconSpan.innerHTML = dir === 'left' ? IC.skipBack : IC.skipFwd;
+            const svg = iconSpan.querySelector("svg");
+            if (svg) {
+                svg.style.width = "32px";
+                svg.style.height = "32px";
+            }
             
             const textDiv = document.createElement("div");
             textDiv.style.cssText = "font-size:14px; color:#E3E3E3; font-weight: 600;";
