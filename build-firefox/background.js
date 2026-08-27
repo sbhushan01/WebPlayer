@@ -113,8 +113,9 @@ if (chrome?.runtime?.onStartup) {
                     chrome.tabs.sendMessage(pending.tabId, {
                         action: 'stream_detected',
                         url: pending.url,
-                        pageUrl: pending.pageUrl
-                    }, { frameId: 0 }, () => {
+                        pageUrl: pending.pageUrl,
+                        embedUrl: pending.embedUrl || ""
+                    }, () => {
                         if (chrome.runtime.lastError) { /* tab may not have content script */ }
                         done();
                     });
@@ -425,7 +426,7 @@ if (chrome?.webRequest?.onHeadersReceived) {
                     url:      details.url,
                     pageUrl:  details.initiator || "",
                     embedUrl: embedUrl
-                }, { frameId: 0 }, () => {
+                }, () => {
                     if (chrome.runtime.lastError) { /* Silently ignore */ }
                 });
             }

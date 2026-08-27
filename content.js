@@ -1236,7 +1236,7 @@
                 else if (latestInterceptedUrl) src = latestInterceptedUrl;
             }
             // Fallback: query background for any pending/detected stream for this tab
-            if ((!src || src.startsWith("blob:")) && hasValidExtensionContext()) {
+            if ((!src || src.startsWith("blob:") || !embedUrl) && hasValidExtensionContext()) {
                 try {
                     const resp = await new Promise((resolve) => {
                         chrome.runtime.sendMessage({ action: "get_pending_stream" }, (r) => {
@@ -1245,7 +1245,9 @@
                         });
                     });
                     if (resp && resp.url) {
-                        src = resp.url;
+                        if (!src || src.startsWith("blob:")) {
+                            src = resp.url;
+                        }
                         embedUrl = resp.embedUrl || embedUrl;
                     }
                 } catch (_) {}

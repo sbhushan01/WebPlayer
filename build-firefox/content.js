@@ -30,6 +30,7 @@
         rotate:   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M7.11 8.53 5.7 7.11C4.8 8.27 4.24 9.61 4.07 11h2.02c.14-.87.49-1.72 1.02-2.47zM6.09 13H4.07c.17 1.39.72 2.73 1.62 3.89l1.41-1.42c-.52-.75-.87-1.59-1.01-2.47zm1.01 5.32c1.16.9 2.51 1.44 3.9 1.61V17.9c-.87-.15-1.71-.49-2.46-1.03L7.1 18.32zM13 4.07V1L8.45 5.55 13 10V6.09c2.84.48 5 2.94 5 5.91s-2.16 5.43-5 5.91v2.02c3.95-.49 7-3.85 7-7.93s-3.05-7.44-7-7.93z"/></svg>`,
         close:    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>`,
         launch:   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M8 5.14v14l11-7-11-7z"/></svg>`,
+        enhance:  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M19 4h-2l-1-2h-4l-1 2H9v2h10V4zm-3.5 6l-1.5-3-1.5 3-3 1.5 3 1.5 1.5 3 1.5-3 3-1.5-3-1.5zM12 10.5L10.5 7 9 10.5 5.5 12 9 13.5 10.5 17l1.5-3.5L15.5 12 12 10.5z"/></svg>`,
     };
 
     const buttonRegistry = new WeakMap();
@@ -193,7 +194,7 @@
         btn.appendChild(iconEl);
         btn.appendChild(labelEl);
         btn.style.cssText = `
-            position: absolute; z-index: 2147483647; background: rgba(20, 20, 30, 0.6);
+            position: fixed; z-index: 2147483647; background: rgba(20, 20, 30, 0.6);
             backdrop-filter: blur(4px); color: white; border: 1px solid rgba(255,255,255,0.1);
             padding: 6px 10px; border-radius: 6px; font-size: 12px; cursor: pointer;
             display: flex; align-items: center; transition: background 0.2s;
@@ -229,8 +230,8 @@
                 const r = video.getBoundingClientRect();
                 if (r.width <= 0) { btn.style.display = "none"; return; }
                 btn.style.display = btnVisible ? "" : "none";
-                btn.style.left = `${r.left + window.scrollX + 10}px`;
-                btn.style.top  = `${r.top  + window.scrollY + 10}px`;
+                btn.style.left = `${Math.max(0, r.left + 10)}px`;
+                btn.style.top  = `${Math.max(0, r.top + 10)}px`;
             } catch (_) { cleanupBtn(); }
         };
         const cleanupBtn = () => {
@@ -356,10 +357,15 @@
             * { box-sizing: border-box; font-family: system-ui, sans-serif; }
             .webplayer-ui-wrapper {
                 position: absolute; bottom: max(30px, calc(14px + env(safe-area-inset-bottom))); left: 50%; transform: translateX(-50%);
-                background: rgba(26, 29, 36, 0.65); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+                background: rgba(26, 29, 36, 0.85); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
                 padding: 16px 24px; border-radius: 28px; display: flex; flex-direction: column; gap: 12px; opacity: 0;
                 transition: opacity 0.4s ease, transform 0.4s ease; pointer-events: auto; border: 1px solid rgba(255,255,255,0.08);
                 width: 95%; max-width: 800px; color: #E3E3E3; box-shadow: 0px 8px 16px 2px rgba(0,0,0,0.2);
+            }
+            @supports (backdrop-filter: blur(24px)) {
+                .webplayer-ui-wrapper {
+                    background: rgba(26, 29, 36, 0.65);
+                }
             }
             .video-container.idle .webplayer-ui-wrapper { opacity: 0; transform: translate(-50%, 20px); pointer-events: none; }
             .wp-controls-visible { opacity: 1; transform: translateX(-50%); }
@@ -376,7 +382,7 @@
             }
             input[type=range]::-webkit-slider-thumb {
                 -webkit-appearance: none; appearance: none;
-                width: 16px; height: 16px; border-radius: 50%; background: #A8C7FA; 
+                width: 16px; height: 16px; border-radius: 50%; background: var(--wp-primary, #A8C7FA); 
                 cursor: pointer; box-shadow: 0 0 8px rgba(0,0,0,0.4); transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             }
             #wp-progress::-webkit-slider-thumb {
@@ -385,7 +391,7 @@
             }
             input[type=range]:active::-webkit-slider-thumb { transform: scale(1.3); }
             input[type=range]::-moz-range-thumb {
-                width: 16px; height: 16px; border-radius: 50%; background: #A8C7FA; 
+                width: 16px; height: 16px; border-radius: 50%; background: var(--wp-primary, #A8C7FA); 
                 cursor: pointer; border: none; box-shadow: 0 0 8px rgba(0,0,0,0.4); transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             }
             #wp-progress::-moz-range-thumb {
@@ -410,6 +416,11 @@
                 #wp-progress { margin: 6px 0; height: 5px; }
                 .popover-anchor, .quality-container { position: static; }
                 .quality-dropdown, .speed-popover { right: 0; left: auto; bottom: calc(100% + 16px); max-height: min(55vh, 55dvh); overflow-y: auto; max-width: calc(100vw - 32px); }
+            }
+            @media (max-width: 350px) {
+                button { width: 38px; height: 38px; padding: 6px; }
+                .material-symbols-rounded { font-size: 20px; }
+                .webplayer-ui-wrapper { padding: 10px 12px; }
             }
             .popover-anchor { position: relative; display: flex; align-items: center; }
             .speed-pills { display: flex; align-items: center; gap: 6px; margin: 0; flex-wrap: wrap; }
@@ -478,9 +489,30 @@
             @keyframes wp-slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
             .quality-option { font-size: 13px; font-weight: 500; padding: 10px 16px; border-radius: 10px; width: 100%; text-align: left; background: none; color: #C4C7C5; border: none; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: flex-start; }
             .quality-option:hover { background: rgba(255,255,255,0.1); color: #E3E3E3; }
-            .quality-option.active { color: #A8C7FA; background: rgba(255,255,255,0.05); }
+            .quality-option.active { color: var(--wp-primary, #A8C7FA); background: rgba(255,255,255,0.05); }
+            .eq-presets { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+            .eq-preset-pill { font-size: 13px; font-weight: 600; padding: 0 12px; height: 32px; border-radius: 16px; background: rgba(255,255,255,0.06); color: #C4C7C5; transition: all 0.3s ease; border: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+            .eq-preset-pill:hover { background: rgba(255,255,255,0.15); color: #E3E3E3; transform: scale(1); }
+            .eq-preset-pill.active { background: linear-gradient(135deg, var(--wp-primary, #A8C7FA), #062E6F); color: #FFF; border-color: transparent; box-shadow: 0 0 16px rgba(168, 199, 250, 0.4); }
+            .eq-sliders { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+            .preamp-row { display: flex; align-items: center; gap: 12px; font-size: 13px; font-weight: 500; color: #E3E3E3; }
+            #wp-enhance-reset-btn { width: 100%; padding: 8px; border-radius: 12px; background: rgba(255,255,255,0.06); color: #C4C7C5; font-size: 13px; font-weight: 600; border: 1px solid rgba(255,255,255,0.08); transition: all 0.2s; margin-top: 8px; justify-content: center; cursor: pointer; }
+            #wp-enhance-reset-btn:hover { background: rgba(255,255,255,0.12); color: #E3E3E3; }
+            .enhance-popover { width: min(340px, calc(100vw - 48px)); right: 0; gap: 12px; }
         `;
         shadow.appendChild(styles);
+
+        // U6: Sync theme
+        const applyThemeColor = (themeName) => {
+            const colors = { blue: "#A8C7FA", amethyst: "#D0BCFF", emerald: "#82C99E" };
+            shadowHost.style.setProperty("--wp-primary", colors[themeName] || colors.blue);
+        };
+        try {
+            chrome.storage.local.get(["wp_theme"], (res) => applyThemeColor(res.wp_theme));
+            chrome.storage.onChanged.addListener((changes) => {
+                if (changes.wp_theme) applyThemeColor(changes.wp_theme.newValue);
+            });
+        } catch (_) {}
 
         const uiWrapper = document.createElement("div");
         uiWrapper.className = "webplayer-ui-wrapper";
@@ -521,6 +553,40 @@
                         </div>
                     </div>
                 </div>
+                <div class="popover-anchor">
+                    <button id="wp-enhance-toggle-btn" title="Video Enhancer" aria-label="Video Enhancer"></button>
+                    <div class="popover-card enhance-popover" id="wp-enhance-popover">
+                        <div class="popover-header">
+                            <span>Video Enhancer</span>
+                            <button class="popover-close" id="wp-enhance-close-btn" title="Close enhancer" aria-label="Close enhancer"></button>
+                        </div>
+                        <div class="eq-presets" id="wp-enhance-presets">
+                            <button class="eq-preset-pill active" data-preset="reset">Reset</button>
+                            <button class="eq-preset-pill" data-preset="anime">Anime</button>
+                            <button class="eq-preset-pill" data-preset="cinema">Cinema</button>
+                            <button class="eq-preset-pill" data-preset="sports">Sports</button>
+                        </div>
+                        <div class="eq-sliders">
+                            <div class="preamp-row">
+                                <label style="flex:1">Sharpen (<span id="wp-enhance-sharpen-val">0.0</span>)</label>
+                                <input type="range" id="wp-enhance-sharpen" min="0" max="2" step="0.1" value="0" style="flex:2">
+                            </div>
+                            <div class="preamp-row">
+                                <label style="flex:1">Saturation (<span id="wp-enhance-saturate-val">1.0</span>)</label>
+                                <input type="range" id="wp-enhance-saturate" min="0" max="3" step="0.1" value="1" style="flex:2">
+                            </div>
+                            <div class="preamp-row">
+                                <label style="flex:1">Contrast (<span id="wp-enhance-contrast-val">1.0</span>)</label>
+                                <input type="range" id="wp-enhance-contrast" min="0.5" max="2.5" step="0.1" value="1" style="flex:2">
+                            </div>
+                            <div class="preamp-row">
+                                <label style="flex:1">Brightness (<span id="wp-enhance-brightness-val">1.0</span>)</label>
+                                <input type="range" id="wp-enhance-brightness" min="0.1" max="2.5" step="0.1" value="1" style="flex:2">
+                            </div>
+                        </div>
+                        <button id="wp-enhance-reset-btn">Reset Enhancer</button>
+                    </div>
+                </div>
                 <button id="wp-standalone" title="Launch Standalone Player"></button>
                 <button id="wp-pip"></button>
                 <button id="wp-fs"></button>
@@ -528,7 +594,19 @@
                 <button id="wp-exit"></button>
             </div>
         `, 'text/html');
+        while (tempUiDoc.head.firstChild) uiWrapper.appendChild(tempUiDoc.head.firstChild);
         while (tempUiDoc.body.firstChild) uiWrapper.appendChild(tempUiDoc.body.firstChild);
+
+        // U12: Add hidden SVG filter for Video Enhancer sharpening
+        const svgContainer = document.createElement("div");
+        svgContainer.innerHTML = `
+            <svg style="position: absolute; pointer-events: none; width: 0; height: 0;">
+                <filter id="wp-sharpen-content">
+                    <feConvolveMatrix id="wp-sharpen-matrix-content" order="3 3" preserveAlpha="true" kernelMatrix="0 0 0 0 1 0 0 0 0"/>
+                </filter>
+            </svg>
+        `;
+        uiWrapper.appendChild(svgContainer.firstElementChild);
         setSVG(uiWrapper.querySelector("#wp-skip-back"), IC.skipBack);
         setSVG(uiWrapper.querySelector("#wp-play"), IC.play);
         setSVG(uiWrapper.querySelector("#wp-skip-fwd"), IC.skipFwd);
@@ -538,6 +616,8 @@
         setSVG(uiWrapper.querySelector("#wp-rotate"), IC.rotate);
         setSVG(uiWrapper.querySelector("#wp-exit"), IC.close);
         setSVG(uiWrapper.querySelector("#wp-speed-close-btn"), IC.close);
+        setSVG(uiWrapper.querySelector("#wp-enhance-toggle-btn"), IC.enhance);
+        setSVG(uiWrapper.querySelector("#wp-enhance-close-btn"), IC.close);
 
         const feedbackOverlay = document.createElement("div");
         feedbackOverlay.className = "webplayer-feedback";
@@ -548,6 +628,116 @@
         shadow.appendChild(gestureZone);
         shadow.appendChild(uiWrapper);
         shadow.appendChild(feedbackOverlay);
+
+        // --- Video Enhancer Sync ---
+        const sharpenMatrixContent = shadow.querySelector("#wp-sharpen-matrix-content");
+        let enhanceStateContent = { sharpen: 0, saturate: 1, contrast: 1, brightness: 1 };
+        
+        const applyContentEnhancements = (settings) => {
+            if (!settings) return;
+            enhanceStateContent = { ...enhanceStateContent, ...settings };
+            const { sharpen, saturate, contrast, brightness } = enhanceStateContent;
+            
+            if (sharpen > 0 && sharpenMatrixContent) {
+                const center = 1 + (4 * sharpen);
+                const edge = -sharpen;
+                sharpenMatrixContent.setAttribute("kernelMatrix", `0 ${edge} 0 ${edge} ${center} ${edge} 0 ${edge} 0`);
+            }
+
+            let filterStr = "";
+            if (brightness !== 1) filterStr += `brightness(${brightness}) `;
+            if (contrast !== 1)   filterStr += `contrast(${contrast}) `;
+            if (saturate !== 1)   filterStr += `saturate(${saturate}) `;
+            if (sharpen > 0)      filterStr += `url(#wp-sharpen-content) `;
+
+            // Apply directly to the injected video element
+            video.style.filter = filterStr.trim();
+            
+            // Sync with local swipe variable
+            currentBrightness = brightness;
+            if (typeof syncEnhanceUIContent === "function") syncEnhanceUIContent();
+        };
+
+        const enhanceSharpen = uiWrapper.querySelector("#wp-enhance-sharpen");
+        const enhanceSaturate = uiWrapper.querySelector("#wp-enhance-saturate");
+        const enhanceContrast = uiWrapper.querySelector("#wp-enhance-contrast");
+        const enhanceBrightness = uiWrapper.querySelector("#wp-enhance-brightness");
+        const enhancePresets = uiWrapper.querySelectorAll("#wp-enhance-presets .eq-preset-pill");
+        const enhanceResetBtn = uiWrapper.querySelector("#wp-enhance-reset-btn");
+
+        const ENHANCE_PRESETS = {
+            reset:  { sharpen: 0,   saturate: 1.0, contrast: 1.0, brightness: 1.0 },
+            anime:  { sharpen: 0.8, saturate: 1.3, contrast: 1.1, brightness: 1.1 },
+            cinema: { sharpen: 0.3, saturate: 0.8, contrast: 1.2, brightness: 0.9 },
+            sports: { sharpen: 0.6, saturate: 1.2, contrast: 1.0, brightness: 1.1 },
+        };
+
+        const syncEnhanceUIContent = () => {
+            if (!enhanceSharpen) return;
+            enhanceSharpen.value = enhanceStateContent.sharpen;
+            enhanceSaturate.value = enhanceStateContent.saturate;
+            enhanceContrast.value = enhanceStateContent.contrast;
+            enhanceBrightness.value = enhanceStateContent.brightness;
+            
+            const _sharpVal = uiWrapper.querySelector("#wp-enhance-sharpen-val");
+            const _satVal = uiWrapper.querySelector("#wp-enhance-saturate-val");
+            const _contVal = uiWrapper.querySelector("#wp-enhance-contrast-val");
+            const _brightVal = uiWrapper.querySelector("#wp-enhance-brightness-val");
+            if (_sharpVal) _sharpVal.textContent = parseFloat(enhanceStateContent.sharpen).toFixed(1);
+            if (_satVal) _satVal.textContent = parseFloat(enhanceStateContent.saturate).toFixed(1);
+            if (_contVal) _contVal.textContent = parseFloat(enhanceStateContent.contrast).toFixed(1);
+            if (_brightVal) _brightVal.textContent = parseFloat(enhanceStateContent.brightness).toFixed(1);
+
+            enhancePresets.forEach(btn => {
+                btn.classList.toggle("active", btn.dataset.preset === (enhanceStateContent.preset || "reset"));
+            });
+        };
+
+        const updateEnhanceValContent = (key, val) => {
+            enhanceStateContent[key] = parseFloat(val);
+            enhanceStateContent.preset = null;
+            try { chrome.storage.local.set({ wp_enhancer_settings: enhanceStateContent }); } catch (_) {}
+            applyContentEnhancements(enhanceStateContent);
+        };
+
+        [enhanceSharpen, enhanceSaturate, enhanceContrast, enhanceBrightness].forEach(el => {
+            if (!el) return;
+            on(el, "input", () => {
+                if (el === enhanceSharpen) updateEnhanceValContent("sharpen", el.value);
+                if (el === enhanceSaturate) updateEnhanceValContent("saturate", el.value);
+                if (el === enhanceContrast) updateEnhanceValContent("contrast", el.value);
+                if (el === enhanceBrightness) updateEnhanceValContent("brightness", el.value);
+            });
+        });
+
+        enhancePresets.forEach(btn => {
+            on(btn, "click", () => {
+                const p = btn.dataset.preset;
+                enhanceStateContent = { ...ENHANCE_PRESETS[p], preset: p };
+                try { chrome.storage.local.set({ wp_enhancer_settings: enhanceStateContent }); } catch (_) {}
+                applyContentEnhancements(enhanceStateContent);
+            });
+        });
+
+        if (enhanceResetBtn) {
+            on(enhanceResetBtn, "click", () => {
+                enhanceStateContent = { ...ENHANCE_PRESETS["reset"], preset: "reset" };
+                try { chrome.storage.local.set({ wp_enhancer_settings: enhanceStateContent }); } catch (_) {}
+                applyContentEnhancements(enhanceStateContent);
+            });
+        }
+
+        try {
+            chrome.storage.local.get(["wp_enhancer_settings"], (res) => applyContentEnhancements(res.wp_enhancer_settings));
+            chrome.storage.onChanged.addListener((changes) => {
+                if (changes.wp_enhancer_settings) applyContentEnhancements(changes.wp_enhancer_settings.newValue);
+            });
+        } catch (_) {}
+        // ---------------------------
+
+        let state = {
+            isPlaying: false,
+        };
 
         const ytPlayer = document.querySelector(".html5-video-player") || video.closest('.html5-video-player');
         const qDropdown = uiWrapper.querySelector("#wp-quality-dropdown");
@@ -616,9 +806,14 @@
         speedToggleBtn.setAttribute("aria-expanded", "false");
         speedToggleBtn.setAttribute("aria-controls", "wp-speed-popover");
         
+        const enhanceToggleBtn = uiWrapper.querySelector("#wp-enhance-toggle-btn");
+        const enhancePopover = uiWrapper.querySelector("#wp-enhance-popover");
+        const enhanceCloseBtn = uiWrapper.querySelector("#wp-enhance-close-btn");
+
         const closeAllDropdownsExcept = (keepOpenBtn) => {
             if (keepOpenBtn !== qBtn) { qDropdown.classList.remove("open"); qBtn.setAttribute("aria-expanded", "false"); }
             if (keepOpenBtn !== speedToggleBtn) { speedPopover.classList.remove("active"); speedToggleBtn.setAttribute("aria-expanded", "false"); }
+            if (keepOpenBtn !== enhanceToggleBtn) { enhancePopover.classList.remove("active"); enhanceToggleBtn.setAttribute("aria-expanded", "false"); }
         };
 
         on(qBtn, "click", e => {
@@ -644,6 +839,25 @@
             speedToggleBtn.setAttribute("aria-expanded", "false");
             speedToggleBtn.focus();
         });
+        if (enhanceToggleBtn) {
+            on(enhanceToggleBtn, "click", e => {
+                e.stopPropagation();
+                const wasActive = enhancePopover.classList.contains("active");
+                closeAllDropdownsExcept(enhanceToggleBtn);
+                if (!wasActive) {
+                    enhancePopover.classList.add("active");
+                    enhanceToggleBtn.setAttribute("aria-expanded", "true");
+                } else {
+                    enhancePopover.classList.remove("active");
+                    enhanceToggleBtn.setAttribute("aria-expanded", "false");
+                }
+            });
+            on(enhanceCloseBtn, "click", () => {
+                enhancePopover.classList.remove("active");
+                enhanceToggleBtn.setAttribute("aria-expanded", "false");
+                enhanceToggleBtn.focus();
+            });
+        }
         on(uiWrapper, "click", e => {
             if (!e.target.closest("#wp-quality-container") && !e.target.closest("#wp-quality-btn")) {
                 qDropdown.classList.remove("open");
@@ -653,8 +867,12 @@
                 speedPopover.classList.remove("active");
                 speedToggleBtn.setAttribute("aria-expanded", "false");
             }
+            if (enhancePopover && !e.target.closest("#wp-enhance-popover") && !e.target.closest("#wp-enhance-toggle-btn")) {
+                enhancePopover.classList.remove("active");
+                if (enhanceToggleBtn) enhanceToggleBtn.setAttribute("aria-expanded", "false");
+            }
         });
-        [qDropdown, speedPopover].forEach(dropdown => {
+        [qDropdown, speedPopover, enhancePopover].filter(Boolean).forEach(dropdown => {
             on(dropdown, "keydown", (e) => {
                 if (dropdown === speedPopover) {
                     if (e.key === "Escape") {
@@ -703,7 +921,7 @@
                 } else if (e.key === "Enter" || e.key === " ") {
                     if (getActiveEl()?.classList?.contains("quality-option")) {
                         e.preventDefault();
-                        document.activeElement.click();
+                        getActiveEl().click();
                     }
                 } else if (e.key === "Escape") {
                     e.preventDefault();
@@ -751,13 +969,44 @@
         on(video, "pointerdown", showControls);
         showControls();
 
+        // B5: Track and clear feedback timer to prevent collision
+        let _overlayFeedbackTimer;
         const showFeedback = (text, position) => {
             feedbackOverlay.innerText = text;
             feedbackOverlay.classList.remove("feedback-left", "feedback-right");
             if (position === "left")  feedbackOverlay.classList.add("feedback-left");
             if (position === "right") feedbackOverlay.classList.add("feedback-right");
             feedbackOverlay.style.opacity = "1";
-            setTimeout(() => feedbackOverlay.style.opacity = "0", 800);
+            clearTimeout(_overlayFeedbackTimer);
+            _overlayFeedbackTimer = setTimeout(() => feedbackOverlay.style.opacity = "0", 800);
+        };
+
+        // U5: Seek animations for overlay mode
+        const showSeekAnim = (dir) => {
+            const anim = document.createElement("div");
+            anim.className = "wp-seek-anim";
+            anim.style.cssText = `position:absolute; top:50%; ${dir === 'left' ? 'left:25%' : 'right:25%'}; transform:translate(${dir === 'left' ? '-50%' : '50%'}, -50%); display:flex; flex-direction:column; align-items:center; justify-content:center; width:80px; height:80px; background:rgba(0,0,0,0.6); border-radius:50%; pointer-events:none; z-index:999; animation:wp-seek-pulse 0.4s ease-out forwards;`;
+            
+            const iconSpan = document.createElement("span");
+            iconSpan.className = "material-symbols-rounded";
+            iconSpan.style.cssText = "font-size:32px; color:var(--wp-primary, #A8C7FA); margin-bottom: 4px;";
+            iconSpan.textContent = dir === 'left' ? 'fast_rewind' : 'fast_forward';
+            
+            const textDiv = document.createElement("div");
+            textDiv.style.cssText = "font-size:14px; color:#E3E3E3; font-weight: 600;";
+            textDiv.textContent = dir === 'left' ? '-10s' : '+10s';
+
+            anim.appendChild(iconSpan);
+            anim.appendChild(textDiv);
+            
+            if (!shadow.querySelector('#wp-seek-style')) {
+                const s = document.createElement("style");
+                s.id = 'wp-seek-style';
+                s.textContent = `@keyframes wp-seek-pulse { 0% { opacity: 0; transform: translate(${dir === 'left' ? '-50%' : '50%'}, -50%) scale(0.8); } 50% { opacity: 1; transform: translate(${dir === 'left' ? '-50%' : '50%'}, -50%) scale(1.1); } 100% { opacity: 0; transform: translate(${dir === 'left' ? '-50%' : '50%'}, -50%) scale(1.3); } }`;
+                shadow.appendChild(s);
+            }
+            shadow.appendChild(anim);
+            setTimeout(() => anim.remove(), 400);
         };
 
         const centerRow = uiWrapper.querySelector('.wp-center-row');
@@ -905,6 +1154,7 @@
             clearTimeout(tapTimeout);
             clearTimeout(hideTimer);
             clearTimeout(scrubTimeout);
+            clearTimeout(_overlayFeedbackTimer);
             ro.disconnect();
             if (cro) cro.disconnect();
             if (_safeAreaProbe) _safeAreaProbe.remove();
@@ -986,7 +1236,7 @@
                 else if (latestInterceptedUrl) src = latestInterceptedUrl;
             }
             // Fallback: query background for any pending/detected stream for this tab
-            if ((!src || src.startsWith("blob:")) && hasValidExtensionContext()) {
+            if ((!src || src.startsWith("blob:") || !embedUrl) && hasValidExtensionContext()) {
                 try {
                     const resp = await new Promise((resolve) => {
                         chrome.runtime.sendMessage({ action: "get_pending_stream" }, (r) => {
@@ -995,7 +1245,9 @@
                         });
                     });
                     if (resp && resp.url) {
-                        src = resp.url;
+                        if (!src || src.startsWith("blob:")) {
+                            src = resp.url;
+                        }
                         embedUrl = resp.embedUrl || embedUrl;
                     }
                 } catch (_) {}
@@ -1023,6 +1275,8 @@
         on(uiWrapper.querySelector("#wp-pip"), "click", async () => {
             document.pictureInPictureElement ? await document.exitPictureInPicture() : await video.requestPictureInPicture();
         });
+        // B3: rot must be declared before the fullscreen handler that references it
+        let rot = 0;
         on(uiWrapper.querySelector("#wp-fs"), "click", async () => {
             const ytFsBtn = document.querySelector(".ytp-fullscreen-button");
             if (ytFsBtn) {
@@ -1079,7 +1333,7 @@
 
         const updateTouchAction = () => {
             const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
-            gestureZone.style.touchAction = isFS ? "none" : "pan-y";
+            gestureZone.style.touchAction = isFS ? "none" : "pan-y pinch-zoom";
             // M9: Unlock orientation when exiting fullscreen via any path (e.g., system back gesture)
             if (!isFS) {
                 try { screen.orientation?.unlock?.(); } catch (_) {}
@@ -1096,7 +1350,7 @@
         });
         setPlaybackRate(video.playbackRate || 1);
 
-        let rot = 0;
+
         on(uiWrapper.querySelector("#wp-rotate"), "click", () => {
             rot = (rot + 90) % 360;
             video.style.transform  = `rotate(${rot}deg)`;
@@ -1184,8 +1438,8 @@
                     video.muted = false;
                     showFeedback(`Vol: ${Math.round(video.volume * 100)}%`, "right");
                 } else {
-                    currentBrightness       = Math.max(0.1, Math.min(2.5, currentBrightness - deltaY * 0.01));
-                    video.style.filter      = `brightness(${currentBrightness})`;
+                    currentBrightness = Math.max(0.1, Math.min(2.5, currentBrightness - deltaY * 0.01));
+                    updateEnhanceValContent("brightness", currentBrightness);
                     showFeedback(`Brightness: ${Math.round(currentBrightness * 100)}%`, "left");
                 }
             }
@@ -1196,7 +1450,7 @@
             isPointerDown = false;
             // Restore touch-action for page scrolling after horizontal swipe lock
             const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
-            gestureZone.style.touchAction = isFS ? "none" : "pan-y";
+            gestureZone.style.touchAction = isFS ? "none" : "pan-y pinch-zoom";
             // Bug 5: Clear longPressTimer FIRST to prevent race with pointercancel
             clearTimeout(longPressTimer);
             longPressTimer = null;
@@ -1206,10 +1460,9 @@
                 }
             } catch (_) {}
 
-            // M5: Reset brightness filter on cancelled vertical gestures
             if (e.type === "pointercancel" && swipeDir === "vertical") {
                 currentBrightness = originalBrightness;
-                video.style.filter = `brightness(${currentBrightness})`;
+                updateEnhanceValContent("brightness", currentBrightness);
                 return;
             }
 
@@ -1233,8 +1486,8 @@
                 // Ignore swipes that started near screen edges (browser back/forward zone)
                 const edges = _getEdgeExclusion();
                 if (startX < edges.left || startX > window.innerWidth - edges.right) return;
-                if (diffX > 0) { safeSeekForward(video, 10); showFeedback("+10s", "right"); }
-                else           { video.currentTime = Math.max(0, video.currentTime - 10); showFeedback("−10s", "left"); }
+                if (diffX > 0) { safeSeekForward(video, 10); showFeedback("+10s", "right"); showSeekAnim("right"); }
+                else           { video.currentTime = Math.max(0, video.currentTime - 10); showFeedback("−10s", "left"); showSeekAnim("left"); }
                 return;
             }
 
@@ -1259,16 +1512,25 @@
                     if (e.clientX < rect.left + rect.width * 0.30) {
                         video.currentTime = Math.max(0, video.currentTime - 10);
                         showFeedback("−10s", "left");
+                        showSeekAnim("left");
                         lastTapTime = now;
                         // Brief cooldown to prevent accidental triple-tap double-seek
                         setTimeout(() => { if (lastTapTime === now) lastTapTime = 0; }, 300);
                     } else if (e.clientX > rect.left + rect.width * 0.70) {
                         safeSeekForward(video, 10);
                         showFeedback("+10s", "right");
+                        showSeekAnim("right");
                         lastTapTime = now;
                         setTimeout(() => { if (lastTapTime === now) lastTapTime = 0; }, 300);
                     } else {
                         // Double tap center toggles fullscreen for both mouse and touch
+                        // U1/B7: Reset brightness on double tap center
+                        if (currentBrightness !== 1.0) {
+                            currentBrightness = 1.0;
+                            updateEnhanceValContent("brightness", 1.0);
+                            showFeedback("Brightness Reset");
+                        }
+
                         // Directly invoke fullscreen logic to preserve user activation (avoids synthetic click losing gesture on Firefox mobile)
                         const fsBtn = uiWrapper.querySelector("#wp-fs");
                         if (fsBtn) {
