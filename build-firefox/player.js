@@ -945,23 +945,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     let isDraggingProgress = false;
 
     player.addEventListener("loadedmetadata", () => {
+        const liveBadge = document.getElementById("wp-live-badge");
         if (isFinite(player.duration)) {
             timeDur.textContent = formatTime(player.duration);
+            if (liveBadge) liveBadge.style.display = "none";
         } else {
             timeDur.textContent = "";
-            // U3: Live indicator badge — guard against duplicates (B8)
-            if (!document.getElementById("wp-live-badge")) {
-                const liveDot = document.createElement("span");
-                liveDot.id = "wp-live-badge";
-                liveDot.style.cssText = "display:inline-flex;align-items:center;gap:5px;color:#F44336;font-weight:700;font-size:0.85rem;letter-spacing:0.5px;";
-                liveDot.innerHTML = '<span style="width:8px;height:8px;border-radius:50%;background:#F44336;display:inline-block;animation:live-pulse 1.5s ease-in-out infinite;"></span>LIVE';
-                if (!document.getElementById("wp-live-pulse-style")) {
-                    const ls = document.createElement("style"); ls.id = "wp-live-pulse-style";
-                    ls.textContent = "@keyframes live-pulse{0%,100%{opacity:1}50%{opacity:0.4}}";
-                    document.head.appendChild(ls);
-                }
-                timeDur.parentElement.appendChild(liveDot);
-            }
+            if (liveBadge) liveBadge.style.display = "inline-flex";
         }
     });
     player.addEventListener("timeupdate", () => {
@@ -1197,8 +1187,12 @@ document.addEventListener("DOMContentLoaded", async () => {
             window.audioContext.resume().catch(() => {});
         }
         playIcon.textContent = "pause";
+        playBtn.setAttribute("aria-label", "Pause");
     });
-    player.addEventListener("pause", () => playIcon.textContent = "play_arrow");
+    player.addEventListener("pause", () => {
+        playIcon.textContent = "play_arrow";
+        playBtn.setAttribute("aria-label", "Play");
+    });
 
     // ── Buffering ─────────────────────────────────────────────────────────────
     // BUG FIX: also clear spinner on canplay and pause (prevents permanent spinner)
@@ -1210,9 +1204,16 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // ── Volume ────────────────────────────────────────────────────────────────
     const updateVolIcon = () => {
-        if (player.muted || player.volume === 0) muteIcon.textContent = "volume_off";
-        else if (player.volume < 0.5)            muteIcon.textContent = "volume_down";
-        else                                      muteIcon.textContent = "volume_up";
+        if (player.muted || player.volume === 0) {
+            muteIcon.textContent = "volume_off";
+            muteBtn.setAttribute("aria-label", "Unmute");
+        } else if (player.volume < 0.5) {
+            muteIcon.textContent = "volume_down";
+            muteBtn.setAttribute("aria-label", "Mute");
+        } else {
+            muteIcon.textContent = "volume_up";
+            muteBtn.setAttribute("aria-label", "Mute");
+        }
     };
 
     volumeSlider.addEventListener("input", (e) => {

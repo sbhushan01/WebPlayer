@@ -223,7 +223,7 @@
         }
         .volume-container:hover .volume-slider, .volume-slider:focus-visible { width: 90px; opacity: 1; margin-left: 8px; }
         input[type="range"]:focus-visible { outline: 2px solid var(--md-sys-color-primary); outline-offset: 4px; border-radius: 4px; }
-        @media (pointer: coarse) and (max-width: 850px) { .volume-slider { display: none; } } /* Hide volume slider on touch phones but keep mute button visible */
+        /* Removed volume slider hiding on touch to allow tapping to show it */
 
         /* ── Speed controls ──────────────────────────────────────────────────── */
         .popover-anchor { position: relative; }
@@ -276,6 +276,7 @@
         @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes slideDown { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(10px); } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
         /* ── Popovers (EQ, Theme) ────────────────────────────────────────────── */
         .popover-card {
@@ -480,7 +481,7 @@
             }
             .controls-left, .controls-right { flex-wrap: nowrap; flex-shrink: 0; gap: 4px; }
             .time-display { font-size: 0.75rem; white-space: nowrap; margin-left: 4px; }
-            #shortcuts-btn, #rotate-btn, #pip-btn { display: none; }
+            #shortcuts-btn, #rotate-btn { display: none; }
             .speed-pills { justify-content: center; }
             .custom-controls { padding: 8px 12px; gap: 8px; border-radius: 20px; }
             .title-bar { padding: calc(12px + env(safe-area-inset-top, 0px)) 12px 12px; font-size: 1rem; }
@@ -646,11 +647,14 @@
                             <button id="mute-btn" title="Mute (M)" aria-label="Mute">
                                 <span class="material-symbols-rounded" id="mute-icon">volume_up</span>
                             </button>
-                            <input type="range" class="volume-slider" id="volume-slider" min="0" max="1" step="0.05" value="1">
+                            <input type="range" class="volume-slider" id="volume-slider" min="0" max="1" step="0.05" value="1" aria-label="Volume">
                         </div>
 
                         <div class="time-display">
                             <span id="time-current">0:00</span> / <span id="time-duration">0:00</span>
+                            <span id="wp-live-badge" style="display:none;align-items:center;gap:5px;color:#F44336;font-weight:700;font-size:0.85rem;letter-spacing:0.5px;margin-left:8px;">
+                                <span style="width:8px;height:8px;border-radius:50%;background:#F44336;display:inline-block;animation:live-pulse 1.5s ease-in-out infinite;"></span>LIVE
+                            </span>
                         </div>
                     </div>
 
