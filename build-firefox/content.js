@@ -469,7 +469,7 @@
             .webplayer-feedback.feedback-right { left: auto; right: 15%; transform: none; }
             .webplayer-gesture-zone {
                 position: absolute; inset: 0; pointer-events: auto;
-                touch-action: pan-y; user-select: none; -webkit-user-select: none;
+                touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
                 overflow: hidden;
             }
             .wp-ripple {
