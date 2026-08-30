@@ -67,14 +67,14 @@ if (fs.existsSync(readmePath)) {
 const welcomePath = path.join(__dirname, 'welcome.html');
 if (fs.existsSync(welcomePath)) {
     let welcome = fs.readFileSync(welcomePath, 'utf8');
-    const badgePattern = /(<span class="version-badge">)v[0-9A-Za-z._-]+(<\/span>)/;
-    const footerPattern = /(\bVersion\s+)[0-9A-Za-z._-]+(<\/p>)/;
+    const badgePattern = /(<span class="version-badge"[^>]*>)v[0-9A-Za-z._-]+(<\/span>)/;
+    const footerPattern = /(<span id="footer-version">)v[0-9A-Za-z._-]+(<\/span>)/;
 
     const badgeFound = badgePattern.test(welcome);
     welcome = welcome.replace(badgePattern, `$1v${manifest.version}$2`);
 
     const footerFound = footerPattern.test(welcome);
-    welcome = welcome.replace(footerPattern, `$1${manifest.version}$2`);
+    welcome = welcome.replace(footerPattern, `$1v${manifest.version}$2`);
 
     const missingMarkers = [];
     if (!badgeFound) missingMarkers.push('version-badge');
@@ -88,6 +88,7 @@ if (fs.existsSync(welcomePath)) {
     }
     console.log(`📝 welcome.html version synced to ${manifest.version}`);
 }
+
 
 ['chrome', 'firefox'].forEach(packExtension);
 console.log("\n📦 To create a ZIP, zip the CONTENTS of the build folders (not the folder itself).");

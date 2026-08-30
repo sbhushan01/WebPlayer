@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#0E1116">
+    <meta name="theme-color" content="#08090D">
     <title>Welcome to WebPlayer</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0" rel="stylesheet">
@@ -11,21 +11,34 @@
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         :root {
-            --bg:             #0E1116;
-            --surface:        #1A1D24;
-            --surface-dim:    rgba(26, 29, 36, 0.6);
-            --primary:        #A8C7FA;
-            --primary-dim:    rgba(168, 199, 250, 0.15);
-            --primary-glow:   rgba(168, 199, 250, 0.5);
-            --secondary:      #D0BCFF;
-            --secondary-glow: rgba(208, 188, 255, 0.5);
-            --on-surface:     #E3E3E3;
-            --on-surface-var: #C4C7C5;
-            --glass-border:   1px solid rgba(255, 255, 255, 0.08);
-            --shadow-lg:      0 8px 32px rgba(0,0,0,0.4);
-            --radius-xl:      28px;
-            --radius-lg:      20px;
-            --radius-md:      14px;
+            --bg:               #08090D;
+            --bg-alt:           #0E1018;
+            --surface:          rgba(18, 20, 28, 0.65);
+            --surface-solid:    #12141C;
+            --primary:          #A8C7FA;
+            --primary-dim:      rgba(168, 199, 250, 0.12);
+            --primary-glow:     rgba(168, 199, 250, 0.45);
+            --secondary:        #D0BCFF;
+            --secondary-dim:    rgba(208, 188, 255, 0.12);
+            --tertiary:         #82C99E;
+            --tertiary-dim:     rgba(130, 201, 158, 0.12);
+            --amber:            #FFC764;
+            --amber-dim:        rgba(255, 199, 100, 0.12);
+            --teal:             #64DCC8;
+            --teal-dim:         rgba(100, 220, 200, 0.12);
+            --rose:             #F2B8B5;
+            --rose-dim:         rgba(242, 184, 181, 0.12);
+            --on-surface:       #E8EAED;
+            --on-surface-var:   #9AA0A6;
+            --glass-border:     1px solid rgba(255, 255, 255, 0.06);
+            --glass-border-hl:  1px solid rgba(255, 255, 255, 0.12);
+            --shadow-lg:        0 8px 40px rgba(0,0,0,0.5);
+            --shadow-glow:      0 0 60px rgba(168,199,250,0.08);
+            --radius-xl:        24px;
+            --radius-lg:        18px;
+            --radius-md:        12px;
+            --radius-sm:        8px;
+            --transition:       cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         html { scroll-behavior: smooth; }
@@ -33,9 +46,11 @@
         body {
             background: var(--bg);
             color: var(--on-surface);
-            font-family: 'Inter', system-ui, sans-serif;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
             min-height: 100vh;
             overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
         /* ── Animated background ───────────────────────────────────────────── */
@@ -43,329 +58,499 @@
             position: fixed; inset: 0; z-index: 0;
             overflow: hidden; pointer-events: none;
         }
+        #particles-canvas {
+            position: absolute; inset: 0;
+            width: 100%; height: 100%;
+        }
         .bg-orb {
             position: absolute; border-radius: 50%;
-            filter: blur(120px); opacity: 0.18;
-            animation: orb-drift 20s ease-in-out infinite alternate;
+            filter: blur(140px); opacity: 0.12;
+            animation: orb-drift 24s ease-in-out infinite alternate;
+            will-change: transform;
         }
         .bg-orb-1 {
-            width: 600px; height: 600px;
-            background: radial-gradient(circle, #4A7FFF, transparent 70%);
-            top: -200px; left: -150px;
-            animation-duration: 18s;
+            width: 700px; height: 700px;
+            background: radial-gradient(circle, #3B6AE0, transparent 70%);
+            top: -250px; left: -200px;
+            animation-duration: 20s;
         }
         .bg-orb-2 {
-            width: 500px; height: 500px;
-            background: radial-gradient(circle, #9C4FFF, transparent 70%);
-            bottom: -100px; right: -100px;
-            animation-duration: 22s; animation-delay: -8s;
+            width: 550px; height: 550px;
+            background: radial-gradient(circle, #7C3AED, transparent 70%);
+            bottom: -150px; right: -150px;
+            animation-duration: 26s; animation-delay: -10s;
         }
         .bg-orb-3 {
-            width: 350px; height: 350px;
-            background: radial-gradient(circle, #00C2A8, transparent 70%);
-            top: 50%; right: 20%;
-            animation-duration: 26s; animation-delay: -5s;
+            width: 400px; height: 400px;
+            background: radial-gradient(circle, #059669, transparent 70%);
+            top: 40%; left: 60%;
+            animation-duration: 30s; animation-delay: -6s;
         }
         @keyframes orb-drift {
             0%   { transform: translate(0, 0) scale(1); }
-            33%  { transform: translate(40px, -30px) scale(1.05); }
-            66%  { transform: translate(-20px, 20px) scale(0.95); }
-            100% { transform: translate(30px, 10px) scale(1.08); }
+            33%  { transform: translate(50px, -40px) scale(1.06); }
+            66%  { transform: translate(-30px, 25px) scale(0.94); }
+            100% { transform: translate(40px, 15px) scale(1.1); }
         }
 
-        /* Subtle grid overlay */
+        /* Dot grid */
         .bg-grid {
             position: fixed; inset: 0; z-index: 0; pointer-events: none;
-            background-image:
-                linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px);
-            background-size: 48px 48px;
+            background-image: radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px);
+            background-size: 32px 32px;
         }
 
-        /* ── Layout ────────────────────────────────────────────────────────── */
+        /* ── Layout ───────────────────────────────────────────────────────── */
         .page-wrapper {
             position: relative; z-index: 1;
-            max-width: 960px; margin: 0 auto;
-            padding: 0 24px 80px;
+            max-width: 1040px; margin: 0 auto;
+            padding: 0 24px 100px;
         }
 
-        /* ── Navbar ────────────────────────────────────────────────────────── */
+        /* ── Navbar ───────────────────────────────────────────────────────── */
         .topbar {
             display: flex; align-items: center; justify-content: space-between;
-            padding: 24px 0;
+            padding: 20px 0;
+            animation: fade-down 0.6s var(--transition) both;
         }
         .topbar-logo {
             display: flex; align-items: center; gap: 12px;
         }
         .logo-icon {
-            width: 40px; height: 40px; border-radius: 12px;
-            background: linear-gradient(135deg, #A8C7FA 0%, #4A7FFF 100%);
+            width: 38px; height: 38px; border-radius: 11px;
+            background: linear-gradient(135deg, #A8C7FA 0%, #3B6AE0 100%);
             display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 0 24px rgba(168,199,250,0.4);
+            box-shadow: 0 0 20px rgba(168,199,250,0.35);
             flex-shrink: 0;
         }
-        .logo-icon .material-symbols-rounded { font-size: 22px; color: #062E6F; }
+        .logo-icon .material-symbols-rounded { font-size: 20px; color: #062E6F; }
         .logo-text {
-            font-size: 1.2rem; font-weight: 700; color: var(--on-surface);
-            letter-spacing: 0.3px;
+            font-size: 1.15rem; font-weight: 700; color: var(--on-surface);
+            letter-spacing: 0.2px;
         }
+        .topbar-right { display: flex; align-items: center; gap: 12px; }
         .version-badge {
-            font-size: 0.75rem; font-weight: 600; padding: 4px 10px;
+            font-size: 0.72rem; font-weight: 600; padding: 5px 12px;
             background: var(--primary-dim); color: var(--primary);
-            border-radius: 20px; border: 1px solid rgba(168,199,250,0.2);
-            letter-spacing: 0.5px;
+            border-radius: 20px; border: 1px solid rgba(168,199,250,0.15);
+            letter-spacing: 0.6px; text-transform: uppercase;
         }
+        .github-link {
+            display: flex; align-items: center; gap: 6px;
+            font-size: 0.82rem; font-weight: 500; color: var(--on-surface-var);
+            text-decoration: none; padding: 6px 14px; border-radius: 20px;
+            border: var(--glass-border);
+            transition: all 0.25s var(--transition);
+        }
+        .github-link:hover { color: var(--on-surface); background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.12); }
+        .github-link:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+        .github-link svg { width: 16px; height: 16px; fill: currentColor; }
 
-        /* ── Hero ──────────────────────────────────────────────────────────── */
+        /* ── Hero ─────────────────────────────────────────────────────────── */
         .hero {
             text-align: center;
-            padding: 64px 0 56px;
-            animation: fade-up 0.7s cubic-bezier(0.4,0,0.2,1) both;
+            padding: 80px 0 72px;
+            animation: fade-up 0.8s var(--transition) both;
         }
-        .hero-eyebrow {
-            display: inline-flex; align-items: center; gap: 8px;
-            font-size: 0.85rem; font-weight: 600; letter-spacing: 1.5px;
-            text-transform: uppercase; color: var(--primary);
-            background: var(--primary-dim); border: 1px solid rgba(168,199,250,0.2);
-            padding: 6px 16px; border-radius: 20px; margin-bottom: 28px;
+        .hero-badge-row {
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            margin-bottom: 32px;
+            flex-wrap: wrap;
         }
-        .hero-eyebrow .material-symbols-rounded { font-size: 16px; }
+        .hero-badge {
+            display: inline-flex; align-items: center; gap: 7px;
+            font-size: 0.78rem; font-weight: 600; letter-spacing: 1px;
+            text-transform: uppercase;
+            padding: 6px 16px; border-radius: 20px;
+        }
+        .hero-badge--installed {
+            color: var(--tertiary);
+            background: var(--tertiary-dim);
+            border: 1px solid rgba(130, 201, 158, 0.2);
+        }
+        .hero-badge--installed .material-symbols-rounded { font-size: 15px; }
+        .hero-badge--new {
+            color: var(--amber);
+            background: var(--amber-dim);
+            border: 1px solid rgba(255, 199, 100, 0.2);
+        }
+        .hero-badge--new .material-symbols-rounded { font-size: 15px; }
+
         .hero-heading {
-            font-size: clamp(2.5rem, 6vw, 4rem);
+            font-size: clamp(2.8rem, 7vw, 4.5rem);
             font-weight: 900;
-            line-height: 1.1;
-            letter-spacing: -1px;
-            margin-bottom: 24px;
+            line-height: 1.05;
+            letter-spacing: -1.5px;
+            margin-bottom: 28px;
         }
         .hero-heading .gradient-text {
-            background: linear-gradient(135deg, #A8C7FA 0%, #D0BCFF 50%, #82C99E 100%);
+            background: linear-gradient(135deg, #A8C7FA 0%, #D0BCFF 40%, #82C99E 80%, #64DCC8 100%);
+            background-size: 200% 200%;
+            animation: gradient-shift 6s ease-in-out infinite;
             -webkit-background-clip: text; -webkit-text-fill-color: transparent;
             background-clip: text;
         }
+        @keyframes gradient-shift {
+            0%, 100% { background-position: 0% 50%; }
+            50%      { background-position: 100% 50%; }
+        }
+
         .hero-sub {
-            font-size: 1.1rem; font-weight: 400;
+            font-size: 1.15rem; font-weight: 400;
             color: var(--on-surface-var);
-            max-width: 560px; margin: 0 auto 40px;
-            line-height: 1.7;
+            max-width: 580px; margin: 0 auto 44px;
+            line-height: 1.75;
+        }
+        .hero-actions {
+            display: flex; align-items: center; justify-content: center;
+            gap: 16px; flex-wrap: wrap;
         }
         .hero-cta {
             display: inline-flex; align-items: center; gap: 10px;
-            background: var(--primary); color: #062E6F;
-            font-weight: 700; font-size: 1rem;
-            padding: 14px 32px; border-radius: 50px;
+            background: linear-gradient(135deg, #A8C7FA 0%, #7EA8F7 100%);
+            color: #062E6F;
+            font-weight: 700; font-size: 0.95rem;
+            padding: 14px 30px; border-radius: 50px;
             border: none; cursor: pointer;
-            box-shadow: 0 4px 24px rgba(168,199,250,0.45);
-            transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
+            box-shadow: 0 4px 24px rgba(168,199,250,0.4);
+            transition: all 0.25s var(--transition);
             text-decoration: none;
         }
         .hero-cta:hover {
             transform: translateY(-2px) scale(1.03);
-            box-shadow: 0 8px 32px rgba(168,199,250,0.6);
+            box-shadow: 0 8px 40px rgba(168,199,250,0.55);
         }
         .hero-cta:focus-visible {
             outline: 2px solid var(--primary);
             outline-offset: 3px;
-            box-shadow: 0 0 0 4px rgba(168,199,250,0.25), 0 8px 32px rgba(168,199,250,0.6);
         }
-        .hero-cta:active { transform: scale(0.98); }
+        .hero-cta:active { transform: scale(0.97); }
         .hero-cta .material-symbols-rounded { font-size: 20px; }
 
-        /* ── Section titles ────────────────────────────────────────────────── */
-        .section { margin-bottom: 72px; }
-        .section-label {
-            font-size: 0.8rem; font-weight: 700; letter-spacing: 2px;
-            text-transform: uppercase; color: var(--primary);
-            margin-bottom: 12px;
+        .hero-secondary {
+            display: inline-flex; align-items: center; gap: 8px;
+            background: transparent; color: var(--on-surface-var);
+            font-weight: 600; font-size: 0.9rem;
+            padding: 13px 24px; border-radius: 50px;
+            border: var(--glass-border-hl); cursor: pointer;
+            transition: all 0.25s var(--transition);
+            text-decoration: none;
         }
-        .section-title {
-            font-size: 1.9rem; font-weight: 800; margin-bottom: 8px;
+        .hero-secondary:hover { color: var(--on-surface); background: rgba(255,255,255,0.06); }
+        .hero-secondary:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+        .hero-secondary .material-symbols-rounded { font-size: 18px; }
+
+        /* ── Stats row ────────────────────────────────────────────────────── */
+        .stats-row {
+            display: flex; align-items: center; justify-content: center;
+            gap: 48px; padding: 32px 0;
+            margin-bottom: 12px;
+            animation: fade-up 0.8s 0.15s var(--transition) both;
+        }
+        .stat-item { text-align: center; }
+        .stat-value {
+            font-size: 1.8rem; font-weight: 800;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text;
             letter-spacing: -0.5px;
         }
-        .section-desc {
-            font-size: 1rem; color: var(--on-surface-var); line-height: 1.65;
-            margin-bottom: 36px; max-width: 580px;
+        .stat-label {
+            font-size: 0.78rem; font-weight: 500; color: var(--on-surface-var);
+            text-transform: uppercase; letter-spacing: 1px;
+            margin-top: 4px;
+        }
+        .stat-divider {
+            width: 1px; height: 36px; background: rgba(255,255,255,0.08);
         }
 
-        /* ── Feature cards grid ────────────────────────────────────────────── */
+        /* ── Divider ──────────────────────────────────────────────────────── */
+        .divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+            margin: 0 0 80px;
+        }
+
+        /* ── Section titles ───────────────────────────────────────────────── */
+        .section { margin-bottom: 80px; }
+        .section-header {
+            margin-bottom: 40px;
+        }
+        .section-label {
+            display: inline-flex; align-items: center; gap: 6px;
+            font-size: 0.75rem; font-weight: 700; letter-spacing: 2px;
+            text-transform: uppercase; color: var(--primary);
+            margin-bottom: 14px;
+        }
+        .section-label .material-symbols-rounded { font-size: 16px; }
+        .section-title {
+            font-size: 2rem; font-weight: 800; margin-bottom: 10px;
+            letter-spacing: -0.5px; line-height: 1.2;
+        }
+        .section-desc {
+            font-size: 1rem; color: var(--on-surface-var); line-height: 1.7;
+            max-width: 560px;
+        }
+
+        /* ── Feature cards ────────────────────────────────────────────────── */
         .features-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 16px;
+            gap: 14px;
         }
         .feature-card {
-            background: var(--surface-dim);
-            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            background: var(--surface);
+            backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
             border: var(--glass-border); border-radius: var(--radius-xl);
-            padding: 28px 28px 32px;
-            transition: transform 0.3s cubic-bezier(0.4,0,0.2,1), box-shadow 0.3s ease, border-color 0.3s;
+            padding: 28px 26px 30px;
+            transition: transform 0.35s var(--transition), box-shadow 0.35s ease, border-color 0.35s;
             position: relative; overflow: hidden;
-            animation: fade-up 0.6s cubic-bezier(0.4,0,0.2,1) both;
+            animation: fade-up 0.6s var(--transition) both;
         }
         .feature-card::before {
             content: ''; position: absolute; inset: 0; opacity: 0;
-            background: radial-gradient(ellipse at top left, var(--card-glow, rgba(168,199,250,0.12)) 0%, transparent 65%);
-            transition: opacity 0.4s;
-            pointer-events: none;
+            background: radial-gradient(ellipse at top left, var(--card-glow, rgba(168,199,250,0.08)) 0%, transparent 65%);
+            transition: opacity 0.45s; pointer-events: none;
         }
-        .feature-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); border-color: rgba(255,255,255,0.14); }
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-lg), var(--shadow-glow);
+            border-color: rgba(255,255,255,0.12);
+        }
         .feature-card:hover::before { opacity: 1; }
 
-        .feature-card:nth-child(1) { animation-delay: 0.1s; --card-glow: rgba(168,199,250,0.15); }
-        .feature-card:nth-child(2) { animation-delay: 0.18s; --card-glow: rgba(208,188,255,0.15); }
-        .feature-card:nth-child(3) { animation-delay: 0.26s; --card-glow: rgba(130,201,158,0.15); }
-        .feature-card:nth-child(4) { animation-delay: 0.34s; --card-glow: rgba(255,180,100,0.12); }
-        .feature-card:nth-child(5) { animation-delay: 0.42s; --card-glow: rgba(168,199,250,0.15); }
-        .feature-card:nth-child(6) { animation-delay: 0.50s; --card-glow: rgba(208,188,255,0.15); }
-        .feature-card:nth-child(7) { animation-delay: 0.58s; --card-glow: rgba(100,220,200,0.15); }
+        .feature-card:nth-child(1)  { animation-delay: 0.05s; --card-glow: rgba(208,188,255,0.1); }
+        .feature-card:nth-child(2)  { animation-delay: 0.10s; --card-glow: rgba(168,199,250,0.1); }
+        .feature-card:nth-child(3)  { animation-delay: 0.15s; --card-glow: rgba(130,201,158,0.1); }
+        .feature-card:nth-child(4)  { animation-delay: 0.20s; --card-glow: rgba(100,220,200,0.1); }
+        .feature-card:nth-child(5)  { animation-delay: 0.25s; --card-glow: rgba(255,199,100,0.1); }
+        .feature-card:nth-child(6)  { animation-delay: 0.30s; --card-glow: rgba(242,184,181,0.1); }
+        .feature-card:nth-child(7)  { animation-delay: 0.35s; --card-glow: rgba(168,199,250,0.1); }
+        .feature-card:nth-child(8)  { animation-delay: 0.40s; --card-glow: rgba(208,188,255,0.1); }
+        .feature-card:nth-child(9)  { animation-delay: 0.45s; --card-glow: rgba(130,201,158,0.1); }
 
         .card-icon-wrap {
-            width: 52px; height: 52px; border-radius: 16px;
+            width: 48px; height: 48px; border-radius: 14px;
             display: flex; align-items: center; justify-content: center;
-            margin-bottom: 20px; font-size: 26px; flex-shrink: 0;
+            margin-bottom: 18px; flex-shrink: 0;
         }
-        .card-icon-wrap .material-symbols-rounded { font-size: 26px; }
-        .icon-blue   { background: rgba(168,199,250,0.15); color: #A8C7FA; }
-        .icon-purple { background: rgba(208,188,255,0.15); color: #D0BCFF; }
-        .icon-green  { background: rgba(130,201,158,0.15); color: #82C99E; }
-        .icon-amber  { background: rgba(255,196,100,0.15); color: #FFC464; }
-        .icon-teal   { background: rgba(100,220,200,0.15); color: #64DCC8; }
-        .icon-red    { background: rgba(242,184,181,0.15); color: #F2B8B5; }
+        .card-icon-wrap .material-symbols-rounded { font-size: 24px; }
+        .icon-blue   { background: var(--primary-dim);   color: var(--primary); }
+        .icon-purple { background: var(--secondary-dim); color: var(--secondary); }
+        .icon-green  { background: var(--tertiary-dim);  color: var(--tertiary); }
+        .icon-amber  { background: var(--amber-dim);     color: var(--amber); }
+        .icon-teal   { background: var(--teal-dim);      color: var(--teal); }
+        .icon-rose   { background: var(--rose-dim);      color: var(--rose); }
 
         .card-title {
-            font-size: 1.05rem; font-weight: 700; margin-bottom: 10px; color: var(--on-surface);
+            font-size: 1rem; font-weight: 700; margin-bottom: 8px; color: var(--on-surface);
         }
         .card-desc {
-            font-size: 0.9rem; color: var(--on-surface-var); line-height: 1.65;
+            font-size: 0.87rem; color: var(--on-surface-var); line-height: 1.65;
+        }
+        .card-tag {
+            display: inline-flex; align-items: center; gap: 4px;
+            font-size: 0.68rem; font-weight: 600; letter-spacing: 0.8px;
+            text-transform: uppercase; padding: 3px 10px;
+            border-radius: 12px; margin-top: 14px;
+        }
+        .card-tag--synced {
+            background: var(--primary-dim); color: var(--primary);
+            border: 1px solid rgba(168,199,250,0.15);
+        }
+        .card-tag--auto {
+            background: var(--tertiary-dim); color: var(--tertiary);
+            border: 1px solid rgba(130,201,158,0.15);
         }
 
-        /* ── Modes showcase ────────────────────────────────────────────────── */
+        /* ── Modes showcase ───────────────────────────────────────────────── */
         .modes-grid {
             display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
         }
         .mode-card {
-            background: var(--surface-dim);
-            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            background: var(--surface);
+            backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
             border: var(--glass-border); border-radius: var(--radius-xl);
-            padding: 32px 28px; display: flex; flex-direction: column; gap: 16px;
+            padding: 32px 26px; display: flex; flex-direction: column; gap: 14px;
             position: relative; overflow: hidden;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            animation: fade-up 0.6s cubic-bezier(0.4,0,0.2,1) both;
+            transition: transform 0.35s var(--transition), box-shadow 0.35s ease;
+            animation: fade-up 0.6s var(--transition) both;
         }
-        .mode-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); }
-        .mode-card:first-child { animation-delay: 0.1s; }
-        .mode-card:last-child  { animation-delay: 0.2s; }
+        .mode-card:hover { transform: translateY(-5px); box-shadow: var(--shadow-lg); }
+        .mode-card:first-child { animation-delay: 0.05s; }
+        .mode-card:last-child  { animation-delay: 0.12s; }
         .mode-card-accent {
             position: absolute; top: 0; left: 0; right: 0; height: 3px;
         }
-        .accent-blue   { background: linear-gradient(90deg, #4A7FFF, #A8C7FA); }
-        .accent-purple { background: linear-gradient(90deg, #7C4FFF, #D0BCFF); }
+        .accent-blue   { background: linear-gradient(90deg, #3B6AE0, #A8C7FA); }
+        .accent-purple { background: linear-gradient(90deg, #7C3AED, #D0BCFF); }
         .mode-number {
-            font-size: 2.8rem; font-weight: 900; opacity: 0.08;
-            line-height: 1; position: absolute; right: 24px; top: 20px;
+            font-size: 3rem; font-weight: 900; opacity: 0.05;
+            line-height: 1; position: absolute; right: 24px; top: 18px;
             pointer-events: none; letter-spacing: -2px;
         }
         .mode-title {
-            font-size: 1.2rem; font-weight: 700; margin-bottom: 4px;
+            font-size: 1.15rem; font-weight: 700; margin-bottom: 2px;
         }
         .mode-desc {
-            font-size: 0.9rem; color: var(--on-surface-var); line-height: 1.65;
+            font-size: 0.88rem; color: var(--on-surface-var); line-height: 1.65;
             flex: 1;
         }
         .mode-steps {
-            display: flex; flex-direction: column; gap: 8px; margin-top: 4px;
+            display: flex; flex-direction: column; gap: 10px; margin-top: 4px;
         }
         .mode-step {
             display: flex; align-items: flex-start; gap: 10px;
-            font-size: 0.88rem; color: var(--on-surface-var);
+            font-size: 0.86rem; color: var(--on-surface-var); line-height: 1.5;
         }
         .step-num {
             min-width: 22px; height: 22px; border-radius: 50%;
             background: var(--primary-dim); color: var(--primary);
-            font-size: 0.75rem; font-weight: 700;
+            font-size: 0.72rem; font-weight: 700;
             display: flex; align-items: center; justify-content: center;
             flex-shrink: 0; margin-top: 1px;
         }
 
-        /* ── Shortcuts cheatsheet ──────────────────────────────────────────── */
+        /* ── Shortcuts ────────────────────────────────────────────────────── */
+        .shortcuts-container {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+        }
+        .shortcuts-panel {
+            background: var(--surface);
+            backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+            border: var(--glass-border); border-radius: var(--radius-xl);
+            padding: 28px 24px;
+            animation: fade-up 0.6s var(--transition) both;
+        }
+        .shortcuts-panel:first-child { animation-delay: 0.05s; }
+        .shortcuts-panel:last-child  { animation-delay: 0.1s; }
+        .shortcuts-panel-title {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 0.9rem; font-weight: 700; margin-bottom: 18px;
+            color: var(--on-surface);
+        }
+        .shortcuts-panel-title .material-symbols-rounded { font-size: 20px; color: var(--primary); }
+
         .shortcuts-grid {
-            display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-            gap: 10px;
+            display: flex; flex-direction: column; gap: 8px;
         }
         .shortcut-row {
             display: flex; align-items: center; gap: 12px;
-            background: var(--surface-dim); border: var(--glass-border);
-            border-radius: var(--radius-md); padding: 14px 16px;
-            transition: border-color 0.2s;
-            animation: fade-up 0.5s cubic-bezier(0.4,0,0.2,1) both;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.04);
+            border-radius: var(--radius-md); padding: 10px 14px;
+            transition: border-color 0.2s, background 0.2s;
         }
-        .shortcut-row:hover { border-color: rgba(255,255,255,0.16); }
+        .shortcut-row:hover { border-color: rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); }
         kbd {
             background: rgba(255,255,255,0.08); border-radius: 7px;
             padding: 4px 10px; font-family: 'Inter', monospace;
-            font-size: 0.82rem; font-weight: 600; color: var(--primary);
-            border: 1px solid rgba(255,255,255,0.1);
+            font-size: 0.78rem; font-weight: 600; color: var(--primary);
+            border: 1px solid rgba(255,255,255,0.08);
             white-space: nowrap; flex-shrink: 0;
+            min-width: 36px; text-align: center;
         }
         .shortcut-label {
-            font-size: 0.88rem; color: var(--on-surface-var);
+            font-size: 0.85rem; color: var(--on-surface-var);
         }
 
-        /* ── Footer ────────────────────────────────────────────────────────── */
+        /* Touch gestures */
+        .gesture-row {
+            display: flex; align-items: center; gap: 12px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.04);
+            border-radius: var(--radius-md); padding: 10px 14px;
+            transition: border-color 0.2s, background 0.2s;
+        }
+        .gesture-row:hover { border-color: rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); }
+        .gesture-icon {
+            width: 36px; height: 36px; border-radius: 10px;
+            background: var(--primary-dim);
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+        .gesture-icon .material-symbols-rounded { font-size: 18px; color: var(--primary); }
+        .gesture-label {
+            font-size: 0.85rem; color: var(--on-surface-var);
+        }
+        .gesture-label strong { color: var(--on-surface); font-weight: 600; }
+
+        /* ── Browser support ──────────────────────────────────────────────── */
+        .browsers-row {
+            display: flex; align-items: center; justify-content: center;
+            gap: 32px; flex-wrap: wrap;
+            animation: fade-up 0.6s 0.1s var(--transition) both;
+        }
+        .browser-item {
+            display: flex; flex-direction: column; align-items: center; gap: 10px;
+            padding: 20px 28px; border-radius: var(--radius-lg);
+            background: var(--surface); border: var(--glass-border);
+            transition: transform 0.3s var(--transition), border-color 0.3s;
+        }
+        .browser-item:hover { transform: translateY(-3px); border-color: rgba(255,255,255,0.12); }
+        .browser-icon {
+            font-size: 32px; width: 48px; height: 48px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .browser-name { font-size: 0.85rem; font-weight: 600; color: var(--on-surface-var); }
+
+        /* ── Footer ───────────────────────────────────────────────────────── */
         .footer {
-            text-align: center; padding-top: 32px;
-            border-top: var(--glass-border);
-            color: var(--on-surface-var); font-size: 0.88rem;
+            text-align: center; padding-top: 40px;
+            border-top: 1px solid rgba(255,255,255,0.05);
+            color: var(--on-surface-var); font-size: 0.85rem;
         }
         .footer-logo {
             display: flex; align-items: center; justify-content: center;
-            gap: 10px; margin-bottom: 16px;
+            gap: 10px; margin-bottom: 14px;
         }
         .footer a {
             color: var(--primary); text-decoration: none; transition: opacity 0.2s;
         }
-        .footer a:hover { opacity: 0.75; }
+        .footer a:hover { opacity: 0.7; }
         .footer a:focus-visible {
             outline: 2px solid var(--primary);
-            outline-offset: 2px;
-            border-radius: 6px;
-            opacity: 1;
+            outline-offset: 2px; border-radius: 6px;
+        }
+        .footer-sub {
+            margin-top: 8px; font-size: 0.78rem; opacity: 0.4;
         }
 
-        /* ── Divider ───────────────────────────────────────────────────────── */
-        .divider {
-            height: 1px; background: rgba(255,255,255,0.06);
-            margin: 0 0 72px;
-        }
-
-        /* ── Animations ────────────────────────────────────────────────────── */
+        /* ── Animations ───────────────────────────────────────────────────── */
         @keyframes fade-up {
-            from { opacity: 0; transform: translateY(28px); }
+            from { opacity: 0; transform: translateY(32px); }
             to   { opacity: 1; transform: translateY(0);    }
         }
-
-        /* ── Responsive ────────────────────────────────────────────────────── */
-        @media (max-width: 640px) {
-            .topbar { padding: 18px 0; }
-            .hero { padding: 40px 0 40px; }
-            .hero-heading { font-size: 2.2rem; }
-            .modes-grid { grid-template-columns: 1fr; }
-            .features-grid { grid-template-columns: 1fr; }
-            .shortcuts-grid { grid-template-columns: 1fr 1fr; }
-            .section-title { font-size: 1.5rem; }
+        @keyframes fade-down {
+            from { opacity: 0; transform: translateY(-16px); }
+            to   { opacity: 1; transform: translateY(0);     }
         }
-        @media (max-width: 400px) {
-            .shortcuts-grid { grid-template-columns: 1fr; }
+
+        /* ── Responsive ───────────────────────────────────────────────────── */
+        @media (max-width: 768px) {
+            .hero { padding: 56px 0 48px; }
+            .hero-heading { font-size: 2.4rem; letter-spacing: -1px; }
+            .stats-row { gap: 28px; }
+            .stat-value { font-size: 1.4rem; }
+            .modes-grid { grid-template-columns: 1fr; }
+            .shortcuts-container { grid-template-columns: 1fr; }
+            .features-grid { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 480px) {
+            .topbar { flex-direction: column; gap: 12px; align-items: flex-start; }
+            .hero-heading { font-size: 2rem; }
+            .hero-sub { font-size: 1rem; }
+            .stats-row { flex-direction: column; gap: 20px; }
+            .stat-divider { width: 48px; height: 1px; }
+            .browsers-row { gap: 16px; }
+            .browser-item { padding: 16px 20px; }
         }
         @media (prefers-reduced-motion: reduce) {
             html { scroll-behavior: auto; }
-            .bg-orb,
-            .hero,
-            .feature-card,
-            .mode-card,
-            .hero-cta,
-            .footer a {
-                animation: none !important;
-                transition: none !important;
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
             }
         }
     </style>
@@ -373,6 +558,7 @@
 <body>
 
     <div class="bg-canvas">
+        <canvas id="particles-canvas"></canvas>
         <div class="bg-orb bg-orb-1"></div>
         <div class="bg-orb bg-orb-2"></div>
         <div class="bg-orb bg-orb-3"></div>
@@ -389,36 +575,78 @@
                 </div>
                 <span class="logo-text">WebPlayer</span>
             </div>
-            <span class="version-badge">v1.4.4</span>
+            <div class="topbar-right">
+                <span class="version-badge" id="version-badge">v1.4.4</span>
+                <a href="https://github.com/sbhushan01/WebPlayer" target="_blank" rel="noopener" class="github-link">
+                    <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+                    GitHub
+                </a>
+            </div>
         </nav>
 
         <!-- Hero -->
         <section class="hero">
-            <div class="hero-eyebrow">
-                <span class="material-symbols-rounded">auto_awesome</span>
-                Installed &amp; Ready
+            <div class="hero-badge-row">
+                <div class="hero-badge hero-badge--installed">
+                    <span class="material-symbols-rounded">check_circle</span>
+                    Installed & Ready
+                </div>
             </div>
             <h1 class="hero-heading">
-                Your videos.<br>
-                <span class="gradient-text">Elevated.</span>
+                Your videos,<br>
+                <span class="gradient-text">reimagined.</span>
             </h1>
             <p class="hero-sub">
-                WebPlayer is now active in your browser. Instantly upgrade videos with
-                smarter controls, richer audio tools, and a clean, distraction-free player.
+                WebPlayer upgrades every video with a custom player UI, audiophile-grade
+                audio tools, smart gestures, and automatic sponsor skipping — all ad-free.
             </p>
-            <a href="#how-to-use" class="hero-cta" id="get-started-btn">
-                <span class="material-symbols-rounded">rocket_launch</span>
-                Get Started
-            </a>
+            <div class="hero-actions">
+                <a href="#how-to-use" class="hero-cta" id="get-started-btn">
+                    <span class="material-symbols-rounded">rocket_launch</span>
+                    Get Started
+                </a>
+                <a href="#features" class="hero-secondary">
+                    <span class="material-symbols-rounded">auto_awesome</span>
+                    See all features
+                </a>
+            </div>
         </section>
+
+        <!-- Stats -->
+        <div class="stats-row">
+            <div class="stat-item">
+                <div class="stat-value">10-Band</div>
+                <div class="stat-label">Graphic EQ</div>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+                <div class="stat-value">3 Themes</div>
+                <div class="stat-label">Material 3</div>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+                <div class="stat-value">HLS + DASH</div>
+                <div class="stat-label">Native Streaming</div>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+                <div class="stat-value">0 Ads</div>
+                <div class="stat-label">Forever</div>
+            </div>
+        </div>
 
         <div class="divider"></div>
 
         <!-- Features -->
-        <section class="section" style="animation: fade-up 0.7s 0.1s cubic-bezier(0.4,0,0.2,1) both;">
-            <p class="section-label">What's inside</p>
-            <h2 class="section-title">Everything you need.</h2>
-            <p class="section-desc">A hand-crafted player experience, from audio to gesture controls, built for both desktop and mobile.</p>
+        <section class="section" id="features">
+            <div class="section-header">
+                <p class="section-label">
+                    <span class="material-symbols-rounded">auto_awesome</span>
+                    What's Inside
+                </p>
+                <h2 class="section-title">Everything you need, nothing you don't.</h2>
+                <p class="section-desc">A hand-crafted player built from scratch for both desktop and mobile — with features that rival native apps.</p>
+            </div>
 
             <div class="features-grid">
                 <div class="feature-card">
@@ -426,64 +654,89 @@
                         <span class="material-symbols-rounded">tune</span>
                     </div>
                     <div class="card-title">10-Band Equalizer</div>
-                    <div class="card-desc">A full 31Hz–16kHz graphic EQ with a Preamp/Boost slider. Your curve is remembered across all sessions.</div>
+                    <div class="card-desc">Full 31 Hz – 16 kHz graphic EQ with a Preamp/Boost slider, built-in presets, and a one-click reset. Your curve is synced across all sessions.</div>
+                    <div class="card-tag card-tag--synced">
+                        <span class="material-symbols-rounded" style="font-size:12px;">sync</span> Synced
+                    </div>
                 </div>
                 <div class="feature-card">
                     <div class="card-icon-wrap icon-blue">
                         <span class="material-symbols-rounded">swipe</span>
                     </div>
                     <div class="card-title">Smart Gesture Engine</div>
-                    <div class="card-desc">Swipe to control brightness and volume. Double-tap left/right to seek ±10s. Long-press for instant 2× speed.</div>
+                    <div class="card-desc">Swipe to control brightness and volume. Double-tap left / right to seek ±10s. Long-press anywhere for instant 2× speed with ripple feedback.</div>
                 </div>
                 <div class="feature-card">
                     <div class="card-icon-wrap icon-green">
                         <span class="material-symbols-rounded">skip_next</span>
                     </div>
                     <div class="card-title">SponsorBlock</div>
-                    <div class="card-desc">Automatically skips sponsor segments, intros, outros, and self-promotions with a live badge and an instant undo button.</div>
+                    <div class="card-desc">Automatically skips sponsor segments, intros, outros, and self-promos. Live category badges appear on each skip, with an instant undo button.</div>
+                    <div class="card-tag card-tag--auto">
+                        <span class="material-symbols-rounded" style="font-size:12px;">bolt</span> Auto
+                    </div>
                 </div>
                 <div class="feature-card">
                     <div class="card-icon-wrap icon-teal">
                         <span class="material-symbols-rounded">stream</span>
                     </div>
-                    <div class="card-title">HLS &amp; DASH Streaming</div>
-                    <div class="card-desc">Native support for adaptive bitrate streams with a built-in quality selector and automatic CORS bypass.</div>
+                    <div class="card-title">HLS & DASH Streaming</div>
+                    <div class="card-desc">Native adaptive-bitrate playback for <code>.m3u8</code> and <code>.mpd</code> streams with a built-in quality selector and automatic CORS bypass via Manifest V3 DNR.</div>
                 </div>
                 <div class="feature-card">
                     <div class="card-icon-wrap icon-amber">
                         <span class="material-symbols-rounded">save</span>
                     </div>
                     <div class="card-title">Playback Persistence</div>
-                    <div class="card-desc">Your video progress is saved automatically every 5 seconds, so you can always resume where you left off.</div>
+                    <div class="card-desc">Your video progress is saved every 5 seconds. Close a stream and return later — the player resumes exactly where you left off. Stale data auto-cleans.</div>
                 </div>
                 <div class="feature-card">
-                    <div class="card-icon-wrap icon-red">
+                    <div class="card-icon-wrap icon-rose">
                         <span class="material-symbols-rounded">palette</span>
                     </div>
                     <div class="card-title">Material 3 Themes</div>
-                    <div class="card-desc">Switch between Blue, Amethyst, and Emerald color themes. The player UI adapts instantly with a smooth transition.</div>
+                    <div class="card-desc">Switch between Blue, Amethyst, and Emerald color themes. The entire player UI adapts instantly with smooth transitions — even the glow color updates.</div>
                 </div>
                 <div class="feature-card">
                     <div class="card-icon-wrap icon-purple">
-                        <span class="material-symbols-rounded">contrast</span>
+                        <span class="material-symbols-rounded">magic_button</span>
                     </div>
                     <div class="card-title">Video Enhancer</div>
-                    <div class="card-desc">Real-time adjustments for brightness, contrast, and saturation, featuring a custom SVG sharpening filter and presets.</div>
+                    <div class="card-desc">Real-time adjustments for brightness, contrast, saturation, and a custom SVG-based sharpening filter. Includes Anime, Cinema, and Sports presets.</div>
+                </div>
+                <div class="feature-card">
+                    <div class="card-icon-wrap icon-blue">
+                        <span class="material-symbols-rounded">subtitles</span>
+                    </div>
+                    <div class="card-title">Subtitles & Audio Tracks</div>
+                    <div class="card-desc">Full CC/subtitle track selector for HLS and DASH streams. Switch between audio languages and tracks on the fly from the controls bar.</div>
+                </div>
+                <div class="feature-card">
+                    <div class="card-icon-wrap icon-teal">
+                        <span class="material-symbols-rounded">picture_in_picture_alt</span>
+                    </div>
+                    <div class="card-title">PiP, Rotate & Seek Preview</div>
+                    <div class="card-desc">Picture-in-Picture mode, 90° video rotation, frame-accurate seek preview thumbnails, ambilight background glow, and OS media key integration.</div>
                 </div>
             </div>
         </section>
 
         <!-- How to use -->
-        <section class="section" id="how-to-use" style="animation: fade-up 0.7s 0.15s cubic-bezier(0.4,0,0.2,1) both;">
-            <p class="section-label">How it works</p>
-            <h2 class="section-title">Two ways to play.</h2>
-            <p class="section-desc">WebPlayer works on any webpage with a video element or any raw stream URL detected in network traffic.</p>
+        <section class="section" id="how-to-use">
+            <div class="section-header">
+                <p class="section-label">
+                    <span class="material-symbols-rounded">play_circle</span>
+                    How It Works
+                </p>
+                <h2 class="section-title">Two ways to play.</h2>
+                <p class="section-desc">WebPlayer works on any page with a video element, or automatically intercepts raw stream URLs from network traffic.</p>
+            </div>
 
             <div class="modes-grid">
                 <div class="mode-card">
                     <div class="mode-card-accent accent-blue"></div>
                     <div class="mode-number">01</div>
-                    <div class="card-icon-wrap icon-blue" style="margin-bottom: 12px;">
+                    <div class="card-icon-wrap icon-blue" style="margin-bottom: 10px;">
                         <span class="material-symbols-rounded">layers</span>
                     </div>
                     <div class="mode-title">Overlay Mode</div>
@@ -491,7 +744,7 @@
                     <div class="mode-steps">
                         <div class="mode-step">
                             <span class="step-num">1</span>
-                            <span>Navigate to any page with a video element.</span>
+                            <span>Navigate to any page with a <code>&lt;video&gt;</code> element.</span>
                         </div>
                         <div class="mode-step">
                             <span class="step-num">2</span>
@@ -506,11 +759,11 @@
                 <div class="mode-card">
                     <div class="mode-card-accent accent-purple"></div>
                     <div class="mode-number">02</div>
-                    <div class="card-icon-wrap icon-purple" style="margin-bottom: 12px;">
+                    <div class="card-icon-wrap icon-purple" style="margin-bottom: 10px;">
                         <span class="material-symbols-rounded">open_in_new</span>
                     </div>
                     <div class="mode-title">Standalone Mode</div>
-                    <div class="mode-desc">For raw stream URLs, WebPlayer intercepts and offers to launch a dedicated full-window player tab.</div>
+                    <div class="mode-desc">For raw stream URLs, WebPlayer intercepts the request and offers a dedicated full-window player tab.</div>
                     <div class="mode-steps">
                         <div class="mode-step">
                             <span class="step-num">1</span>
@@ -518,7 +771,7 @@
                         </div>
                         <div class="mode-step">
                             <span class="step-num">2</span>
-                            <span>A notification will appear offering to launch the player.</span>
+                            <span>A notification appears offering to launch the player.</span>
                         </div>
                         <div class="mode-step">
                             <span class="step-num">3</span>
@@ -529,33 +782,107 @@
             </div>
         </section>
 
-        <!-- Shortcuts -->
-        <section class="section" style="animation: fade-up 0.7s 0.2s cubic-bezier(0.4,0,0.2,1) both;">
-            <p class="section-label">Power user</p>
-            <h2 class="section-title">Keyboard shortcuts.</h2>
-            <p class="section-desc">Control playback at lightning speed without touching the mouse. Press <kbd>?</kbd> inside the player to show this list anytime.</p>
+        <!-- Shortcuts + Gestures -->
+        <section class="section">
+            <div class="section-header">
+                <p class="section-label">
+                    <span class="material-symbols-rounded">keyboard</span>
+                    Power User
+                </p>
+                <h2 class="section-title">Shortcuts & gestures.</h2>
+                <p class="section-desc">Control playback at lightning speed. Press <kbd>?</kbd> inside the player to show this list anytime.</p>
+            </div>
 
-            <div class="shortcuts-grid">
-                <div class="shortcut-row"><kbd>Space / K</kbd> <span class="shortcut-label">Play / Pause</span></div>
-                <div class="shortcut-row"><kbd>← / →</kbd>     <span class="shortcut-label">Seek ±10 seconds</span></div>
-                <div class="shortcut-row"><kbd>↑ / ↓</kbd>     <span class="shortcut-label">Volume ±5%</span></div>
-                <div class="shortcut-row"><kbd>M</kbd>          <span class="shortcut-label">Toggle mute</span></div>
-                <div class="shortcut-row"><kbd>F</kbd>          <span class="shortcut-label">Toggle fullscreen</span></div>
-                <div class="shortcut-row"><kbd>R</kbd>          <span class="shortcut-label">Rotate video 90°</span></div>
-                <div class="shortcut-row"><kbd>?</kbd>          <span class="shortcut-label">Show shortcut help</span></div>
+            <div class="shortcuts-container">
+                <div class="shortcuts-panel">
+                    <div class="shortcuts-panel-title">
+                        <span class="material-symbols-rounded">keyboard</span>
+                        Keyboard Shortcuts
+                    </div>
+                    <div class="shortcuts-grid">
+                        <div class="shortcut-row"><kbd>Space / K</kbd> <span class="shortcut-label">Play / Pause</span></div>
+                        <div class="shortcut-row"><kbd>← / →</kbd>     <span class="shortcut-label">Seek ±10 seconds</span></div>
+                        <div class="shortcut-row"><kbd>↑ / ↓</kbd>     <span class="shortcut-label">Volume ±5%</span></div>
+                        <div class="shortcut-row"><kbd>M</kbd>          <span class="shortcut-label">Toggle mute</span></div>
+                        <div class="shortcut-row"><kbd>F</kbd>          <span class="shortcut-label">Toggle fullscreen</span></div>
+                        <div class="shortcut-row"><kbd>P</kbd>          <span class="shortcut-label">Picture-in-Picture</span></div>
+                        <div class="shortcut-row"><kbd>R</kbd>          <span class="shortcut-label">Rotate video 90°</span></div>
+                        <div class="shortcut-row"><kbd>&lt; / &gt;</kbd> <span class="shortcut-label">Speed ±0.25×</span></div>
+                        <div class="shortcut-row"><kbd>?</kbd>          <span class="shortcut-label">Show shortcut help</span></div>
+                    </div>
+                </div>
+
+                <div class="shortcuts-panel">
+                    <div class="shortcuts-panel-title">
+                        <span class="material-symbols-rounded">touch_app</span>
+                        Touch Gestures
+                    </div>
+                    <div class="shortcuts-grid">
+                        <div class="gesture-row">
+                            <div class="gesture-icon"><span class="material-symbols-rounded">swipe_up</span></div>
+                            <div class="gesture-label"><strong>Swipe left side</strong> — Adjust brightness</div>
+                        </div>
+                        <div class="gesture-row">
+                            <div class="gesture-icon"><span class="material-symbols-rounded">swipe_up</span></div>
+                            <div class="gesture-label"><strong>Swipe right side</strong> — Adjust volume</div>
+                        </div>
+                        <div class="gesture-row">
+                            <div class="gesture-icon"><span class="material-symbols-rounded">swipe_right</span></div>
+                            <div class="gesture-label"><strong>Horizontal swipe</strong> — Seek through video</div>
+                        </div>
+                        <div class="gesture-row">
+                            <div class="gesture-icon"><span class="material-symbols-rounded">touch_app</span></div>
+                            <div class="gesture-label"><strong>Double-tap L / R</strong> — Seek ±10 seconds</div>
+                        </div>
+                        <div class="gesture-row">
+                            <div class="gesture-icon"><span class="material-symbols-rounded">pan_tool</span></div>
+                            <div class="gesture-label"><strong>Long press</strong> — Temporary 2× speed</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Browser support -->
+        <section class="section">
+            <div class="section-header" style="text-align:center;">
+                <p class="section-label" style="justify-content:center;">
+                    <span class="material-symbols-rounded">language</span>
+                    Browser Support
+                </p>
+                <h2 class="section-title" style="text-align:center;">Works everywhere.</h2>
+                <p class="section-desc" style="margin: 10px auto 36px; text-align:center;">Manifest V3 powered. Tested on all major Chromium browsers and Firefox.</p>
+            </div>
+            <div class="browsers-row">
+                <div class="browser-item">
+                    <div class="browser-icon">🌐</div>
+                    <div class="browser-name">Chrome</div>
+                </div>
+                <div class="browser-item">
+                    <div class="browser-icon">🦊</div>
+                    <div class="browser-name">Firefox</div>
+                </div>
+                <div class="browser-item">
+                    <div class="browser-icon">🔵</div>
+                    <div class="browser-name">Edge</div>
+                </div>
+                <div class="browser-item">
+                    <div class="browser-icon">🦁</div>
+                    <div class="browser-name">Brave</div>
+                </div>
             </div>
         </section>
 
         <!-- Footer -->
         <footer class="footer">
             <div class="footer-logo">
-                <div class="logo-icon" style="width:32px;height:32px;border-radius:9px;">
-                    <span class="material-symbols-rounded" style="font-size:17px;color:#062E6F;">play_arrow</span>
+                <div class="logo-icon" style="width:30px;height:30px;border-radius:8px;">
+                    <span class="material-symbols-rounded" style="font-size:16px;color:#062E6F;">play_arrow</span>
                 </div>
                 <span style="font-weight:700;">WebPlayer</span>
             </div>
-            <p>Made with ♥ by <strong>Sushant Bhushan</strong> &nbsp;·&nbsp; Version 1.4.4</p>
-            <p style="margin-top:8px;font-size:0.8rem;opacity:0.5;">Open source &amp; ad-free. Enjoy the show.</p>
+            <p>Made with ♥ by <strong>Sushant Bhushan</strong> &nbsp;·&nbsp; <span id="footer-version">v1.4.4</span></p>
+            <p class="footer-sub">Open source & ad-free. Enjoy the show.</p>
         </footer>
 
     </div>
