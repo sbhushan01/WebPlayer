@@ -599,13 +599,14 @@
 
         // U12: Add hidden SVG filter for Video Enhancer sharpening
         const svgContainer = document.createElement("div");
-        svgContainer.innerHTML = `
+        const svgDoc = new DOMParser().parseFromString(`
             <svg style="position: absolute; pointer-events: none; width: 0; height: 0;">
                 <filter id="wp-sharpen-content">
                     <feConvolveMatrix id="wp-sharpen-matrix-content" order="3 3" preserveAlpha="true" kernelMatrix="0 0 0 0 1 0 0 0 0"/>
                 </filter>
             </svg>
-        `;
+        `, 'image/svg+xml');
+        svgContainer.appendChild(svgDoc.documentElement);
         uiWrapper.appendChild(svgContainer.firstElementChild);
         setSVG(uiWrapper.querySelector("#wp-skip-back"), IC.skipBack);
         setSVG(uiWrapper.querySelector("#wp-play"), IC.play);
@@ -990,7 +991,8 @@
             
             const iconSpan = document.createElement("div");
             iconSpan.style.cssText = "color:var(--wp-primary, #A8C7FA); margin-bottom: 4px; display:flex; justify-content:center; align-items:center;";
-            iconSpan.innerHTML = dir === 'left' ? IC.skipBack : IC.skipFwd;
+            const skipSvgDoc = new DOMParser().parseFromString(dir === 'left' ? IC.skipBack : IC.skipFwd, 'image/svg+xml');
+            iconSpan.appendChild(skipSvgDoc.documentElement);
             const svg = iconSpan.querySelector("svg");
             if (svg) {
                 svg.style.width = "32px";
