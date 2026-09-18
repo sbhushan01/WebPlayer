@@ -58,11 +58,11 @@
 
 | Gesture | Action |
 | :--- | :--- |
-| **Swipe ↕ left half** | Adjust brightness |
-| **Swipe ↕ right half** | Adjust volume |
+| **Swipe ↕ left half** | Adjust brightness *(fullscreen required in Overlay mode)* |
+| **Swipe ↕ right half** | Adjust volume *(fullscreen required in Overlay mode)* |
 | **Double-tap L / R** | Seek ±10 s with animated ripple feedback |
 | **Long-press** | Temporary 2× speed |
-| **Horizontal swipe** | Seek through video |
+| **Horizontal swipe** | Seek by distance (5–60 s) |
 
 > Touch targets are expanded to 44 px with mobile-safe spacing for improved usability across devices.
 

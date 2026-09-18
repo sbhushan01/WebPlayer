@@ -541,14 +541,21 @@ document.addEventListener("DOMContentLoaded", async () => {
         ccBtn.setAttribute("aria-expanded", "false");
     });
     // ── Theme ─────────────────────────────────────────────────────────────────
-    const defaultTheme = localStorage.getItem("wp_theme") || "blue";
+    const normalizeTheme = (t) => (t === "amethyst" ? "purple" : (t || "blue"));
+    const defaultTheme = normalizeTheme(localStorage.getItem("wp_theme") || "blue");
     document.documentElement.setAttribute("data-theme", defaultTheme);
     
     // U6: Sync theme to chrome.storage.local for content.js to consume
     if (hasChromeStorage) {
         try {
             chrome.storage.local.get(["wp_theme"], (res) => {
-                const currentTheme = res.wp_theme || defaultTheme;
+                const currentTheme = normalizeTheme(res.wp_theme || defaultTheme);
+                if (res.wp_theme === "amethyst") {
+                    try { chrome.storage.local.set({ wp_theme: "purple" }); } catch (_) {}
+                }
+                if (localStorage.getItem("wp_theme") === "amethyst") {
+                    localStorage.setItem("wp_theme", "purple");
+                }
                 document.documentElement.setAttribute("data-theme", currentTheme);
                 themeBtns.forEach(btn => {
                     btn.classList.toggle("active", btn.dataset.value === currentTheme);
@@ -560,7 +567,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     themeBtns.forEach(btn => {
         btn.classList.toggle("active", btn.dataset.value === defaultTheme);
         btn.addEventListener("click", () => {
-            const t = btn.dataset.value;
+            const t = normalizeTheme(btn.dataset.value);
             localStorage.setItem("wp_theme", t);
             if (hasChromeStorage) try { chrome.storage.local.set({ wp_theme: t }); } catch (_) {}
             document.documentElement.setAttribute("data-theme", t);
@@ -1158,6 +1165,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     eqToggleBtn.setAttribute("aria-haspopup", "dialog");
     eqToggleBtn.setAttribute("aria-expanded", "false");
     eqToggleBtn.setAttribute("aria-controls", "eq-popover");
+    enhanceToggleBtn.setAttribute("aria-haspopup", "dialog");
+    enhanceToggleBtn.setAttribute("aria-expanded", "false");
+    enhanceToggleBtn.setAttribute("aria-controls", "enhance-popover");
     muteBtn.setAttribute("aria-pressed", player.muted ? "true" : "false");
     rotateBtn.setAttribute("aria-pressed", "false");
     pipBtn.setAttribute("aria-pressed", "false");

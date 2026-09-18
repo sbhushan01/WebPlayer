@@ -359,16 +359,15 @@
                 position: absolute; bottom: max(30px, calc(14px + env(safe-area-inset-bottom))); left: 50%; transform: translateX(-50%);
                 background: rgba(26, 29, 36, 0.85); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
                 padding: 16px 24px; border-radius: 28px; display: flex; flex-direction: column; gap: 12px; opacity: 0;
-                transition: opacity 0.4s ease, transform 0.4s ease; pointer-events: auto; border: 1px solid rgba(255,255,255,0.08);
-                width: 95%; max-width: 800px; color: #E3E3E3; box-shadow: 0px 8px 16px 2px rgba(0,0,0,0.2);
+                transition: opacity 0.4s ease, transform 0.4s ease; pointer-events: none; border: 1px solid rgba(255,255,255,0.08);
+                width: calc(95% - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)); max-width: 800px; color: #E3E3E3; box-shadow: 0px 8px 16px 2px rgba(0,0,0,0.2);
             }
             @supports (backdrop-filter: blur(24px)) {
                 .webplayer-ui-wrapper {
                     background: rgba(26, 29, 36, 0.65);
                 }
             }
-            .video-container.idle .webplayer-ui-wrapper { opacity: 0; transform: translate(-50%, 20px); pointer-events: none; }
-            .wp-controls-visible { opacity: 1; transform: translateX(-50%); }
+            .wp-controls-visible { opacity: 1; transform: translateX(-50%); pointer-events: auto; }
             .wp-progress-row { display: flex; align-items: center; gap: 12px; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; font-weight: 500; color: #C4C7C5; }
             input[type=range] { 
                 -webkit-appearance: none; appearance: none; flex: 1; 
@@ -415,7 +414,7 @@
                 input[type=range] { margin: 8px 0; height: 6px; }
                 #wp-progress { margin: 6px 0; height: 5px; }
                 .popover-anchor, .quality-container { position: static; }
-                .quality-dropdown, .speed-popover { right: 0; left: auto; bottom: calc(100% + 16px); max-height: min(55vh, 55dvh); overflow-y: auto; max-width: calc(100vw - 32px); }
+                .quality-dropdown, .speed-popover, .enhance-popover { right: 0; left: auto; bottom: calc(100% + 16px); max-height: min(55vh, 55dvh); overflow-y: auto; max-width: calc(100vw - 32px); }
             }
             @media (max-width: 350px) {
                 button { width: 38px; height: 38px; padding: 6px; }
@@ -502,10 +501,11 @@
         `;
         shadow.appendChild(styles);
 
-        // U6: Sync theme
+        // U6: Sync theme (storage key is "purple"; accept legacy "amethyst")
         const applyThemeColor = (themeName) => {
-            const colors = { blue: "#A8C7FA", amethyst: "#D0BCFF", emerald: "#82C99E" };
-            shadowHost.style.setProperty("--wp-primary", colors[themeName] || colors.blue);
+            const key = themeName === "amethyst" ? "purple" : themeName;
+            const colors = { blue: "#A8C7FA", purple: "#D0BCFF", emerald: "#82C99E" };
+            shadowHost.style.setProperty("--wp-primary", colors[key] || colors.blue);
         };
         try {
             chrome.storage.local.get(["wp_theme"], (res) => applyThemeColor(res.wp_theme));
@@ -522,11 +522,11 @@
                 <input type="range" id="wp-progress" min="0" max="100" step="0.1" value="0">
             </div>
             <div class="wp-center-row">
-                <button id="wp-skip-back"></button>
-                <button id="wp-play"></button>
-                <button id="wp-skip-fwd"></button>
+                <button id="wp-skip-back" title="Seek back 10 seconds" aria-label="Seek back 10 seconds"></button>
+                <button id="wp-play" title="Play / Pause" aria-label="Play"></button>
+                <button id="wp-skip-fwd" title="Seek forward 10 seconds" aria-label="Seek forward 10 seconds"></button>
                 <div class="quality-container" id="wp-quality-container" style="display:none;">
-                    <button id="wp-quality-btn" title="Quality">
+                    <button id="wp-quality-btn" title="Quality" aria-label="Quality">
                         <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94L14.4 2.81c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41L9.25 5.35C8.66 5.59 8.12 5.92 7.63 6.29L5.24 5.33c-.22-.08-.47 0-.59.22L2.73 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.08.62-.08.94s.03.64.08.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .43-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.49-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
                     </button>
                     <div class="quality-dropdown" id="wp-quality-dropdown"></div>
@@ -549,7 +549,7 @@
                         </div>
                         <div class="speed-fine-tune">
                             <span id="wp-speed-micro-label">1.00×</span>
-                            <input type="range" id="wp-speed-micro-range" min="0.25" max="3" step="0.05" value="1">
+                            <input type="range" id="wp-speed-micro-range" min="0.25" max="3" step="0.05" value="1" aria-label="Fine-tune playback speed">
                         </div>
                     </div>
                 </div>
@@ -568,30 +568,30 @@
                         </div>
                         <div class="eq-sliders">
                             <div class="preamp-row">
-                                <label style="flex:1">Sharpen (<span id="wp-enhance-sharpen-val">0.0</span>)</label>
-                                <input type="range" id="wp-enhance-sharpen" min="0" max="2" step="0.1" value="0" style="flex:2">
+                                <label style="flex:1" for="wp-enhance-sharpen">Sharpen (<span id="wp-enhance-sharpen-val">0.0</span>)</label>
+                                <input type="range" id="wp-enhance-sharpen" min="0" max="2" step="0.1" value="0" style="flex:2" aria-label="Sharpen">
                             </div>
                             <div class="preamp-row">
-                                <label style="flex:1">Saturation (<span id="wp-enhance-saturate-val">1.0</span>)</label>
-                                <input type="range" id="wp-enhance-saturate" min="0" max="3" step="0.1" value="1" style="flex:2">
+                                <label style="flex:1" for="wp-enhance-saturate">Saturation (<span id="wp-enhance-saturate-val">1.0</span>)</label>
+                                <input type="range" id="wp-enhance-saturate" min="0" max="3" step="0.1" value="1" style="flex:2" aria-label="Saturation">
                             </div>
                             <div class="preamp-row">
-                                <label style="flex:1">Contrast (<span id="wp-enhance-contrast-val">1.0</span>)</label>
-                                <input type="range" id="wp-enhance-contrast" min="0.5" max="2.5" step="0.1" value="1" style="flex:2">
+                                <label style="flex:1" for="wp-enhance-contrast">Contrast (<span id="wp-enhance-contrast-val">1.0</span>)</label>
+                                <input type="range" id="wp-enhance-contrast" min="0.5" max="2.5" step="0.1" value="1" style="flex:2" aria-label="Contrast">
                             </div>
                             <div class="preamp-row">
-                                <label style="flex:1">Brightness (<span id="wp-enhance-brightness-val">1.0</span>)</label>
-                                <input type="range" id="wp-enhance-brightness" min="0.1" max="2.5" step="0.1" value="1" style="flex:2">
+                                <label style="flex:1" for="wp-enhance-brightness">Brightness (<span id="wp-enhance-brightness-val">1.0</span>)</label>
+                                <input type="range" id="wp-enhance-brightness" min="0.1" max="2.5" step="0.1" value="1" style="flex:2" aria-label="Brightness">
                             </div>
                         </div>
                         <button id="wp-enhance-reset-btn">Reset Enhancer</button>
                     </div>
                 </div>
-                <button id="wp-standalone" title="Launch Standalone Player"></button>
-                <button id="wp-pip"></button>
-                <button id="wp-fs"></button>
-                <button id="wp-rotate"></button>
-                <button id="wp-exit"></button>
+                <button id="wp-standalone" title="Launch Standalone Player" aria-label="Launch Standalone Player"></button>
+                <button id="wp-pip" title="Picture in picture" aria-label="Picture in picture"></button>
+                <button id="wp-fs" title="Fullscreen" aria-label="Fullscreen"></button>
+                <button id="wp-rotate" title="Rotate" aria-label="Rotate"></button>
+                <button id="wp-exit" title="Exit WebPlayer" aria-label="Exit WebPlayer"></button>
             </div>
         `, 'text/html');
         while (tempUiDoc.head.firstChild) uiWrapper.appendChild(tempUiDoc.head.firstChild);
@@ -668,9 +668,9 @@
 
         const ENHANCE_PRESETS = {
             reset:  { sharpen: 0,   saturate: 1.0, contrast: 1.0, brightness: 1.0 },
-            anime:  { sharpen: 0.8, saturate: 1.3, contrast: 1.1, brightness: 1.1 },
-            cinema: { sharpen: 0.3, saturate: 0.8, contrast: 1.2, brightness: 0.9 },
-            sports: { sharpen: 0.6, saturate: 1.2, contrast: 1.0, brightness: 1.1 },
+            anime:  { sharpen: 0.8, saturate: 1.3, contrast: 1.1, brightness: 1.0 },
+            cinema: { sharpen: 0.3, saturate: 0.9, contrast: 1.2, brightness: 1.0 },
+            sports: { sharpen: 0.5, saturate: 1.2, contrast: 1.1, brightness: 1.1 },
         };
 
         const syncEnhanceUIContent = () => {
@@ -803,13 +803,18 @@
         qBtn.setAttribute("aria-haspopup", "listbox");
         qBtn.setAttribute("aria-expanded", "false");
         qBtn.setAttribute("aria-controls", "wp-quality-dropdown");
-        speedToggleBtn.setAttribute("aria-haspopup", "true");
+        speedToggleBtn.setAttribute("aria-haspopup", "dialog");
         speedToggleBtn.setAttribute("aria-expanded", "false");
         speedToggleBtn.setAttribute("aria-controls", "wp-speed-popover");
         
         const enhanceToggleBtn = uiWrapper.querySelector("#wp-enhance-toggle-btn");
         const enhancePopover = uiWrapper.querySelector("#wp-enhance-popover");
         const enhanceCloseBtn = uiWrapper.querySelector("#wp-enhance-close-btn");
+        if (enhanceToggleBtn) {
+            enhanceToggleBtn.setAttribute("aria-haspopup", "dialog");
+            enhanceToggleBtn.setAttribute("aria-expanded", "false");
+            enhanceToggleBtn.setAttribute("aria-controls", "wp-enhance-popover");
+        }
 
         const closeAllDropdownsExcept = (keepOpenBtn) => {
             if (keepOpenBtn !== qBtn) { qDropdown.classList.remove("open"); qBtn.setAttribute("aria-expanded", "false"); }
@@ -949,7 +954,8 @@
                     !video.paused &&
                     !isScrubbing &&
                     !qDropdown.classList.contains("open") &&
-                    !speedPopover.classList.contains("active")
+                    !speedPopover.classList.contains("active") &&
+                    !(enhancePopover && enhancePopover.classList.contains("active"))
                 ) {
                     uiWrapper.classList.remove("wp-controls-visible");
                 }
@@ -984,7 +990,7 @@
         };
 
         // U5: Seek animations for overlay mode
-        const showSeekAnim = (dir) => {
+        const showSeekAnim = (dir, seconds = 10) => {
             const anim = document.createElement("div");
             anim.className = "wp-seek-anim";
             anim.style.cssText = `position:absolute; top:50%; ${dir === 'left' ? 'left:25%' : 'right:25%'}; transform:translate(${dir === 'left' ? '-50%' : '50%'}, -50%); display:flex; flex-direction:column; align-items:center; justify-content:center; width:80px; height:80px; background:rgba(0,0,0,0.6); border-radius:50%; pointer-events:none; z-index:999; animation:wp-seek-pulse 0.4s ease-out forwards;`;
@@ -1001,7 +1007,7 @@
             
             const textDiv = document.createElement("div");
             textDiv.style.cssText = "font-size:14px; color:#E3E3E3; font-weight: 600;";
-            textDiv.textContent = dir === 'left' ? '-10s' : '+10s';
+            textDiv.textContent = dir === 'left' ? `−${seconds}s` : `+${seconds}s`;
 
             anim.appendChild(iconSpan);
             anim.appendChild(textDiv);
@@ -1225,8 +1231,14 @@
         });
 
         const playBtn = uiWrapper.querySelector("#wp-play");
-        on(video, "play",  () => setSVG(playBtn, IC.pause));
-        on(video, "pause", () => setSVG(playBtn, IC.play));
+        on(video, "play",  () => {
+            setSVG(playBtn, IC.pause);
+            playBtn.setAttribute("aria-label", "Pause");
+        });
+        on(video, "pause", () => {
+            setSVG(playBtn, IC.play);
+            playBtn.setAttribute("aria-label", "Play");
+        });
         on(playBtn, "click", () => {
             const wasPaused = video.paused;
             wasPaused ? safePlay(video) : safePause(video);
@@ -1498,8 +1510,17 @@
                 // Ignore swipes that started near screen edges (browser back/forward zone)
                 const edges = _getEdgeExclusion();
                 if (startX < edges.left || startX > window.innerWidth - edges.right) return;
-                if (diffX > 0) { safeSeekForward(video, 10); showFeedback("+10s", "right"); showSeekAnim("right"); }
-                else           { video.currentTime = Math.max(0, video.currentTime - 10); showFeedback("−10s", "left"); showSeekAnim("left"); }
+                // Scale seek by swipe distance (10s per 80px, clamped 5–60s) — matches standalone
+                const seekAmt = Math.max(5, Math.min(60, Math.round(Math.abs(diffX) / 80) * 10));
+                if (diffX > 0) {
+                    safeSeekForward(video, seekAmt);
+                    showFeedback(`+${seekAmt}s`, "right");
+                    showSeekAnim("right", seekAmt);
+                } else {
+                    video.currentTime = Math.max(0, video.currentTime - seekAmt);
+                    showFeedback(`−${seekAmt}s`, "left");
+                    showSeekAnim("left", seekAmt);
+                }
                 return;
             }
 
@@ -1535,19 +1556,18 @@
                         lastTapTime = now;
                         setTimeout(() => { if (lastTapTime === now) lastTapTime = 0; }, 300);
                     } else {
-                        // Double tap center toggles fullscreen for both mouse and touch
-                        // U1/B7: Reset brightness on double tap center
+                        // Double tap center — brightness reset OR fullscreen (mutually exclusive)
                         if (currentBrightness !== 1.0) {
                             currentBrightness = 1.0;
                             updateEnhanceValContent("brightness", 1.0);
                             showFeedback("Brightness Reset");
-                        }
-
-                        // Directly invoke fullscreen logic to preserve user activation (avoids synthetic click losing gesture on Firefox mobile)
-                        const fsBtn = uiWrapper.querySelector("#wp-fs");
-                        if (fsBtn) {
-                            const fsClickEvent = new PointerEvent("click", { bubbles: true, cancelable: true, ...e });
-                            fsBtn.dispatchEvent(fsClickEvent);
+                        } else {
+                            // Preserve user activation for Firefox mobile fullscreen
+                            const fsBtn = uiWrapper.querySelector("#wp-fs");
+                            if (fsBtn) {
+                                const fsClickEvent = new PointerEvent("click", { bubbles: true, cancelable: true, ...e });
+                                fsBtn.dispatchEvent(fsClickEvent);
+                            }
                         }
                         lastTapTime = 0;
                     }
