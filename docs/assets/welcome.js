@@ -87,7 +87,7 @@ if (animatedElements.length > 0 && 'IntersectionObserver' in window) {
 
             ctx.beginPath();
             ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(${window.themeParticleColor || '168, 199, 250'}, ${p.alpha})`;
+            ctx.fillStyle = `rgba(168, 199, 250, ${p.alpha})`;
             ctx.fill();
         }
         requestAnimationFrame(draw);
