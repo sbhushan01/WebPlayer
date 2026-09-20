@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#07090D">
+  <meta name="description" content="Privacy policy for the WebPlayer browser extension.">
+  <title>Privacy — WebPlayer</title>
+  <link rel="icon" href="assets/icon32.png" type="image/png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+  <div class="atmosphere" aria-hidden="true"></div>
+  <div class="page">
+    <header>
+      <nav class="site-nav" aria-label="Primary">
+        <a class="brand" href="index.html">
+          <img src="assets/icon128.png" width="36" height="36" alt="">
+          WebPlayer
+        </a>
+        <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-menu" aria-label="Menu">☰</button>
+        <ul class="nav-links" id="nav-menu">
+          <li><a href="index.html">Home</a></li>
+          <li><a href="docs.html">Docs</a></li>
+          <li><a href="privacy.html" aria-current="page">Privacy</a></li>
+          <li><a href="https://github.com/sbhushan01/WebPlayer" rel="noopener noreferrer" target="_blank">GitHub</a></li>
+        </ul>
+      </nav>
+    </header>
+
+    <main class="prose-page">
+      <h1>Privacy</h1>
+      <p class="lede">WebPlayer is open source and ad-free. This page explains what the extension accesses and what it does not do.</p>
+      <p style="color:var(--ink-muted);font-size:0.9rem;margin-bottom:32px;">Last updated: September 18, 2026</p>
+
+      <nav class="toc" aria-label="On this page">
+        <a href="#summary">Summary</a>
+        <a href="#data">Data we handle</a>
+        <a href="#network">Network</a>
+        <a href="#permissions">Permissions</a>
+        <a href="#not">What we don’t do</a>
+        <a href="#contact">Contact</a>
+      </nav>
+
+      <section class="prose-block" id="summary">
+        <h2>Summary</h2>
+        <p>WebPlayer runs locally in your browser. Preferences and playback progress stay in browser storage. The extension does not run its own analytics backend or sell personal data.</p>
+      </section>
+
+      <section class="prose-block" id="data">
+        <h2>Data we handle</h2>
+        <ul>
+          <li><strong>Player preferences</strong> — theme, equalizer curve, enhancer settings (stored via <code>chrome.storage</code> / Firefox storage; EQ may use sync storage when available).</li>
+          <li><strong>Playback progress</strong> — resume positions keyed by media URL, with automatic cleanup of stale entries.</li>
+          <li><strong>Pending stream metadata</strong> — short-lived URLs needed to reopen an intercepted HLS/DASH stream after a service-worker restart.</li>
+        </ul>
+        <p>This information stays on your device (and, for sync-eligible keys, your browser sync account). We do not operate a WebPlayer account system.</p>
+      </section>
+
+      <section class="prose-block" id="network">
+        <h2>Network requests</h2>
+        <ul>
+          <li><strong>Media streams</strong> — the player fetches the video/audio URLs you open or that are detected on the page (including HLS/DASH manifests and segments).</li>
+          <li><strong>SponsorBlock</strong> — when a YouTube video ID can be inferred, the extension may request skip segments from the public SponsorBlock API (<code>sponsor.ajay.app</code>).</li>
+          <li><strong>CORS / header rules</strong> — Declarative Net Request session rules may adjust request/response headers so streams can play from the extension player page. Rules are scoped to the player tab and cleaned up when the tab closes.</li>
+        </ul>
+      </section>
+
+      <section class="prose-block" id="permissions">
+        <h2>Permissions (why they exist)</h2>
+        <ul>
+          <li><code>storage</code> — save preferences and resume positions.</li>
+          <li><code>tabs</code> / <code>scripting</code> — open the player and inject the overlay UI.</li>
+          <li><code>webRequest</code> — detect <code>.m3u8</code> / <code>.mpd</code> stream URLs.</li>
+          <li><code>declarativeNetRequest</code> — enable playback that would otherwise fail due to CORS or referrer checks.</li>
+          <li><code>alarms</code> — keep background cleanup tasks reliable under Manifest V3.</li>
+          <li><code>&lt;all_urls&gt;</code> host access — overlay and stream detection work on sites where you watch video.</li>
+        </ul>
+      </section>
+
+      <section class="prose-block" id="not">
+        <h2>What we don’t do</h2>
+        <ul>
+          <li>No advertising network, no tracking pixels, no sold user profiles.</li>
+          <li>No remote code updates outside normal extension store / GitHub releases.</li>
+          <li>This marketing site may load Google Fonts when you visit these pages; that is separate from the extension runtime.</li>
+        </ul>
+      </section>
+
+      <section class="prose-block" id="contact">
+        <h2>Contact</h2>
+        <p>Questions or privacy concerns: open an issue on <a href="https://github.com/sbhushan01/WebPlayer/issues" rel="noopener noreferrer" target="_blank">GitHub Issues</a> or contact the maintainer via the repository.</p>
+        <p>Source of truth for behavior is the public codebase at <a href="https://github.com/sbhushan01/WebPlayer" rel="noopener noreferrer" target="_blank">github.com/sbhushan01/WebPlayer</a>.</p>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>Made by Sushant Bhushan · <span id="year">2026</span></p>
+      <ul class="footer-links">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="docs.html">Docs</a></li>
+        <li><a href="https://github.com/sbhushan01/WebPlayer" rel="noopener noreferrer" target="_blank">GitHub</a></li>
+      </ul>
+    </footer>
+  </div>
+  <script src="assets/site.js"></script>
+</body>
+</html>

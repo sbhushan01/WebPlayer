@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#07090D">
+  <meta name="description" content="Install WebPlayer, learn keyboard shortcuts, and master touch gestures.">
+  <title>Docs — WebPlayer</title>
+  <link rel="icon" href="assets/icon32.png" type="image/png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+  <div class="atmosphere" aria-hidden="true"></div>
+  <div class="page">
+    <header>
+      <nav class="site-nav" aria-label="Primary">
+        <a class="brand" href="index.html">
+          <img src="assets/icon128.png" width="36" height="36" alt="">
+          WebPlayer
+        </a>
+        <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-menu" aria-label="Menu">☰</button>
+        <ul class="nav-links" id="nav-menu">
+          <li><a href="index.html">Home</a></li>
+          <li><a href="docs.html" aria-current="page">Docs</a></li>
+          <li><a href="privacy.html">Privacy</a></li>
+          <li><a href="https://github.com/sbhushan01/WebPlayer" rel="noopener noreferrer" target="_blank">GitHub</a></li>
+        </ul>
+      </nav>
+    </header>
+
+    <main class="prose-page">
+      <h1>Docs</h1>
+      <p class="lede">Install the extension, then use shortcuts and gestures to control playback.</p>
+
+      <nav class="toc" aria-label="On this page">
+        <a href="#install">Install</a>
+        <a href="#usage">Usage</a>
+        <a href="#shortcuts">Shortcuts</a>
+        <a href="#gestures">Gestures</a>
+      </nav>
+
+      <section class="prose-block" id="install">
+        <h2>Install</h2>
+        <p>Chrome and Firefox need separate Manifest V3 packages. Build them once, then load the matching folder.</p>
+
+        <h2 style="font-size:1.1rem;margin-top:28px;">1. Build</h2>
+        <ol>
+          <li>Clone <a href="https://github.com/sbhushan01/WebPlayer" rel="noopener noreferrer" target="_blank">the repository</a>.</li>
+          <li>Run <code>node build.js</code>.</li>
+          <li>Use <code>build-chrome/</code> or <code>build-firefox/</code>.</li>
+        </ol>
+        <p>Tagged releases also publish <code>.crx</code> and <code>.xpi</code> artifacts on <a href="https://github.com/sbhushan01/WebPlayer/releases" rel="noopener noreferrer" target="_blank">GitHub Releases</a>.</p>
+
+        <h2 style="font-size:1.1rem;margin-top:28px;">2. Chrome / Edge / Brave</h2>
+        <ol>
+          <li>Open <code>chrome://extensions/</code>.</li>
+          <li>Enable <strong>Developer mode</strong>.</li>
+          <li>Click <strong>Load unpacked</strong> and select <code>build-chrome</code>.</li>
+        </ol>
+
+        <h2 style="font-size:1.1rem;margin-top:28px;">3. Firefox</h2>
+        <ol>
+          <li>Open <code>about:debugging#/runtime/this-firefox</code>.</li>
+          <li>Click <strong>Load Temporary Add-on…</strong>.</li>
+          <li>Select <code>manifest.json</code> inside <code>build-firefox</code>.</li>
+        </ol>
+        <p class="note">Temporary add-ons in Firefox unload when the browser restarts. Use a signed <code>.xpi</code> from Releases for persistence, or reload after restart while developing.</p>
+      </section>
+
+      <section class="prose-block" id="usage">
+        <h2>Usage</h2>
+        <p><strong>Overlay</strong> — On pages with a video, use <strong>Launch WebPlayer</strong> to inject the control and gesture layer.</p>
+        <p><strong>Standalone</strong> — When an HLS/DASH stream is detected, confirm the prompt to open a dedicated player tab with EQ, themes, subtitles, and quality controls.</p>
+      </section>
+
+      <section class="prose-block" id="shortcuts">
+        <h2>Keyboard shortcuts</h2>
+        <p>Available in the player. Press <kbd>?</kbd> inside standalone mode to open this list anytime.</p>
+        <table class="shortcut-table">
+          <thead>
+            <tr><th>Key</th><th>Action</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><kbd>Space</kbd> / <kbd>K</kbd></td><td>Play / Pause</td></tr>
+            <tr><td><kbd>←</kbd> / <kbd>→</kbd></td><td>Seek ±10 seconds</td></tr>
+            <tr><td><kbd>↑</kbd> / <kbd>↓</kbd></td><td>Volume ±5%</td></tr>
+            <tr><td><kbd>M</kbd></td><td>Toggle mute</td></tr>
+            <tr><td><kbd>F</kbd></td><td>Toggle fullscreen</td></tr>
+            <tr><td><kbd>P</kbd></td><td>Picture-in-Picture</td></tr>
+            <tr><td><kbd>R</kbd></td><td>Rotate video 90°</td></tr>
+            <tr><td><kbd>&lt;</kbd> / <kbd>&gt;</kbd></td><td>Speed ±0.25×</td></tr>
+            <tr><td><kbd>?</kbd></td><td>Show / hide help</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="prose-block" id="gestures">
+        <h2>Touch gestures</h2>
+        <table class="gesture-table">
+          <thead>
+            <tr><th>Gesture</th><th>Action</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Swipe ↕ left half</td><td>Brightness</td></tr>
+            <tr><td>Swipe ↕ right half</td><td>Volume</td></tr>
+            <tr><td>Horizontal swipe</td><td>Seek by distance (5–60s)</td></tr>
+            <tr><td>Double-tap L / R</td><td>Seek ±10s</td></tr>
+            <tr><td>Double-tap center</td><td>Reset brightness, or toggle fullscreen</td></tr>
+            <tr><td>Long press</td><td>Temporary 2× speed</td></tr>
+          </tbody>
+        </table>
+        <p class="note">In <strong>Overlay</strong> mode, vertical brightness/volume swipes require fullscreen so they do not fight page scrolling. Standalone mode supports them anytime.</p>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>Made by Sushant Bhushan · <span id="year">2026</span></p>
+      <ul class="footer-links">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="privacy.html">Privacy</a></li>
+        <li><a href="https://github.com/sbhushan01/WebPlayer" rel="noopener noreferrer" target="_blank">GitHub</a></li>
+      </ul>
+    </footer>
+  </div>
+  <script src="assets/site.js"></script>
+</body>
+</html>

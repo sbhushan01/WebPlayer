@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#07090D">
+  <meta name="description" content="WebPlayer — a feature-rich browser extension that replaces the standard web video experience with a custom, ad-free player.">
+  <title>WebPlayer — Custom video player for the web</title>
+  <link rel="icon" href="assets/icon32.png" type="image/png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+  <div class="atmosphere" aria-hidden="true"></div>
+  <div class="page">
+    <header>
+      <nav class="site-nav" aria-label="Primary">
+        <a class="brand" href="index.html">
+          <img src="assets/icon128.png" width="36" height="36" alt="">
+          WebPlayer
+        </a>
+        <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-menu" aria-label="Menu">☰</button>
+        <ul class="nav-links" id="nav-menu">
+          <li><a href="index.html" aria-current="page">Home</a></li>
+          <li><a href="docs.html">Docs</a></li>
+          <li><a href="privacy.html">Privacy</a></li>
+          <li><a href="https://github.com/sbhushan01/WebPlayer" rel="noopener noreferrer" target="_blank">GitHub</a></li>
+        </ul>
+      </nav>
+    </header>
+
+    <section class="hero" aria-label="Introduction">
+      <div class="hero-visual" aria-hidden="true">
+        <div class="hero-stage">
+          <div class="play-mark">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+          </div>
+        </div>
+      </div>
+      <div class="hero-content">
+        <p class="hero-brand">WebPlayer</p>
+        <h1 class="hero-line">Your videos, reimagined.</h1>
+        <p class="hero-sub">A custom, ad-free player with gestures, EQ, SponsorBlock, and HLS/DASH — for Chrome and Firefox.</p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="docs.html#install">Install extension</a>
+          <a class="btn btn-ghost" href="https://github.com/sbhushan01/WebPlayer" rel="noopener noreferrer" target="_blank">View on GitHub</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="features" aria-labelledby="features-title">
+      <p class="section-kicker">Capabilities</p>
+      <h2 class="section-title" id="features-title">Built for people who watch a lot.</h2>
+      <p class="section-lead">Overlay any page video, or open raw streams in a dedicated player with the full toolkit.</p>
+
+      <div class="feature-list">
+        <div class="feature-row">
+          <h3>10-band EQ</h3>
+          <p>Graphic equalizer from 31 Hz–16 kHz with preamp, presets, and sync across sessions in the standalone player.</p>
+        </div>
+        <div class="feature-row">
+          <h3>Smart gestures</h3>
+          <p>Brightness, volume, distance-based seek, double-tap ±10s, and long-press 2× — tuned for desktop and mobile.</p>
+        </div>
+        <div class="feature-row">
+          <h3>SponsorBlock</h3>
+          <p>Skip sponsors, intros, outros, and self-promo automatically, with category badges and one-tap undo.</p>
+        </div>
+        <div class="feature-row">
+          <h3>HLS &amp; DASH</h3>
+          <p>Native adaptive streams with quality, subtitles, audio tracks, and Manifest V3 CORS handling.</p>
+        </div>
+        <div class="feature-row">
+          <h3>Video enhancer</h3>
+          <p>Sharpen, saturation, contrast, and brightness — plus Anime, Cinema, and Sports presets.</p>
+        </div>
+        <div class="feature-row">
+          <h3>Material themes</h3>
+          <p>Blue, Amethyst, and Emerald themes with glassmorphic controls that follow your accent.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="how" aria-labelledby="how-title">
+      <p class="section-kicker">How it works</p>
+      <h2 class="section-title" id="how-title">Two ways to play.</h2>
+      <p class="section-lead">Use the overlay on any site with a video, or launch the full standalone tab for streams.</p>
+
+      <div class="modes">
+        <article class="mode">
+          <h3>Overlay</h3>
+          <p>Injects gestures and controls over the existing video without replacing the page.</p>
+          <ol>
+            <li>Open any page with a <code>&lt;video&gt;</code> element.</li>
+            <li>Reveal <strong>Launch WebPlayer</strong> on the video.</li>
+            <li>Play with custom controls, enhancer, and gestures.</li>
+          </ol>
+        </article>
+        <article class="mode">
+          <h3>Standalone</h3>
+          <p>Intercepts <code>.m3u8</code> / <code>.mpd</code> traffic and opens a dedicated full-window player.</p>
+          <ol>
+            <li>Navigate to a page that loads a stream URL.</li>
+            <li>Accept the stream detected prompt.</li>
+            <li>Get EQ, themes, CC, quality, and persistence.</li>
+          </ol>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="browsers-title">
+      <p class="section-kicker">Support</p>
+      <h2 class="section-title" id="browsers-title">Manifest V3. Major browsers.</h2>
+      <p class="section-lead">Load the Chrome or Firefox build from the repo — Edge and Brave work with the Chromium package.</p>
+      <div class="browsers">
+        <span><i aria-hidden="true"></i> Chrome</span>
+        <span><i aria-hidden="true"></i> Firefox</span>
+        <span><i aria-hidden="true"></i> Edge</span>
+        <span><i aria-hidden="true"></i> Brave</span>
+      </div>
+      <div class="cta-row" style="margin-top: 32px;">
+        <a class="btn btn-primary" href="docs.html#install">Read install guide</a>
+        <a class="btn btn-ghost" href="docs.html">Shortcuts &amp; gestures</a>
+      </div>
+    </section>
+
+    <footer class="site-footer">
+      <p>Made by Sushant Bhushan · <span id="year">2026</span> · Open source &amp; ad-free</p>
+      <ul class="footer-links">
+        <li><a href="docs.html">Docs</a></li>
+        <li><a href="privacy.html">Privacy</a></li>
+        <li><a href="https://github.com/sbhushan01/WebPlayer" rel="noopener noreferrer" target="_blank">GitHub</a></li>
+        <li><a href="https://github.com/sbhushan01/WebPlayer/releases" rel="noopener noreferrer" target="_blank">Releases</a></li>
+      </ul>
+    </footer>
+  </div>
+  <script src="assets/site.js"></script>
+</body>
+</html>

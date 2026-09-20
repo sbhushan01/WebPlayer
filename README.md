@@ -93,6 +93,18 @@
 
 ---
 
+## 🌐 Website
+
+The product site lives in [`docs/`](docs/) (landing, install docs, privacy) and is meant to be served with **GitHub Pages**:
+
+1. Repo **Settings → Pages**
+2. Source: **Deploy from a branch**
+3. Branch: `main` · Folder: `/docs`
+
+Local preview: open `docs/index.html` in a browser, or serve the folder with any static server.
+
+---
+
 ## 🚀 Building & Installation
 
 Chrome and Firefox have mutually exclusive Manifest V3 requirements, so this project uses a build script to generate browser-specific versions.
@@ -159,6 +171,11 @@ WebPlayer/
 ├── welcome.html         # Welcome / onboarding page
 ├── welcome.js           # Welcome page logic
 ├── build.js             # Build script (Chrome + Firefox variants)
+├── docs/                # Marketing site (GitHub Pages)
+│   ├── index.html       # Landing
+│   ├── docs.html        # Install, shortcuts, gestures
+│   ├── privacy.html     # Privacy policy
+│   └── assets/          # CSS, JS, icons
 ├── icons/               # Extension icons (16–128 px)
 ├── libs/                # Vendored libraries (hls.js, dash.js)
 ├── build-chrome/        # Generated — Chrome build output
