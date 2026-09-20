@@ -1,37 +1,47 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#07090D">
-  <meta name="description" content="Install WebPlayer, learn keyboard shortcuts, and master touch gestures.">
-  <title>Docs — WebPlayer</title>
-  <link rel="icon" href="assets/icon32.png" type="image/png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/site.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#08090D">
+    <title>Docs — WebPlayer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0" rel="stylesheet">
+    <link rel="stylesheet" href="assets/site.css">
 </head>
 <body>
-  <div class="atmosphere" aria-hidden="true"></div>
-  <div class="page">
-    <header>
-      <nav class="site-nav" aria-label="Primary">
-        <a class="brand" href="index.html">
-          <img src="assets/icon128.png" width="36" height="36" alt="">
-          WebPlayer
-        </a>
-        <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-menu" aria-label="Menu">☰</button>
-        <ul class="nav-links" id="nav-menu">
-          <li><a href="index.html">Home</a></li>
-          <li><a href="docs.html" aria-current="page">Docs</a></li>
-          <li><a href="privacy.html">Privacy</a></li>
-          <li><a href="https://github.com/sbhushan01/WebPlayer" rel="noopener noreferrer" target="_blank">GitHub</a></li>
-        </ul>
-      </nav>
-    </header>
 
-    <main class="prose-page">
+    <div class="bg-canvas">
+        <canvas id="particles-canvas"></canvas>
+        <div class="bg-orb bg-orb-1"></div>
+        <div class="bg-orb bg-orb-2"></div>
+        <div class="bg-orb bg-orb-3"></div>
+    </div>
+    <div class="bg-grid"></div>
+
+    <div class="page-wrapper">
+        
+        <!-- Topbar -->
+        <nav class="topbar">
+            <a href="index.html" class="topbar-logo" style="text-decoration:none;">
+                <div class="logo-icon">
+                    <span class="material-symbols-rounded">play_arrow</span>
+                </div>
+                <span class="logo-text">WebPlayer</span>
+            </a>
+            <div class="topbar-right">
+                <a href="docs.html" class="github-link" style="border:none;background:transparent;">Docs</a>
+                <a href="privacy.html" class="github-link" style="border:none;background:transparent;">Privacy</a>
+                <span class="version-badge" id="version-badge">v1.4.4</span>
+                <a href="https://github.com/sbhushan01/WebPlayer" target="_blank" rel="noopener" class="github-link">
+                    <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+                    GitHub
+                </a>
+            </div>
+        </nav>
+
+        <main class="prose-page">
+
       <h1>Docs</h1>
       <p class="lede">Install the extension, then use shortcuts and gestures to control playback.</p>
 
@@ -114,17 +124,34 @@
         </table>
         <p class="note">In <strong>Overlay</strong> mode, vertical brightness/volume swipes require fullscreen so they do not fight page scrolling. Standalone mode supports them anytime.</p>
       </section>
-    </main>
+    
+        </main>
 
-    <footer class="site-footer">
-      <p>Made by Sushant Bhushan · <span id="year">2026</span></p>
-      <ul class="footer-links">
-        <li><a href="index.html">Home</a></li>
-        <li><a href="privacy.html">Privacy</a></li>
-        <li><a href="https://github.com/sbhushan01/WebPlayer" rel="noopener noreferrer" target="_blank">GitHub</a></li>
-      </ul>
-    </footer>
-  </div>
-  <script src="assets/site.js"></script>
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-logo">
+                <div class="logo-icon" style="width:30px;height:30px;border-radius:8px;">
+                    <span class="material-symbols-rounded" style="font-size:16px;color:#062E6F;">play_arrow</span>
+                </div>
+                <span style="font-weight:700;">WebPlayer</span>
+            </div>
+            <p>Made with ♥ by <strong>Sushant Bhushan</strong> &nbsp;&middot;&nbsp; <span id="footer-version">v1.4.4</span></p>
+            <p class="footer-sub">
+                <a href="docs.html" style="color: inherit; margin-right: 15px;">Docs</a>
+                <a href="privacy.html" style="color: inherit; margin-right: 15px;">Privacy</a>
+                Open source & ad-free. Enjoy the show.
+            </p>
+        </footer>
+
+    </div>
+
+    <!-- Theme Picker -->
+    <div class="theme-picker-widget">
+        <button class="theme-picker-btn theme-btn-blue active" data-theme-val="blue" aria-label="Blue Theme"></button>
+        <button class="theme-picker-btn theme-btn-amethyst" data-theme-val="amethyst" aria-label="Amethyst Theme"></button>
+        <button class="theme-picker-btn theme-btn-emerald" data-theme-val="emerald" aria-label="Emerald Theme"></button>
+    </div>
+
+    <script src="assets/welcome.js"></script>
 </body>
 </html>
