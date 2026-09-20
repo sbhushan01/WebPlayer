@@ -82,7 +82,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     ambilightCanvas.width = 16; ambilightCanvas.height = 16;
     const ambilightCtx = ambilightCanvas.getContext('2d', { willReadFrequently: true });
     const lBg = document.getElementById("loading-bg");
-    const ambilightInterval = setInterval(() => {
+    let _lBgSet = false; // Bug #7: flag to avoid repeated toDataURL() checks
+    let ambilightInterval = setInterval(() => {
         if (player.paused || !isFinite(player.duration) || player.videoWidth === 0) return;
         try {
             ambilightCtx.drawImage(player, 0, 0, 16, 16);
@@ -102,13 +103,50 @@ document.addEventListener("DOMContentLoaded", async () => {
                 }
                 document.documentElement.style.setProperty('--glow-color', `rgba(${r}, ${g}, ${b}, 0.5)`);
             }
-            if (lBg && lBg.style.backgroundImage === '') {
+            if (lBg && !_lBgSet) {
                 lBg.style.backgroundImage = `url(${ambilightCanvas.toDataURL()})`;
                 lBg.style.backgroundSize = 'cover';
                 lBg.style.filter = 'blur(40px)';
+                _lBgSet = true;
             }
         } catch (_) {}
     }, 2000);
+
+    // Bug #3: Pause ambilight when tab is hidden to save CPU/GPU
+    document.addEventListener("visibilitychange", () => {
+        if (document.hidden) {
+            clearInterval(ambilightInterval);
+        } else {
+            ambilightInterval = setInterval(() => {
+                if (player.paused || !isFinite(player.duration) || player.videoWidth === 0) return;
+                try {
+                    ambilightCtx.drawImage(player, 0, 0, 16, 16);
+                    const frame = ambilightCtx.getImageData(0, 0, 16, 16);
+                    let r = 0, g = 0, b = 0, count = 0;
+                    for (let i = 0; i < frame.data.length; i += 16) {
+                        r += frame.data[i]; g += frame.data[i + 1]; b += frame.data[i + 2]; count++;
+                    }
+                    if (count > 0) {
+                        r = Math.floor(r / count); g = Math.floor(g / count); b = Math.floor(b / count);
+                        const max = Math.max(r, g, b);
+                        if (max > 0) {
+                            const mult = 255 / max;
+                            r = Math.min(255, Math.floor(r * mult * 0.8));
+                            g = Math.min(255, Math.floor(g * mult * 0.8));
+                            b = Math.min(255, Math.floor(b * mult * 0.8));
+                        }
+                        document.documentElement.style.setProperty('--glow-color', `rgba(${r}, ${g}, ${b}, 0.5)`);
+                    }
+                    if (lBg && !_lBgSet) {
+                        lBg.style.backgroundImage = `url(${ambilightCanvas.toDataURL()})`;
+                        lBg.style.backgroundSize = 'cover';
+                        lBg.style.filter = 'blur(40px)';
+                        _lBgSet = true;
+                    }
+                } catch (_) {}
+            }, 2000);
+        }
+    });
 
     player.addEventListener("waiting", () => { if (lBg && player.currentTime < 1) lBg.style.opacity = '1'; });
     player.addEventListener("playing", () => { if (lBg) lBg.style.opacity = '0'; });
@@ -236,22 +274,27 @@ document.addEventListener("DOMContentLoaded", async () => {
         }).catch(() => {});
     });
 
+    let _retryCount = 0;
+    const MAX_RETRIES = 5;
     const retryBtn = document.getElementById("error-retry");
     retryBtn.addEventListener("click", () => {
         if (!videoSrc) { showError("No video source provided.", "Missing Source"); return; }
         
-        const origText = retryBtn.textContent;
-        retryBtn.textContent = "Retrying...";
+        _retryCount++;
+        retryBtn.textContent = _retryCount >= MAX_RETRIES ? "Retrying (last attempt)..." : `Retrying (${_retryCount}/${MAX_RETRIES})...`;
         retryBtn.style.pointerEvents = "none";
+        retryBtn.style.opacity = "0.6";
         
-        // Brief delay to allow UI to show "Retrying..." before hiding
+        // U5: Exponential backoff delay (150ms, 300ms, 600ms, 1200ms, 2400ms)
+        const backoffDelay = Math.min(150 * Math.pow(2, _retryCount - 1), 3000);
         setTimeout(() => {
-            retryBtn.textContent = origText;
+            retryBtn.textContent = "Retry";
             retryBtn.style.pointerEvents = "auto";
+            retryBtn.style.opacity = "1";
             errorBox.style.display = "none";
             bufferEl.classList.add("is-buffering");
             attachSource(videoSrc);
-        }, 150);
+        }, backoffDelay);
     });
 
     // Catch native video errors
@@ -451,7 +494,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (val === -1) {
                 currentDash.setTextTrack(-1);
             } else {
-                const dashTracks = currentDash.getTracksFor('text');
                 currentDash.setTextTrack(val);
             }
         } else {
@@ -1064,6 +1106,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     let pendingSeekPct = 0;
+    let _wpDragSeekedHandler = null; // Bug #9: module-scoped (was window global)
     const getPointerX = (e) => {
         // Support both pointer and touch events
         if (e.touches && e.touches.length > 0) return e.touches[0].clientX;
@@ -1086,12 +1129,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         seekPreviewTime.textContent = formatTime(time);
         seekPreview.classList.add("visible");
         
-        // B6: Cancel previous seeked listener to prevent stacking
+        // Bug #9: Use module-scoped variable instead of window global
         clearTimeout(seekPreviewTimer);
-        if (window.__wpDragSeekedHandler) {
+        if (_wpDragSeekedHandler) {
             const _pv = getPreviewVideo();
-            (_pv || player).removeEventListener("seeked", window.__wpDragSeekedHandler);
-            window.__wpDragSeekedHandler = null;
+            (_pv || player).removeEventListener("seeked", _wpDragSeekedHandler);
+            _wpDragSeekedHandler = null;
         }
         seekPreviewTimer = setTimeout(() => {
             if (Math.abs(time - lastPreviewTime) < 0.5) return;
@@ -1101,9 +1144,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (pv && _previewVideoReady) {
                 const onSeeked = () => {
                     try { seekCtx.drawImage(pv, 0, 0, 320, 180); } catch (_) {}
-                    window.__wpDragSeekedHandler = null;
+                    _wpDragSeekedHandler = null;
                 };
-                window.__wpDragSeekedHandler = onSeeked;
+                _wpDragSeekedHandler = onSeeked;
                 pv.addEventListener("seeked", onSeeked, { once: true });
                 pv.currentTime = time;
             }
@@ -1692,6 +1735,12 @@ document.addEventListener("DOMContentLoaded", async () => {
                     retryBtn.click();
                 }
                 break;
+            // U3: Speed reset shortcut (0 key)
+            case "0":
+                e.preventDefault();
+                setPlaybackRate(1.0);
+                showFeedback("1.00× Speed");
+                break;
             default:
                 return; // Don't call resetIdle for unbound keys
         }
@@ -1699,7 +1748,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     // ── Gesture zone ──────────────────────────────────────────────────────────
-    gestureZone.style.touchAction    = "none";
+    // M2: Allow pinch-zoom gesture alongside custom gesture handling
+    gestureZone.style.touchAction    = "pinch-zoom";
     gestureZone.style.userSelect     = "none";
     gestureZone.style.webkitUserSelect = "none";
 
@@ -1878,14 +1928,18 @@ document.addEventListener("DOMContentLoaded", async () => {
                     // M6: Haptic feedback on double-tap seek
                     if (navigator.vibrate) try { navigator.vibrate(15); } catch (_) {}
                 } else {
-                    // Double tap center — brightness reset OR fullscreen toggle
-                    // B5: Make brightness reset and fullscreen mutually exclusive
+                    // U8: Double tap center — play/pause for touch, fullscreen for mouse
                     if (currentBrightness !== 1.0) {
                         currentBrightness = 1.0;
                         updateEnhanceVal("brightness", 1.0);
                         showFeedback("Brightness Reset");
-                    } else {
+                    } else if (e.pointerType === "mouse") {
                         toggleFS(e);
+                    } else {
+                        // Touch: toggle play/pause (matches YouTube/Instagram pattern)
+                        const wasPaused = player.paused;
+                        wasPaused ? safePlay() : safePause();
+                        showFeedback(wasPaused ? "Playing" : "Paused");
                     }
                     // M6: Haptic feedback on double-tap
                     if (navigator.vibrate) try { navigator.vibrate(20); } catch (_) {}
@@ -2165,13 +2219,13 @@ document.addEventListener("DOMContentLoaded", async () => {
                         const divMark = document.createElement("div"); divMark.className = "eq-zero-mark";
                         const divGain = document.createElement("span");
                         divGain.style.cssText = "font-size:0.65rem;color:var(--md-sys-color-primary);font-weight:600;font-variant-numeric:tabular-nums;min-width:28px;text-align:center;";
-                        divGain.textContent = savedGain > 0 ? `+${savedGain}` : `${savedGain}`;
+                        divGain.textContent = savedGain > 0 ? `+${savedGain} dB` : `${savedGain} dB`;
                         const divSpan = document.createElement("span"); divSpan.textContent = freq >= 1000 ? freq / 1000 + "k" : freq;
                         div.append(divInput, divMark, divGain, divSpan);
                         divInput.addEventListener("input", (e) => {
                             const val = parseFloat(e.target.value);
                             eqFilters[i].gain.value = val;
-                            divGain.textContent = val > 0 ? `+${val}` : `${val}`;
+                            divGain.textContent = val > 0 ? `+${val} dB` : `${val} dB`;
                             updatePresetHighlight(null); // manual adjustment clears preset
                             saveEqSettings();
                         });

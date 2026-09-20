@@ -4,21 +4,8 @@
 
     const getRootContainer = () => document.body || document.documentElement;
 
-    if (!document.getElementById("wp-global-style")) {
-        const globalStyles = document.createElement("style");
-        globalStyles.id = "wp-global-style";
-        globalStyles.textContent = `
-            .webplayer-active .ytp-chrome-top, .webplayer-active .ytp-chrome-bottom,
-            .webplayer-active .ytp-progress-bar-container, .webplayer-active .ytp-gradient-bottom,
-            .webplayer-active .ytp-gradient-top, .webplayer-active .ytp-iv-video-content,
-            .webplayer-active ytm-custom-control, .webplayer-active ytm-player-overlay-container,
-            .webplayer-active ytm-mobile-video-player-overlay {
-                display: none !important; opacity: 0 !important; pointer-events: none !important; visibility: hidden !important;
-            }
-        `;
-        const root = getRootContainer();
-        if (root) root.appendChild(globalStyles);
-    }
+    // Bug #10: Global YT-hiding styles are in overlay.css (loaded via manifest).
+    // No inline duplicate needed here.
 
     const IC = {
         play:     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="0" stroke-linecap="round" stroke-linejoin="round"><path d="M6.906 4.537A1 1 0 0 0 5.5 5.411v13.178a1 1 0 0 0 1.406.874l12.588-6.59a1 1 0 0 0 0-1.746L6.906 4.537Z" fill="currentColor"/></svg>`,
@@ -96,7 +83,7 @@
                     if (document.querySelector('video[data-custom-player-active="true"]')) return;
                     const prompt = document.createElement("div");
                     prompt.style.cssText = `
-                        position: fixed; bottom: 20px; right: 20px; z-index: 2147483647;
+                        position: fixed; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); right: calc(20px + env(safe-area-inset-right, 0px)); z-index: 2147483647;
                         background: rgba(20, 20, 30, 0.9); backdrop-filter: blur(8px);
                         border: 1px solid rgba(255,255,255,0.1); border-radius: 12px;
                         padding: 12px 20px; color: white; display: flex; align-items: center; gap: 12px;
@@ -403,13 +390,14 @@
             button:hover { background: rgba(255,255,255,0.12); transform: scale(1.05); }
             @media (max-width: 600px) {
                 .webplayer-ui-wrapper { bottom: max(16px, calc(8px + env(safe-area-inset-bottom))); padding: 12px 16px; border-radius: 20px; gap: 10px; width: calc(100% - 20px); }
-                .wp-center-row { flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; gap: 8px; padding-bottom: 2px; scrollbar-width: none; }
+                .wp-center-row { flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; gap: 8px; padding-bottom: 2px; scrollbar-width: none; scroll-snap-type: x proximity; }
                 .wp-center-row::-webkit-scrollbar { display: none; }
+                .wp-center-row > * { scroll-snap-align: center; }
                 .wp-center-row.can-scroll-right { -webkit-mask-image: linear-gradient(to right, black calc(100% - 24px), transparent); mask-image: linear-gradient(to right, black calc(100% - 24px), transparent); }
                 .wp-center-row.can-scroll-left { -webkit-mask-image: linear-gradient(to right, transparent, black 24px, black 100%); mask-image: linear-gradient(to right, transparent, black 24px, black 100%); }
                 .wp-center-row.can-scroll-left.can-scroll-right { -webkit-mask-image: linear-gradient(to right, transparent, black 24px, black calc(100% - 24px), transparent); mask-image: linear-gradient(to right, transparent, black 24px, black calc(100% - 24px), transparent); }
                 button { width: 44px; height: 44px; padding: 8px; flex-shrink: 0; }
-                #wp-pip { display: none; }
+                #wp-pip { display: none; visibility: hidden; }
                 .wp-progress-row { font-size: 13px; gap: 8px; }
                 input[type=range] { margin: 8px 0; height: 6px; }
                 #wp-progress { margin: 6px 0; height: 5px; }
@@ -507,11 +495,13 @@
             const colors = { blue: "#A8C7FA", purple: "#D0BCFF", emerald: "#82C99E" };
             shadowHost.style.setProperty("--wp-primary", colors[key] || colors.blue);
         };
+        // Bug #4: Track storage listeners so cleanup can remove them
+        const _wpThemeChangeHandler = (changes) => {
+            if (changes.wp_theme) applyThemeColor(changes.wp_theme.newValue);
+        };
         try {
             chrome.storage.local.get(["wp_theme"], (res) => applyThemeColor(res.wp_theme));
-            chrome.storage.onChanged.addListener((changes) => {
-                if (changes.wp_theme) applyThemeColor(changes.wp_theme.newValue);
-            });
+            chrome.storage.onChanged.addListener(_wpThemeChangeHandler);
         } catch (_) {}
 
         const uiWrapper = document.createElement("div");
@@ -728,11 +718,13 @@
             });
         }
 
+        // Bug #4: Track storage listener for cleanup
+        const _wpEnhanceChangeHandler = (changes) => {
+            if (changes.wp_enhancer_settings) applyContentEnhancements(changes.wp_enhancer_settings.newValue);
+        };
         try {
             chrome.storage.local.get(["wp_enhancer_settings"], (res) => applyContentEnhancements(res.wp_enhancer_settings));
-            chrome.storage.onChanged.addListener((changes) => {
-                if (changes.wp_enhancer_settings) applyContentEnhancements(changes.wp_enhancer_settings.newValue);
-            });
+            chrome.storage.onChanged.addListener(_wpEnhanceChangeHandler);
         } catch (_) {}
         // ---------------------------
 
@@ -1012,12 +1004,16 @@
             anim.appendChild(iconSpan);
             anim.appendChild(textDiv);
             
-            if (!shadow.querySelector('#wp-seek-style')) {
+            // Bug #1: Use direction-specific keyframe names so both left/right work correctly
+            const animName = `wp-seek-pulse-${dir}`;
+            if (!shadow.querySelector(`#wp-seek-style-${dir}`)) {
                 const s = document.createElement("style");
-                s.id = 'wp-seek-style';
-                s.textContent = `@keyframes wp-seek-pulse { 0% { opacity: 0; transform: translate(${dir === 'left' ? '-50%' : '50%'}, -50%) scale(0.8); } 50% { opacity: 1; transform: translate(${dir === 'left' ? '-50%' : '50%'}, -50%) scale(1.1); } 100% { opacity: 0; transform: translate(${dir === 'left' ? '-50%' : '50%'}, -50%) scale(1.3); } }`;
+                s.id = `wp-seek-style-${dir}`;
+                const tx = dir === 'left' ? '-50%' : '50%';
+                s.textContent = `@keyframes ${animName} { 0% { opacity: 0; transform: translate(${tx}, -50%) scale(0.8); } 50% { opacity: 1; transform: translate(${tx}, -50%) scale(1.1); } 100% { opacity: 0; transform: translate(${tx}, -50%) scale(1.3); } }`;
                 shadow.appendChild(s);
             }
+            anim.style.animation = `${animName} 0.4s ease-out forwards`;
             shadow.appendChild(anim);
             setTimeout(() => anim.remove(), 400);
         };
@@ -1164,6 +1160,11 @@
 
         const cleanup = () => {
             try { overlayController.abort(); } catch (_) {}
+            // Bug #4: Remove chrome.storage listeners to prevent leaks
+            try {
+                if (_wpThemeChangeHandler) chrome.storage.onChanged.removeListener(_wpThemeChangeHandler);
+                if (_wpEnhanceChangeHandler) chrome.storage.onChanged.removeListener(_wpEnhanceChangeHandler);
+            } catch (_) {}
             clearTimeout(tapTimeout);
             clearTimeout(hideTimer);
             clearTimeout(scrubTimeout);
@@ -1199,7 +1200,9 @@
 
 
         const syncTimelineStyle = (val) => {
-            prog.style.background = `linear-gradient(to right, #A8C7FA ${val}%, rgba(255,255,255,0.15) ${val}%)`;
+            // Bug #11: Use CSS variable instead of hardcoded blue color
+            const primaryColor = getComputedStyle(shadowHost).getPropertyValue('--wp-primary').trim() || '#A8C7FA';
+            prog.style.background = `linear-gradient(to right, ${primaryColor} ${val}%, rgba(255,255,255,0.15) ${val}%)`;
         };
 
         on(prog, "input", e => {
@@ -1417,6 +1420,8 @@
                 uiWrapper.dataset.longPress = "true";
                 setPlaybackRate(2.0);
                 showFeedback("2× Speed");
+                // M5: Haptic feedback on long-press speed boost
+                if (navigator.vibrate) try { navigator.vibrate(30); } catch (_) {}
                 setTimeout(() => {
                     if (isLongPressActive) uiWrapper.classList.remove("wp-controls-visible");
                 }, 500);
@@ -1445,12 +1450,17 @@
             }
 
             if (swipeDir === "vertical") {
-                // Vertical swipe (volume/brightness) intentionally disabled outside
-                // fullscreen to avoid conflicting with page scroll gestures.
+                // M1: Enable vertical swipe outside fullscreen if the video covers
+                // most of the viewport (>70% height), otherwise block to avoid
+                // conflicting with page scroll gestures.
                 const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
                 if (!isFS) {
-                    swipeDir = "vertical-blocked";
-                    return; 
+                    const vRect = video.getBoundingClientRect();
+                    const viewportH = window.visualViewport?.height || window.innerHeight;
+                    if (vRect.height < viewportH * 0.70) {
+                        swipeDir = "vertical-blocked";
+                        return;
+                    }
                 }
                 const rect   = gestureZone.getBoundingClientRect();
                 const deltaY = e.clientY - lastY;
@@ -1546,6 +1556,8 @@
                         video.currentTime = Math.max(0, video.currentTime - 10);
                         showFeedback("−10s", "left");
                         showSeekAnim("left");
+                        // M5: Haptic feedback on double-tap seek
+                        if (navigator.vibrate) try { navigator.vibrate(15); } catch (_) {}
                         lastTapTime = now;
                         // Brief cooldown to prevent accidental triple-tap double-seek
                         setTimeout(() => { if (lastTapTime === now) lastTapTime = 0; }, 300);
@@ -1553,6 +1565,8 @@
                         safeSeekForward(video, 10);
                         showFeedback("+10s", "right");
                         showSeekAnim("right");
+                        // M5: Haptic feedback on double-tap seek
+                        if (navigator.vibrate) try { navigator.vibrate(15); } catch (_) {}
                         lastTapTime = now;
                         setTimeout(() => { if (lastTapTime === now) lastTapTime = 0; }, 300);
                     } else {
