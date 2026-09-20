@@ -689,45 +689,7 @@
     border-bottom: none;
 }
 
-/* ── Theme Picker ── */
-.theme-picker-widget {
-    position: fixed;
-    bottom: 24px;
-    right: 24px;
-    background: var(--surface);
-    backdrop-filter: blur(24px);
-    border: var(--glass-border);
-    padding: 10px;
-    border-radius: 30px;
-    display: flex;
-    gap: 10px;
-    z-index: 100;
-    box-shadow: var(--shadow-lg);
-    animation: fade-up 0.8s 0.2s both;
-}
 
-.theme-picker-btn {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    border: 2px solid transparent;
-    cursor: pointer;
-    transition: transform 0.2s, border-color 0.2s;
-    background-clip: padding-box;
-}
-
-.theme-picker-btn:hover {
-    transform: scale(1.15);
-}
-
-.theme-picker-btn.active {
-    border-color: #FFF;
-    transform: scale(1.1);
-}
-
-.theme-btn-blue { background-color: #A8C7FA; }
-.theme-btn-amethyst { background-color: #D0BCFF; }
-.theme-btn-emerald { background-color: #82C99E; }
 
 /* ── Polished Navigation & Cards ── */
 .topbar-right .github-link {
