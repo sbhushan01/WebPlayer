@@ -82,8 +82,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     ambilightCanvas.width = 16; ambilightCanvas.height = 16;
     const ambilightCtx = ambilightCanvas.getContext('2d', { willReadFrequently: true });
     const lBg = document.getElementById("loading-bg");
-    let _lBgSet = false; // Bug #7: flag to avoid repeated toDataURL() checks
-    let ambilightInterval = setInterval(() => {
+    let _lBgSet = false;
+
+    // B1: Extract to named function — avoids code duplication and prevents duplicate intervals
+    const _ambilightTick = () => {
         if (player.paused || !isFinite(player.duration) || player.videoWidth === 0) return;
         try {
             ambilightCtx.drawImage(player, 0, 0, 16, 16);
@@ -110,41 +112,14 @@ document.addEventListener("DOMContentLoaded", async () => {
                 _lBgSet = true;
             }
         } catch (_) {}
-    }, 2000);
+    };
+    let ambilightInterval = setInterval(_ambilightTick, 2000);
 
-    // Bug #3: Pause ambilight when tab is hidden to save CPU/GPU
+    // B1: Always clear the previous handle before re-creating to prevent CPU leak from duplicate intervals
     document.addEventListener("visibilitychange", () => {
-        if (document.hidden) {
-            clearInterval(ambilightInterval);
-        } else {
-            ambilightInterval = setInterval(() => {
-                if (player.paused || !isFinite(player.duration) || player.videoWidth === 0) return;
-                try {
-                    ambilightCtx.drawImage(player, 0, 0, 16, 16);
-                    const frame = ambilightCtx.getImageData(0, 0, 16, 16);
-                    let r = 0, g = 0, b = 0, count = 0;
-                    for (let i = 0; i < frame.data.length; i += 16) {
-                        r += frame.data[i]; g += frame.data[i + 1]; b += frame.data[i + 2]; count++;
-                    }
-                    if (count > 0) {
-                        r = Math.floor(r / count); g = Math.floor(g / count); b = Math.floor(b / count);
-                        const max = Math.max(r, g, b);
-                        if (max > 0) {
-                            const mult = 255 / max;
-                            r = Math.min(255, Math.floor(r * mult * 0.8));
-                            g = Math.min(255, Math.floor(g * mult * 0.8));
-                            b = Math.min(255, Math.floor(b * mult * 0.8));
-                        }
-                        document.documentElement.style.setProperty('--glow-color', `rgba(${r}, ${g}, ${b}, 0.5)`);
-                    }
-                    if (lBg && !_lBgSet) {
-                        lBg.style.backgroundImage = `url(${ambilightCanvas.toDataURL()})`;
-                        lBg.style.backgroundSize = 'cover';
-                        lBg.style.filter = 'blur(40px)';
-                        _lBgSet = true;
-                    }
-                } catch (_) {}
-            }, 2000);
+        clearInterval(ambilightInterval);
+        if (!document.hidden) {
+            ambilightInterval = setInterval(_ambilightTick, 2000);
         }
     });
 
@@ -653,7 +628,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     async function attachSource(src) {
         destroyEngines();
+        player.removeAttribute("crossOrigin"); // B8: clear stale CORS attribute from any previous attempt
         bufferEl.classList.add("is-buffering");
+        const _bufText = document.getElementById("buffering-text"); // U6: show loading state
+        if (_bufText) { _bufText.textContent = "Loading stream\u2026"; _bufText.style.display = ""; }
         qualityContainer.style.display = "none";
         ccContainer.style.display = "none";
         audioContainer.style.display = "none";
@@ -700,7 +678,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                             if (d.levels && d.levels.length > 0) {
                                 const levels = [
                                     ...(d.levels.length > 1 ? [{ label: "Auto", value: -1 }] : []),
-                                    ...d.levels.map((l, i) => ({ label: `${l.height}p`, value: i }))
+                                    ...d.levels.map((l, i) => ({ label: l.height ? `${l.height}p` : (l.bitrate ? `${Math.round(l.bitrate / 1000)}kbps` : `Level ${i + 1}`), value: i })) // U7: fallback for missing height
                                 ];
                                 populateQuality(levels);
                             }
@@ -725,7 +703,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                             if (lvls && lvls.length > 0) {
                                 const levels = [
                                     ...(lvls.length > 1 ? [{ label: "Auto", value: -1 }] : []),
-                                    ...lvls.map((l, i) => ({ label: `${l.height}p`, value: i }))
+                                    ...lvls.map((l, i) => ({ label: l.height ? `${l.height}p` : (l.bitrate ? `${Math.round(l.bitrate / 1000)}kbps` : `Level ${i + 1}`), value: i })) // U7
                                 ];
                                 populateQuality(levels);
                             }
@@ -793,7 +771,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                         if (bitrates && bitrates.length > 0) {
                             const levels = [
                                 ...(bitrates.length > 1 ? [{ label: "Auto", value: -1 }] : []),
-                                ...bitrates.map((b, i) => ({ label: `${b.height}p`, value: i }))
+                                ...bitrates.map((b, i) => ({ label: b.height ? `${b.height}p` : (b.bitrate ? `${Math.round(b.bitrate / 1000)}kbps` : `Level ${i + 1}`), value: i })) // U7
                             ];
                             populateQuality(levels);
                         }
@@ -893,7 +871,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     let skipSegments = [];
-    fetchSegments().then(segs => { skipSegments = segs; });
+    fetchSegments().then(segs => {
+        skipSegments = segs;
+        // U5: render segment markers if duration is already known
+        if (segs.length && isFinite(player.duration) && player.duration > 0) renderSegmentMarkers();
+    });
     const skippedIds = new Set();
 
     // UI FIX: show specific segment category in badge
@@ -915,6 +897,22 @@ document.addEventListener("DOMContentLoaded", async () => {
         interaction:    "#BA68C8",
         music_offtopic: "#FFCA28",
         preview:        "#26A69A",
+    };
+
+    // U5: Draw SponsorBlock segment markers as coloured strips on the progress bar
+    const renderSegmentMarkers = () => {
+        progWrapper.querySelectorAll(".sb-segment-marker").forEach(m => m.remove());
+        if (!isFinite(player.duration) || player.duration === 0 || !skipSegments.length) return;
+        skipSegments.forEach(seg => {
+            const start = seg.segment?.[0] ?? seg.start;
+            const end   = seg.segment?.[1] ?? seg.end;
+            const color = SEGMENT_COLORS[seg.category] || "var(--md-sys-color-primary)";
+            const widthPct = Math.max(0.4, ((end - start) / player.duration) * 100);
+            const marker = document.createElement("div");
+            marker.className = "sb-segment-marker";
+            marker.style.cssText = `left:${(start / player.duration) * 100}%;width:${widthPct}%;background:${color};`;
+            progWrapper.insertBefore(marker, progThumb); // keep thumb above markers in z-order
+        });
     };
 
     let _skipBadgeTimer = null;
@@ -1002,6 +1000,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             timeDur.textContent = "";
             if (liveBadge) liveBadge.style.display = "inline-flex";
         }
+        renderSegmentMarkers(); // U5: re-render markers once duration is known
     });
     player.addEventListener("timeupdate", () => {
         if (isDraggingProgress) return;
@@ -1010,6 +1009,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             const pct = (player.currentTime / player.duration) * 100;
             progPlayed.style.width = `${pct}%`;
             progThumb.style.left   = `${pct}%`;
+            progWrapper.setAttribute("aria-valuenow", Math.round(pct)); // U2: keep ARIA value in sync
         }
     });
     player.addEventListener("progress", () => {
@@ -1223,6 +1223,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         );
         speedMicroRange.value = rate;
         speedMicroLabel.textContent = `${rate.toFixed(2)}×`;
+        // U4: Show current speed in the toggle button tooltip so users can see it at a glance
+        speedToggleBtn.setAttribute("data-tooltip", `Speed: ${rate.toFixed(2)}×`);
     };
 
     // ── Play / Pause ──────────────────────────────────────────────────────────
@@ -1249,11 +1251,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // ── Buffering ─────────────────────────────────────────────────────────────
     // BUG FIX: also clear spinner on canplay and pause (prevents permanent spinner)
+    // U6: shared helper also clears the loading-state text
+    const _clearBufferUI = () => {
+        bufferEl.classList.remove("is-buffering");
+        const _bt = document.getElementById("buffering-text");
+        if (_bt) _bt.style.display = "none";
+    };
     player.addEventListener("waiting",  () => bufferEl.classList.add("is-buffering"));
-    player.addEventListener("playing",  () => bufferEl.classList.remove("is-buffering"));
-    player.addEventListener("canplay",  () => bufferEl.classList.remove("is-buffering"));
-    player.addEventListener("pause",    () => bufferEl.classList.remove("is-buffering"));
-    player.addEventListener("error",    () => bufferEl.classList.remove("is-buffering"));
+    player.addEventListener("playing",  _clearBufferUI);
+    player.addEventListener("canplay",  _clearBufferUI);
+    player.addEventListener("pause",    _clearBufferUI);
+    player.addEventListener("error",    _clearBufferUI);
 
     // ── Volume ────────────────────────────────────────────────────────────────
     const updateVolIcon = () => {
@@ -1436,7 +1444,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     // ── Popovers ──────────────────────────────────────────────────────────────
     // U9: Animated popover close helper
     const closePopoverAnimated = (popoverEl) => {
-        if (!popoverEl.classList.contains("active")) return;
+        // B3: guard against double-close racing the animationend listener
+        if (!popoverEl.classList.contains("active") || popoverEl.classList.contains("closing")) return;
         popoverEl.classList.add("closing");
         popoverEl.addEventListener("animationend", () => {
             popoverEl.classList.remove("active", "closing");
@@ -1565,6 +1574,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     // ── Shortcuts side panel (#9) ─────────────────────────────────────────────
+    const shortcutsBackdrop = document.getElementById("shortcuts-backdrop"); // M5: modal backdrop
     let shortcutsLastFocusedEl = null;
     const isInAriaHiddenTree = (el) => {
         let node = el;
@@ -1582,6 +1592,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (shortcutsModal.classList.contains("active")) return;
         shortcutsLastFocusedEl = document.activeElement;
         shortcutsModal.classList.add("active");
+        shortcutsBackdrop?.classList.add("active"); // M5
         requestAnimationFrame(() => {
             (getShortcutsFocusableEls()[0] || shortcutsClose).focus();
         });
@@ -1589,6 +1600,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const closeShortcuts = () => {
         if (!shortcutsModal.classList.contains("active")) return;
         shortcutsModal.classList.remove("active");
+        shortcutsBackdrop?.classList.remove("active"); // M5
         if (shortcutsLastFocusedEl && shortcutsLastFocusedEl.isConnected) {
             shortcutsLastFocusedEl.focus();
         } else {
@@ -1602,6 +1614,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     shortcutsBtn.addEventListener("click", toggleShortcuts);
     shortcutsClose.addEventListener("click", closeShortcuts);
+    shortcutsBackdrop?.addEventListener("click", closeShortcuts); // M5: click backdrop to dismiss
     shortcutsModal.addEventListener("keydown", (e) => {
         if (!shortcutsModal.classList.contains("active")) return;
         if (e.key === "Escape") {
@@ -1812,8 +1825,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         const diffX = e.clientX - startX;
         const diffY = e.clientY - startY;
         if (!swipeDir) {
-            if (Math.abs(diffX) > 30)      { swipeDir = "horizontal"; clearTimeout(longPressTimer); longPressTimer = null; }
-            else if (Math.abs(diffY) > 30) { swipeDir = "vertical";   clearTimeout(longPressTimer); longPressTimer = null; }
+            // M4: 40px threshold reduces accidental swipes during casual touches or pinch-zoom drift
+            if (Math.abs(diffX) > 40)      { swipeDir = "horizontal"; clearTimeout(longPressTimer); longPressTimer = null; }
+            else if (Math.abs(diffY) > 40) { swipeDir = "vertical";   clearTimeout(longPressTimer); longPressTimer = null; }
         }
         if (swipeDir === "vertical") {
             const rect   = gestureZone.getBoundingClientRect();
@@ -2251,6 +2265,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     // U11: EQ Reset button — now also resets preset to Flat
     if (eqResetBtn) {
         eqResetBtn.addEventListener("click", () => {
+            if (!isAudioInitialized) { showFeedback("Play a video to activate the EQ"); return; } // B2: guard against silent no-op
             eqFilters.forEach(f => { f.gain.value = 0; });
             if (preampGain) { preampGain.gain.value = 1.0; }
             preampSlider.value = 1.0;
