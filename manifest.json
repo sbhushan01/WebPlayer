@@ -46,7 +46,8 @@
         "player.js",
         "welcome.html",
         "libs/hls.min.js",
-        "libs/dash.all.min.js"
+        "libs/dash.all.min.js",
+        "fonts/*"
       ],
       "matches": ["<all_urls>"]
     }
