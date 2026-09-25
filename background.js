@@ -176,6 +176,7 @@ function domainFilter(rawUrl) {
         const u = new URL(rawUrl);
         return `${u.protocol}//${u.host}/*`;
     } catch (_) {
+        console.warn("[WebPlayer] domainFilter: Could not parse URL:", rawUrl);
         return rawUrl;
     }
 }

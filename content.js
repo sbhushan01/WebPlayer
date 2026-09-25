@@ -18,6 +18,10 @@
         close:    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>`,
         launch:   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6.906 4.537A1 1 0 0 0 5.5 5.411v13.178a1 1 0 0 0 1.406.874l12.588-6.59a1 1 0 0 0 0-1.746L6.906 4.537Z"/></svg>`,
         enhance:  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 2l1.8 5.4L19.2 9l-5.4 1.8L12 16.2l-1.8-5.4L4.8 9l5.4-1.8L12 2z"/><path d="M18 14l.9 2.7L21.6 18l-2.7.9L18 21.6l-.9-2.7L14.4 18l2.7-.9L18 14z" opacity="0.7"/><path d="M6 16l.6 1.8 1.8.6-1.8.6L6 20.8l-.6-1.8-1.8-.6 1.8-.6L6 16z" opacity="0.5"/></svg>`,
+        volumeUp: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>`,
+        volumeOff:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>`,
+        volumeDown:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M18.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM5 9v6h4l5 5V4L9 9H5z"/></svg>`,
+        eq:       `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M10 20h4V4h-4v16zm-6-6h4v-4H4v4zM16 9v6h4V9h-4z"/></svg>`,
     };
 
     const buttonRegistry = new WeakMap();
@@ -397,7 +401,6 @@
                 .wp-center-row.can-scroll-left { -webkit-mask-image: linear-gradient(to right, transparent, black 24px, black 100%); mask-image: linear-gradient(to right, transparent, black 24px, black 100%); }
                 .wp-center-row.can-scroll-left.can-scroll-right { -webkit-mask-image: linear-gradient(to right, transparent, black 24px, black calc(100% - 24px), transparent); mask-image: linear-gradient(to right, transparent, black 24px, black calc(100% - 24px), transparent); }
                 button { width: 44px; height: 44px; padding: 8px; flex-shrink: 0; }
-                #wp-pip { display: none; visibility: hidden; }
                 .wp-progress-row { font-size: 13px; gap: 8px; }
                 input[type=range] { margin: 8px 0; height: 6px; }
                 #wp-progress { margin: 6px 0; height: 5px; }
@@ -456,7 +459,7 @@
             .webplayer-feedback.feedback-right { left: auto; right: 15%; transform: none; }
             .webplayer-gesture-zone {
                 position: absolute; inset: 0; pointer-events: auto;
-                touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+                touch-action: pan-y pinch-zoom; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
                 overflow: hidden;
             }
             .wp-ripple {
@@ -486,6 +489,86 @@
             #wp-enhance-reset-btn { width: 100%; padding: 8px; border-radius: 12px; background: rgba(255,255,255,0.06); color: #C4C7C5; font-size: 13px; font-weight: 600; border: 1px solid rgba(255,255,255,0.08); transition: all 0.2s; margin-top: 8px; justify-content: center; cursor: pointer; }
             #wp-enhance-reset-btn:hover { background: rgba(255,255,255,0.12); color: #E3E3E3; }
             .enhance-popover { width: min(340px, calc(100vw - 48px)); right: 0; gap: 12px; }
+            button.has-active-effect { position: relative; }
+            button.has-active-effect::after {
+                content: ''; position: absolute; bottom: 3px; right: 3px;
+                width: 6px; height: 6px; border-radius: 50%;
+                background: var(--wp-primary, #A8C7FA);
+                box-shadow: 0 0 6px rgba(168, 199, 250, 0.6);
+            }
+            @media (prefers-reduced-motion: reduce) {
+                *, *::before, *::after {
+                    animation-duration: 0.01ms !important;
+                    animation-iteration-count: 1 !important;
+                    transition-duration: 0.01ms !important;
+                }
+            }
+            [data-tooltip] { position: relative; }
+            [data-tooltip]:hover::after {
+                content: attr(data-tooltip);
+                position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+                background: rgba(26, 29, 36, 0.92); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+                padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 500; color: #E3E3E3;
+                white-space: nowrap; pointer-events: none; z-index: 100;
+                border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                animation: wp-tooltipIn 0.15s ease-out;
+            }
+            @keyframes wp-tooltipIn { from { opacity: 0; transform: translateX(-50%) translateY(4px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+            .popover-card.closing { animation: wp-slideDown 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards; pointer-events: none; }
+            .quality-dropdown.closing { animation: wp-slideDown 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards; pointer-events: none; }
+            @keyframes wp-slideDown { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(10px); } }
+            .wp-progress-wrapper { position: relative; flex: 1; display: flex; align-items: center; }
+            .wp-progress-wrapper input[type=range] { width: 100%; z-index: 2; }
+            .sb-segment-marker { position: absolute; top: 0; height: 100%; pointer-events: none; z-index: 1; border-radius: 2px; opacity: 0.7; }
+            .wp-seek-tooltip {
+                position: absolute; bottom: calc(100% + 10px); transform: translateX(-50%);
+                background: rgba(26, 29, 36, 0.92); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+                padding: 5px 10px; border-radius: 8px; font-size: 13px; font-weight: 600; color: #E3E3E3;
+                white-space: nowrap; pointer-events: none; z-index: 100; opacity: 0; transition: opacity 0.15s;
+                border: 1px solid rgba(255,255,255,0.08); font-variant-numeric: tabular-nums;
+            }
+            .wp-seek-tooltip.visible { opacity: 1; }
+            .wp-volume-group { display: flex; align-items: center; gap: 2px; }
+            .wp-volume-slider {
+                width: 0; opacity: 0; transition: width 0.2s ease, opacity 0.2s ease; overflow: hidden;
+                margin: 0 !important; height: 4px !important;
+            }
+            .wp-volume-group:hover .wp-volume-slider,
+            .wp-volume-slider:focus-within { width: 72px; opacity: 1; }
+            @media (hover: none), (pointer: coarse) {
+                .wp-volume-slider { width: 72px; opacity: 1; }
+            }
+            .wp-skip-badge {
+                position: absolute; top: max(12%, calc(env(safe-area-inset-top, 0px) + 8px)); left: 50%; transform: translateX(-50%);
+                background: var(--wp-primary, #A8C7FA); color: #062E6F;
+                padding: 8px 20px; border-radius: 20px; font-size: 14px; font-weight: 600;
+                display: none; opacity: 0; transition: opacity 0.2s; z-index: 25; pointer-events: none;
+                white-space: nowrap;
+            }
+            .wp-skip-badge.showing { opacity: 1; }
+            .wp-skip-undo {
+                position: absolute; top: max(12%, calc(env(safe-area-inset-top, 0px) + 8px)); left: 50%; transform: translateX(-50%) translateY(38px);
+                background: rgba(26, 29, 36, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+                border: 1px solid rgba(255,255,255,0.15); color: #E3E3E3;
+                padding: 6px 16px; border-radius: 16px; font-size: 13px; font-weight: 600;
+                display: none; opacity: 0; transition: opacity 0.2s; z-index: 25; cursor: pointer;
+                white-space: nowrap; width: auto; height: auto;
+            }
+            .wp-skip-undo.showing { opacity: 1; pointer-events: auto; }
+            .wp-skip-undo:hover { background: rgba(255,255,255,0.15); }
+            .wp-error-overlay {
+                position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center;
+                background: rgba(10, 10, 15, 0.85); z-index: 50; gap: 12px; padding: 24px; text-align: center;
+            }
+            .wp-error-overlay.visible { display: flex; }
+            .wp-error-type { font-size: 16px; font-weight: 700; color: #F28B82; }
+            .wp-error-msg { font-size: 14px; color: #C4C7C5; max-width: 400px; line-height: 1.5; }
+            .wp-error-retry {
+                padding: 8px 24px; border-radius: 20px; background: var(--wp-primary, #A8C7FA); color: #062E6F;
+                font-size: 14px; font-weight: 600; cursor: pointer; border: none; margin-top: 8px; transition: transform 0.15s;
+                width: auto; height: auto;
+            }
+            .wp-error-retry:hover { transform: scale(1.05); background: var(--wp-primary, #A8C7FA); }
         `;
         shadow.appendChild(styles);
 
@@ -509,9 +592,16 @@
         const tempUiDoc = new DOMParser().parseFromString(`
             <div class="wp-progress-row">
                 <span id="wp-time-cur">0:00</span> / <span id="wp-time-dur">--:--</span>
-                <input type="range" id="wp-progress" min="0" max="100" step="0.1" value="0">
+                <div class="wp-progress-wrapper" id="wp-progress-wrapper">
+                    <input type="range" id="wp-progress" min="0" max="100" step="0.1" value="0">
+                    <div class="wp-seek-tooltip" id="wp-seek-tooltip">0:00</div>
+                </div>
             </div>
             <div class="wp-center-row">
+                <div class="wp-volume-group">
+                    <button id="wp-mute" title="Mute" aria-label="Mute"></button>
+                    <input type="range" class="wp-volume-slider" id="wp-volume" min="0" max="1" step="0.01" value="1" aria-label="Volume">
+                </div>
                 <button id="wp-skip-back" title="Seek back 10 seconds" aria-label="Seek back 10 seconds"></button>
                 <button id="wp-play" title="Play / Pause" aria-label="Play"></button>
                 <button id="wp-skip-fwd" title="Seek forward 10 seconds" aria-label="Seek forward 10 seconds"></button>
@@ -536,6 +626,7 @@
                             <button class="speed-pill active" data-speed="1">1×</button>
                             <button class="speed-pill" data-speed="1.5">1.5×</button>
                             <button class="speed-pill" data-speed="2">2×</button>
+                            <button class="speed-pill" data-speed="3">3×</button>
                         </div>
                         <div class="speed-fine-tune">
                             <span id="wp-speed-micro-label">1.00×</span>
@@ -609,6 +700,13 @@
         setSVG(uiWrapper.querySelector("#wp-speed-close-btn"), IC.close);
         setSVG(uiWrapper.querySelector("#wp-enhance-toggle-btn"), IC.enhance);
         setSVG(uiWrapper.querySelector("#wp-enhance-close-btn"), IC.close);
+        setSVG(uiWrapper.querySelector("#wp-mute"), IC.volumeUp);
+
+        // U4: Convert title attrs to glassmorphic data-tooltip
+        uiWrapper.querySelectorAll('[title]').forEach(el => {
+            el.setAttribute('data-tooltip', el.getAttribute('title'));
+            el.removeAttribute('title');
+        });
 
         const feedbackOverlay = document.createElement("div");
         feedbackOverlay.className = "webplayer-feedback";
@@ -619,6 +717,21 @@
         shadow.appendChild(gestureZone);
         shadow.appendChild(uiWrapper);
         shadow.appendChild(feedbackOverlay);
+
+        // U9: Skip badge + undo button
+        const skipBadge = document.createElement("div");
+        skipBadge.className = "wp-skip-badge";
+        shadow.appendChild(skipBadge);
+        const skipUndoBtn = document.createElement("button");
+        skipUndoBtn.className = "wp-skip-undo";
+        skipUndoBtn.textContent = "Undo";
+        shadow.appendChild(skipUndoBtn);
+
+        // U2: Error overlay
+        const errorOverlay = document.createElement("div");
+        errorOverlay.className = "wp-error-overlay";
+        errorOverlay.innerHTML = '<div class="wp-error-type" id="wp-error-type">Error</div><div class="wp-error-msg" id="wp-error-msg"></div><button class="wp-error-retry" id="wp-error-retry">Retry</button>';
+        shadow.appendChild(errorOverlay);
 
         // --- Video Enhancer Sync ---
         const sharpenMatrixContent = shadow.querySelector("#wp-sharpen-matrix-content");
@@ -643,6 +756,10 @@
 
             // Apply directly to the injected video element
             video.style.filter = filterStr.trim();
+
+            // U11: Toggle active-effect indicator on enhance button
+            const isEnhanceActive = sharpen !== 0 || saturate !== 1 || contrast !== 1 || brightness !== 1;
+            if (enhanceToggleBtn) enhanceToggleBtn.classList.toggle("has-active-effect", isEnhanceActive);
             
             // Sync with local swipe variable
             currentBrightness = brightness;
@@ -684,10 +801,14 @@
             });
         };
 
+        let _enhanceStorageDebounce;
         const updateEnhanceValContent = (key, val) => {
             enhanceStateContent[key] = parseFloat(val);
             enhanceStateContent.preset = null;
-            try { chrome.storage.local.set({ wp_enhancer_settings: enhanceStateContent }); } catch (_) {}
+            clearTimeout(_enhanceStorageDebounce);
+            _enhanceStorageDebounce = setTimeout(() => {
+                try { chrome.storage.local.set({ wp_enhancer_settings: enhanceStateContent }); } catch (_) {}
+            }, 300);
             applyContentEnhancements(enhanceStateContent);
         };
 
@@ -808,10 +929,21 @@
             enhanceToggleBtn.setAttribute("aria-controls", "wp-enhance-popover");
         }
 
+        // U8: Animated popover close helper
+        const closeOverlayPopover = (popoverEl, toggleBtn) => {
+            if (!popoverEl || !popoverEl.classList.contains("active") || popoverEl.classList.contains("closing")) return;
+            popoverEl.classList.add("closing");
+            if (toggleBtn) toggleBtn.setAttribute("aria-expanded", "false");
+            popoverEl.addEventListener("animationend", () => {
+                popoverEl.classList.remove("active", "closing");
+            }, { once: true });
+            setTimeout(() => { popoverEl.classList.remove("active", "closing"); }, 300);
+        };
+
         const closeAllDropdownsExcept = (keepOpenBtn) => {
             if (keepOpenBtn !== qBtn) { qDropdown.classList.remove("open"); qBtn.setAttribute("aria-expanded", "false"); }
-            if (keepOpenBtn !== speedToggleBtn) { speedPopover.classList.remove("active"); speedToggleBtn.setAttribute("aria-expanded", "false"); }
-            if (keepOpenBtn !== enhanceToggleBtn) { enhancePopover.classList.remove("active"); enhanceToggleBtn.setAttribute("aria-expanded", "false"); }
+            if (keepOpenBtn !== speedToggleBtn) { closeOverlayPopover(speedPopover, speedToggleBtn); }
+            if (keepOpenBtn !== enhanceToggleBtn) { closeOverlayPopover(enhancePopover, enhanceToggleBtn); }
         };
 
         on(qBtn, "click", e => {
@@ -828,13 +960,11 @@
                 speedPopover.classList.add("active");
                 speedToggleBtn.setAttribute("aria-expanded", "true");
             } else {
-                speedPopover.classList.remove("active");
-                speedToggleBtn.setAttribute("aria-expanded", "false");
+                closeOverlayPopover(speedPopover, speedToggleBtn);
             }
         });
         on(speedCloseBtn, "click", () => {
-            speedPopover.classList.remove("active");
-            speedToggleBtn.setAttribute("aria-expanded", "false");
+            closeOverlayPopover(speedPopover, speedToggleBtn);
             speedToggleBtn.focus();
         });
         if (enhanceToggleBtn) {
@@ -846,13 +976,11 @@
                     enhancePopover.classList.add("active");
                     enhanceToggleBtn.setAttribute("aria-expanded", "true");
                 } else {
-                    enhancePopover.classList.remove("active");
-                    enhanceToggleBtn.setAttribute("aria-expanded", "false");
+                    closeOverlayPopover(enhancePopover, enhanceToggleBtn);
                 }
             });
             on(enhanceCloseBtn, "click", () => {
-                enhancePopover.classList.remove("active");
-                enhanceToggleBtn.setAttribute("aria-expanded", "false");
+                closeOverlayPopover(enhancePopover, enhanceToggleBtn);
                 enhanceToggleBtn.focus();
             });
         }
@@ -862,12 +990,10 @@
                 qBtn.setAttribute("aria-expanded", "false");
             }
             if (!e.target.closest("#wp-speed-popover") && !e.target.closest("#wp-speed-toggle-btn")) {
-                speedPopover.classList.remove("active");
-                speedToggleBtn.setAttribute("aria-expanded", "false");
+                closeOverlayPopover(speedPopover, speedToggleBtn);
             }
             if (enhancePopover && !e.target.closest("#wp-enhance-popover") && !e.target.closest("#wp-enhance-toggle-btn")) {
-                enhancePopover.classList.remove("active");
-                if (enhanceToggleBtn) enhanceToggleBtn.setAttribute("aria-expanded", "false");
+                closeOverlayPopover(enhancePopover, enhanceToggleBtn);
             }
         });
         [qDropdown, speedPopover, enhancePopover].filter(Boolean).forEach(dropdown => {
@@ -951,7 +1077,7 @@
                 ) {
                     uiWrapper.classList.remove("wp-controls-visible");
                 }
-            }, 4500);
+            }, 3000);
         };
 
         // Ensure pausing stops the controls from hiding
@@ -1048,9 +1174,69 @@
         }
 
         let skipSegments = [];
-        fetchSegments().then(segs => { skipSegments = segs; });
         const skippedIds = new Set();
         const SEGMENT_LABELS = { sponsor: "Sponsor Skipped", intro: "Intro Skipped", outro: "Outro Skipped", selfpromo: "Self-Promo Skipped", interaction: "Interaction Skipped", music_offtopic: "Music Skipped", preview: "Preview Skipped" };
+        const SEGMENT_COLORS = { sponsor: "var(--wp-primary, #A8C7FA)", intro: "#757575", outro: "#757575", selfpromo: "#42A5F5", interaction: "#BA68C8", music_offtopic: "#FFCA28", preview: "#26A69A" };
+
+        // U5: Render SponsorBlock segment markers on the progress bar
+        const progWrapper = uiWrapper.querySelector("#wp-progress-wrapper");
+        const renderSegmentMarkers = () => {
+            if (!progWrapper) return;
+            progWrapper.querySelectorAll(".sb-segment-marker").forEach(m => m.remove());
+            if (!isFinite(video.duration) || video.duration === 0 || !skipSegments.length) return;
+            skipSegments.forEach(seg => {
+                const start = seg.segment?.[0] ?? seg.start;
+                const end   = seg.segment?.[1] ?? seg.end;
+                const color = SEGMENT_COLORS[seg.category] || "var(--wp-primary, #A8C7FA)";
+                const widthPct = Math.max(0.4, ((end - start) / video.duration) * 100);
+                const marker = document.createElement("div");
+                marker.className = "sb-segment-marker";
+                marker.style.cssText = `left:${(start / video.duration) * 100}%;width:${widthPct}%;background:${color};`;
+                progWrapper.appendChild(marker);
+            });
+        };
+
+        // U9: Skip badge with undo
+        let _skipBadgeTimer = null;
+        let _lastSkipStartTime = null;
+        const showSkipBadge = (category, startTime) => {
+            clearTimeout(_skipBadgeTimer);
+            _lastSkipStartTime = startTime;
+            skipBadge.textContent = SEGMENT_LABELS[category] || "Segment Skipped";
+            skipBadge.style.background = SEGMENT_COLORS[category] || "var(--wp-primary, #A8C7FA)";
+            skipBadge.style.color = category === "music_offtopic" ? "var(--md-sys-color-background, #1A1D24)" : "#062E6F";
+            skipBadge.style.display = "block";
+            requestAnimationFrame(() => skipBadge.classList.add("showing"));
+            if (startTime !== null) {
+                skipUndoBtn.style.display = "";
+                requestAnimationFrame(() => skipUndoBtn.classList.add("showing"));
+            }
+            _skipBadgeTimer = setTimeout(() => {
+                skipBadge.classList.remove("showing");
+                skipUndoBtn.classList.remove("showing");
+                _skipBadgeTimer = setTimeout(() => {
+                    skipBadge.style.display = "none";
+                    skipUndoBtn.style.display = "none";
+                }, 200);
+            }, 3500);
+        };
+        on(skipUndoBtn, "click", () => {
+            if (_lastSkipStartTime !== null) {
+                clearTimeout(_skipBadgeTimer);
+                video.currentTime = _lastSkipStartTime;
+                _lastSkipStartTime = null;
+                skipBadge.classList.remove("showing");
+                skipUndoBtn.classList.remove("showing");
+                setTimeout(() => { skipBadge.style.display = "none"; skipUndoBtn.style.display = "none"; }, 200);
+                showFeedback("Skip Undone");
+            }
+        });
+
+        fetchSegments().then(segs => {
+            skipSegments = segs;
+            if (segs.length && isFinite(video.duration) && video.duration > 0) renderSegmentMarkers();
+        });
+        on(video, "loadedmetadata", renderSegmentMarkers);
 
         on(video, "timeupdate", () => {
             if (_isSkipping || !skipSegments.length) return;
@@ -1063,7 +1249,7 @@
                     _isSkipping = true;
                     skippedIds.add(segId);
                     video.currentTime = end;
-                    showFeedback(SEGMENT_LABELS[seg.category] || "Segment Skipped");
+                    showSkipBadge(seg.category, start);
                     on(video, "seeked", () => { _isSkipping = false; }, { once: true });
                     setTimeout(() => { _isSkipping = false; }, 1000);
                     break;
@@ -1169,11 +1355,13 @@
             clearTimeout(hideTimer);
             clearTimeout(scrubTimeout);
             clearTimeout(_overlayFeedbackTimer);
+            clearTimeout(_enhanceStorageDebounce);
+            clearTimeout(_skipBadgeTimer);
             ro.disconnect();
             if (cro) cro.disconnect();
             if (_safeAreaProbe) _safeAreaProbe.remove();
             shadowHost.remove();
-            video.dataset.customPlayerActive = "";
+            delete video.dataset.customPlayerActive;
             video.controls = (video.dataset.originalControls === "true");
             if (video.__wpOverlayAbortController === overlayController) {
                 delete video.__wpOverlayAbortController;
@@ -1249,6 +1437,73 @@
 
         on(uiWrapper.querySelector("#wp-skip-back"), "click", () => { video.currentTime = Math.max(0, video.currentTime - 10); showFeedback("−10s"); });
         on(uiWrapper.querySelector("#wp-skip-fwd"), "click",  () => { safeSeekForward(video, 10); showFeedback("+10s"); });
+
+        // U1: Volume slider + mute button
+        const muteBtn = uiWrapper.querySelector("#wp-mute");
+        const volSlider = uiWrapper.querySelector("#wp-volume");
+        const updateMuteIcon = () => {
+            if (video.muted || video.volume === 0) setSVG(muteBtn, IC.volumeOff);
+            else if (video.volume < 0.5) setSVG(muteBtn, IC.volumeDown);
+            else setSVG(muteBtn, IC.volumeUp);
+        };
+        if (volSlider) {
+            on(volSlider, "input", () => {
+                video.volume = parseFloat(volSlider.value);
+                video.muted = video.volume === 0;
+                updateMuteIcon();
+            });
+        }
+        if (muteBtn) {
+            on(muteBtn, "click", () => {
+                if (video.volume === 0 && video.muted) { video.volume = 1; video.muted = false; }
+                else if (video.volume === 0) { video.volume = 1; }
+                else { video.muted = !video.muted; }
+                if (volSlider) volSlider.value = video.muted ? 0 : video.volume;
+                updateMuteIcon();
+                showFeedback(video.muted ? "Muted" : `Vol: ${Math.round(video.volume * 100)}%`);
+            });
+        }
+        on(video, "volumechange", () => {
+            updateMuteIcon();
+            if (volSlider) volSlider.value = video.muted ? 0 : video.volume;
+        });
+
+        // U2: Error overlay
+        const errTypeEl = errorOverlay.querySelector("#wp-error-type");
+        const errMsgEl = errorOverlay.querySelector("#wp-error-msg");
+        const errRetryBtn = errorOverlay.querySelector("#wp-error-retry");
+        on(video, "error", () => {
+            const err = video.error;
+            if (!err) return;
+            const typeMap = { 1: "Aborted", 2: "Network Error", 3: "Decode Error", 4: "Source Not Supported" };
+            errTypeEl.textContent = typeMap[err.code] || "Playback Error";
+            errMsgEl.textContent = err.message || "The video could not be played.";
+            errorOverlay.classList.add("visible");
+        });
+        if (errRetryBtn) {
+            on(errRetryBtn, "click", () => {
+                errorOverlay.classList.remove("visible");
+                const src = video.src;
+                video.src = "";
+                video.src = src;
+                safePlay(video);
+            });
+        }
+
+        // U6: Seek time tooltip on progress hover
+        const seekTooltip = uiWrapper.querySelector("#wp-seek-tooltip");
+        if (prog && seekTooltip && progWrapper) {
+            on(progWrapper, "pointermove", (e) => {
+                if (!isFinite(video.duration) || video.duration === 0) { seekTooltip.classList.remove("visible"); return; }
+                const rect = progWrapper.getBoundingClientRect();
+                const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                const time = pct * video.duration;
+                seekTooltip.textContent = formatTime(time);
+                seekTooltip.style.left = `${pct * 100}%`;
+                seekTooltip.classList.add("visible");
+            });
+            on(progWrapper, "pointerleave", () => { seekTooltip.classList.remove("visible"); });
+        }
         on(uiWrapper.querySelector("#wp-standalone"), "click", async () => {
             let src = video.src;
             let embedUrl = latestInterceptedEmbedUrl || "";
@@ -1441,8 +1696,8 @@
             const diffY = e.clientY - startY;
 
             if (!swipeDir) {
-                if (Math.abs(diffX) > 20)      { swipeDir = "horizontal"; gestureZone.style.touchAction = "none"; }
-                else if (Math.abs(diffY) > 20) { swipeDir = "vertical"; }
+                if (Math.abs(diffX) > 40)      { swipeDir = "horizontal"; gestureZone.style.touchAction = "none"; }
+                else if (Math.abs(diffY) > 40) { swipeDir = "vertical"; }
                 if (swipeDir) {
                     clearTimeout(longPressTimer);
                     longPressTimer = null;
@@ -1579,8 +1834,7 @@
                             // Preserve user activation for Firefox mobile fullscreen
                             const fsBtn = uiWrapper.querySelector("#wp-fs");
                             if (fsBtn) {
-                                const fsClickEvent = new PointerEvent("click", { bubbles: true, cancelable: true, ...e });
-                                fsBtn.dispatchEvent(fsClickEvent);
+                                fsBtn.click();
                             }
                         }
                         lastTapTime = 0;

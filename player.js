@@ -990,6 +990,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     };
 
     let isDraggingProgress = false;
+    let _wasPlayingBeforeDrag = false;
 
     player.addEventListener("loadedmetadata", () => {
         const liveBadge = document.getElementById("wp-live-badge");
@@ -1158,8 +1159,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         e.stopPropagation();
         isDraggingProgress = true;
         
-        window.__wasPlayingBeforeDrag = !player.paused;
-        if (window.__wasPlayingBeforeDrag) safePause();
+        _wasPlayingBeforeDrag = !player.paused;
+        if (_wasPlayingBeforeDrag) safePause();
         
         progWrapper.classList.add("dragging");
         try { progWrapper.setPointerCapture(e.pointerId); } catch (_) {}
@@ -1173,7 +1174,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             
             if (isFinite(player.duration)) {
                 player.currentTime = pendingSeekPct * player.duration;
-                if (window.__wasPlayingBeforeDrag) {
+                if (_wasPlayingBeforeDrag) {
                     player.addEventListener("seeked", () => safePlay(), { once: true });
                 }
             }
