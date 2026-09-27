@@ -90,21 +90,45 @@
                         position: fixed; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); right: calc(20px + env(safe-area-inset-right, 0px)); z-index: 2147483647;
                         background: rgba(20, 20, 30, 0.9); backdrop-filter: blur(8px);
                         border: 1px solid rgba(255,255,255,0.1); border-radius: 12px;
-                        padding: 12px 20px; color: white; display: flex; align-items: center; gap: 12px;
+                        padding: 12px 20px; color: white; display: flex; flex-direction: column; gap: 8px;
                         box-shadow: 0 8px 24px rgba(0,0,0,0.3); font-family: system-ui, sans-serif;
                         animation: wp-slide-in 0.3s ease-out; max-width: calc(100vw - 40px);
                     `;
-                    const tempDoc = new DOMParser().parseFromString(`
-                        <div style="display:flex; flex-direction:column;">
-                            <span style="font-weight: 600; font-size: 14px;">Stream Detected</span>
-                            <span style="font-size: 12px; color: #aaa;">HLS/DASH stream available</span>
-                        </div>
-                        <div style="display:flex; gap: 8px;">
-                            <button class="wp-prompt-ignore" style="background: rgba(255,255,255,0.1); border: none; padding: 6px 12px; border-radius: 6px; color: white; cursor: pointer; font-size: 12px; transition: 0.2s;">Ignore</button>
-                            <button class="wp-prompt-launch" style="background: #4A9EFF; border: none; padding: 6px 12px; border-radius: 6px; color: white; cursor: pointer; font-size: 12px; font-weight: bold; transition: 0.2s;">Launch Player</button>
-                        </div>
-                    `, 'text/html');
-                    while (tempDoc.body.firstChild) prompt.appendChild(tempDoc.body.firstChild);
+                    // Bug 4: Use createElement instead of DOMParser for proper document context
+                    const contentRow = document.createElement("div");
+                    contentRow.style.cssText = "display:flex; align-items:center; gap:12px;";
+                    const textCol = document.createElement("div");
+                    textCol.style.cssText = "display:flex; flex-direction:column;";
+                    const titleSpan = document.createElement("span");
+                    titleSpan.style.cssText = "font-weight: 600; font-size: 14px;";
+                    titleSpan.textContent = "Stream Detected";
+                    const subtitleSpan = document.createElement("span");
+                    subtitleSpan.style.cssText = "font-size: 12px; color: #aaa;";
+                    subtitleSpan.textContent = "HLS/DASH stream available";
+                    textCol.appendChild(titleSpan);
+                    textCol.appendChild(subtitleSpan);
+                    const btnGroup = document.createElement("div");
+                    btnGroup.style.cssText = "display:flex; gap: 8px;";
+                    const ignoreBtn = document.createElement("button");
+                    ignoreBtn.className = "wp-prompt-ignore";
+                    ignoreBtn.style.cssText = "background: rgba(255,255,255,0.1); border: none; padding: 6px 12px; border-radius: 6px; color: white; cursor: pointer; font-size: 12px; transition: 0.2s;";
+                    ignoreBtn.textContent = "Ignore";
+                    const launchBtn = document.createElement("button");
+                    launchBtn.className = "wp-prompt-launch";
+                    launchBtn.style.cssText = "background: #4A9EFF; border: none; padding: 6px 12px; border-radius: 6px; color: white; cursor: pointer; font-size: 12px; font-weight: bold; transition: 0.2s;";
+                    launchBtn.textContent = "Launch Player";
+                    btnGroup.appendChild(ignoreBtn);
+                    btnGroup.appendChild(launchBtn);
+                    contentRow.appendChild(textCol);
+                    contentRow.appendChild(btnGroup);
+                    prompt.appendChild(contentRow);
+                    // UI 2: Countdown progress bar so users know the popup will auto-dismiss
+                    const progressBar = document.createElement("div");
+                    progressBar.style.cssText = "width: 100%; height: 3px; border-radius: 2px; background: rgba(255,255,255,0.1); overflow: hidden;";
+                    const progressFill = document.createElement("div");
+                    progressFill.style.cssText = "height: 100%; width: 100%; background: #4A9EFF; border-radius: 2px; transition: width 15s linear;";
+                    progressBar.appendChild(progressFill);
+                    prompt.appendChild(progressBar);
                     
                     if (!document.getElementById("wp-prompt-style")) {
                         const s = document.createElement("style");
@@ -114,19 +138,23 @@
                     }
                     
                     getRootContainer()?.appendChild(prompt);
+                    // Trigger the countdown animation after a frame so the transition takes effect
+                    requestAnimationFrame(() => { progressFill.style.width = "0%"; });
                     
+                    let _promptDismissTimer;
                     const closePrompt = () => {
+                        clearTimeout(_promptDismissTimer);
                         prompt.style.opacity = "0";
                         prompt.style.transform = "translateY(20px)";
                         prompt.style.transition = "all 0.3s ease-in";
                         setTimeout(() => prompt.remove(), 300);
                     };
                     
-                    prompt.querySelector(".wp-prompt-ignore").onclick = () => {
+                    ignoreBtn.onclick = () => {
                         clearPendingStream(msg.url);
                         closePrompt();
                     };
-                    prompt.querySelector(".wp-prompt-launch").onclick = () => {
+                    launchBtn.onclick = () => {
                         closePrompt();
                         clearPendingStream(msg.url);
                         if (!hasValidExtensionContext()) return;
@@ -145,8 +173,20 @@
                             console.warn("[WebPlayer] Cannot send launch message:", e);
                         }
                     };
+                    // UI 3: Allow clicking outside the popup to dismiss it
+                    const outsideClickHandler = (e) => {
+                        if (!prompt.contains(e.target)) {
+                            document.removeEventListener("pointerdown", outsideClickHandler, true);
+                            clearPendingStream(msg.url);
+                            closePrompt();
+                        }
+                    };
+                    setTimeout(() => document.addEventListener("pointerdown", outsideClickHandler, true), 100);
                     
-                    setTimeout(closePrompt, 15000);
+                    _promptDismissTimer = setTimeout(() => {
+                        document.removeEventListener("pointerdown", outsideClickHandler, true);
+                        closePrompt();
+                    }, 15000);
                 }
             });
         } catch (e) {
@@ -489,6 +529,8 @@
             #wp-enhance-reset-btn { width: 100%; padding: 8px; border-radius: 12px; background: rgba(255,255,255,0.06); color: #C4C7C5; font-size: 13px; font-weight: 600; border: 1px solid rgba(255,255,255,0.08); transition: all 0.2s; margin-top: 8px; justify-content: center; cursor: pointer; }
             #wp-enhance-reset-btn:hover { background: rgba(255,255,255,0.12); color: #E3E3E3; }
             .enhance-popover { width: min(340px, calc(100vw - 48px)); right: 0; gap: 12px; }
+            /* Mobile 1: Prevent popovers from overflowing into notch/Dynamic Island */
+            .popover-card { max-height: calc(60vh - env(safe-area-inset-top, 0px)); overflow-y: auto; }
             button.has-active-effect { position: relative; }
             button.has-active-effect::after {
                 content: ''; position: absolute; bottom: 3px; right: 3px;
@@ -537,6 +579,10 @@
             .wp-volume-slider:focus-within { width: 72px; opacity: 1; }
             @media (hover: none), (pointer: coarse) {
                 .wp-volume-slider { width: 72px; opacity: 1; }
+            }
+            /* Mobile 4: Hide volume slider on narrow phones — use mute btn + swipe gesture */
+            @media (pointer: coarse) and (max-width: 480px) {
+                .wp-volume-slider { width: 0 !important; opacity: 0 !important; }
             }
             .wp-skip-badge {
                 position: absolute; top: max(12%, calc(env(safe-area-inset-top, 0px) + 8px)); left: 50%; transform: translateX(-50%);
@@ -727,10 +773,23 @@
         skipUndoBtn.textContent = "Undo";
         shadow.appendChild(skipUndoBtn);
 
-        // U2: Error overlay
+        // U2: Error overlay (Bug 2: use createElement instead of innerHTML to avoid XSS risk)
         const errorOverlay = document.createElement("div");
         errorOverlay.className = "wp-error-overlay";
-        errorOverlay.innerHTML = '<div class="wp-error-type" id="wp-error-type">Error</div><div class="wp-error-msg" id="wp-error-msg"></div><button class="wp-error-retry" id="wp-error-retry">Retry</button>';
+        const errTypeDiv = document.createElement("div");
+        errTypeDiv.className = "wp-error-type";
+        errTypeDiv.id = "wp-error-type";
+        errTypeDiv.textContent = "Error";
+        const errMsgDiv = document.createElement("div");
+        errMsgDiv.className = "wp-error-msg";
+        errMsgDiv.id = "wp-error-msg";
+        const errRetryButton = document.createElement("button");
+        errRetryButton.className = "wp-error-retry";
+        errRetryButton.id = "wp-error-retry";
+        errRetryButton.textContent = "Retry";
+        errorOverlay.appendChild(errTypeDiv);
+        errorOverlay.appendChild(errMsgDiv);
+        errorOverlay.appendChild(errRetryButton);
         shadow.appendChild(errorOverlay);
 
         // --- Video Enhancer Sync ---
@@ -806,9 +865,10 @@
             enhanceStateContent[key] = parseFloat(val);
             enhanceStateContent.preset = null;
             clearTimeout(_enhanceStorageDebounce);
+            // Bug 11: Increased debounce to 600ms to reduce storage writes during rapid slider dragging
             _enhanceStorageDebounce = setTimeout(() => {
                 try { chrome.storage.local.set({ wp_enhancer_settings: enhanceStateContent }); } catch (_) {}
-            }, 300);
+            }, 600);
             applyContentEnhancements(enhanceStateContent);
         };
 
@@ -930,14 +990,15 @@
         }
 
         // U8: Animated popover close helper
+        // Bug 1: Use a coordinated cleanup + timeout fallback to prevent
+        // hanging in "closing" state if prefers-reduced-motion changes mid-session.
         const closeOverlayPopover = (popoverEl, toggleBtn) => {
             if (!popoverEl || !popoverEl.classList.contains("active") || popoverEl.classList.contains("closing")) return;
             popoverEl.classList.add("closing");
             if (toggleBtn) toggleBtn.setAttribute("aria-expanded", "false");
-            popoverEl.addEventListener("animationend", () => {
-                popoverEl.classList.remove("active", "closing");
-            }, { once: true });
-            setTimeout(() => { popoverEl.classList.remove("active", "closing"); }, 300);
+            const cleanup = () => { popoverEl.classList.remove("active", "closing"); clearTimeout(fallback); };
+            const fallback = setTimeout(cleanup, 300);
+            popoverEl.addEventListener("animationend", cleanup, { once: true });
         };
 
         const closeAllDropdownsExcept = (keepOpenBtn) => {
@@ -1223,6 +1284,14 @@
         on(skipUndoBtn, "click", () => {
             if (_lastSkipStartTime !== null) {
                 clearTimeout(_skipBadgeTimer);
+                // Bug 9: Remove segment from skippedIds so it can re-skip if user seeks back
+                for (const seg of skipSegments) {
+                    const start = seg.segment?.[0] ?? seg.start;
+                    if (Math.abs(start - _lastSkipStartTime) < 0.5) {
+                        skippedIds.delete(seg.UUID || start);
+                        break;
+                    }
+                }
                 video.currentTime = _lastSkipStartTime;
                 _lastSkipStartTime = null;
                 skipBadge.classList.remove("showing");
@@ -1282,6 +1351,8 @@
             if (isTextEntryTarget(e.target)) return;
             if (e.ctrlKey || e.metaKey || e.altKey) return;
             if (e.defaultPrevented) return;
+            // Bug 6: Only intercept when overlay is active on this video
+            if (!video.dataset.customPlayerActive) return;
             const togglePlayPause = () => {
                 const wasPaused = video.paused;
                 wasPaused ? safePlay(video) : safePause(video);
@@ -1296,11 +1367,13 @@
             // Keep e.code as a fallback because some sites/remotes can emit unexpected key values.
             if (key === " " || key === "spacebar" || e.code === "Space") {
                 e.preventDefault();
+                e.stopPropagation(); // Bug 6: Prevent host page from also handling
                 togglePlayPause();
                 return;
             }
             if (key === "m" || e.code === "KeyM") {
                 e.preventDefault();
+                e.stopPropagation(); // Bug 6
                 toggleMute();
                 return;
             }
@@ -1308,20 +1381,24 @@
             switch (e.key) {
                 case "k": case "K":
                     e.preventDefault();
+                    e.stopPropagation(); // Bug 6
                     togglePlayPause();
                     break;
                 case "ArrowLeft":
                     e.preventDefault();
+                    e.stopPropagation(); // Bug 6
                     video.currentTime = Math.max(0, video.currentTime - 10);
                     showFeedback("−10s");
                     break;
                 case "ArrowRight":
                     e.preventDefault();
+                    e.stopPropagation(); // Bug 6
                     safeSeekForward(video, 10);
                     showFeedback("+10s");
                     break;
                 case "ArrowUp":
                     e.preventDefault();
+                    e.stopPropagation(); // Bug 6
                     video.volume = Math.min(1, video.volume + 0.05);
                     video.muted = false;
                     showFeedback(`Vol: ${Math.round(video.volume * 100)}%`);
@@ -1329,17 +1406,22 @@
                     break;
                 case "ArrowDown":
                     e.preventDefault();
+                    e.stopPropagation(); // Bug 6
                     video.volume = Math.max(0, video.volume - 0.05);
                     if (video.volume < 0.001) video.muted = true;
                     showFeedback(`Vol: ${Math.round(video.volume * 100)}%`);
                     showControls();
                     break;
                 case "f": case "F":
+                    e.stopPropagation(); // Bug 6
                     uiWrapper.querySelector("#wp-fs").click();
                     break;
                 case "r": case "R":
+                    e.stopPropagation(); // Bug 6
                     uiWrapper.querySelector("#wp-rotate").click();
                     break;
+                default:
+                    return; // Don't stopPropagation for unbound keys
             }
         };
         on(document, "keydown", handleKeyDown);
@@ -1463,9 +1545,11 @@
                 showFeedback(video.muted ? "Muted" : `Vol: ${Math.round(video.volume * 100)}%`);
             });
         }
+        // Bug 5: Always show actual volume level; icon handles mute state visually.
+        // Prevents jarring jump from 0 to real volume on unmute.
         on(video, "volumechange", () => {
             updateMuteIcon();
-            if (volSlider) volSlider.value = video.muted ? 0 : video.volume;
+            if (volSlider) volSlider.value = video.volume;
         });
 
         // U2: Error overlay
@@ -1505,6 +1589,8 @@
             on(progWrapper, "pointerleave", () => { seekTooltip.classList.remove("visible"); });
         }
         on(uiWrapper.querySelector("#wp-standalone"), "click", async () => {
+            // UI 1: Immediate visual feedback while resolving source URL
+            showFeedback("Opening player…");
             let src = video.src;
             let embedUrl = latestInterceptedEmbedUrl || "";
             if (!src || src.startsWith("blob:")) {
@@ -1649,6 +1735,8 @@
         let currentBrightness = 1.0, originalBrightness = 1.0, originalSpeed = 1.0;
         let longPressTimer = null;
         let isLongPressActive = false;
+        // Mobile 7: Cache vibrate support to avoid try/catch overhead on every gesture
+        const _canVibrate = typeof navigator !== 'undefined' && 'vibrate' in navigator && typeof navigator.vibrate === 'function';
 
         on(gestureZone, "contextmenu", e => e.preventDefault());
 
@@ -1676,7 +1764,7 @@
                 setPlaybackRate(2.0);
                 showFeedback("2× Speed");
                 // M5: Haptic feedback on long-press speed boost
-                if (navigator.vibrate) try { navigator.vibrate(30); } catch (_) {}
+                if (_canVibrate) try { navigator.vibrate(30); } catch (_) {}
                 setTimeout(() => {
                     if (isLongPressActive) uiWrapper.classList.remove("wp-controls-visible");
                 }, 500);
@@ -1812,7 +1900,7 @@
                         showFeedback("−10s", "left");
                         showSeekAnim("left");
                         // M5: Haptic feedback on double-tap seek
-                        if (navigator.vibrate) try { navigator.vibrate(15); } catch (_) {}
+                        if (_canVibrate) try { navigator.vibrate(15); } catch (_) {}
                         lastTapTime = now;
                         // Brief cooldown to prevent accidental triple-tap double-seek
                         setTimeout(() => { if (lastTapTime === now) lastTapTime = 0; }, 300);
@@ -1821,7 +1909,7 @@
                         showFeedback("+10s", "right");
                         showSeekAnim("right");
                         // M5: Haptic feedback on double-tap seek
-                        if (navigator.vibrate) try { navigator.vibrate(15); } catch (_) {}
+                        if (_canVibrate) try { navigator.vibrate(15); } catch (_) {}
                         lastTapTime = now;
                         setTimeout(() => { if (lastTapTime === now) lastTapTime = 0; }, 300);
                     } else {

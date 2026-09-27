@@ -57,12 +57,6 @@ function enqueuePendingStreamSerialized(next) {
         .then(() => new Promise((resolve) => {
             enqueuePendingStream(next, resolve);
         }));
-    const currentWrite = pendingQueueWrite;
-    currentWrite.finally(() => {
-        if (pendingQueueWrite === currentWrite) {
-            pendingQueueWrite = Promise.resolve();
-        }
-    });
 }
 
 if (chrome?.runtime?.onInstalled) {

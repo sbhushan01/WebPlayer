@@ -6,7 +6,9 @@
 .webplayer-active .ytp-iv-video-content,
 .webplayer-active ytm-custom-control,
 .webplayer-active ytm-player-overlay-container,
-.webplayer-active ytm-mobile-video-player-overlay {
+.webplayer-active ytm-mobile-video-player-overlay,
+.webplayer-active .ytp-settings-menu,
+.webplayer-active .ytp-popup {
     display: none !important;
     opacity: 0 !important;
     pointer-events: none !important;

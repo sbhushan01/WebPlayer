@@ -239,6 +239,10 @@
             width: 160px; height: 90px; border-radius: 10px; object-fit: cover;
             border: 2px solid rgba(255,255,255,0.2); background: #000;
         }
+        /* UI 4: Scale up seek preview on large monitors where 160×90 looks tiny */
+        @media (min-width: 1200px) {
+            #seek-preview-canvas { width: 200px; height: 112px; }
+        }
         #seek-preview-time {
             margin-top: 4px; font-size: 0.8rem; font-weight: 600; color: #FFF;
             background: rgba(0,0,0,0.7); padding: 2px 10px; border-radius: 8px;
@@ -250,7 +254,7 @@
         }
 
         /* ── Controls layout ─────────────────────────────────────────────────── */
-        .controls-row { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+        .controls-row { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 8px; }
         .controls-left, .controls-right { display: flex; align-items: center; gap: 8px; }
         .time-display {
             font-size: 0.9rem; font-variant-numeric: tabular-nums; 
@@ -788,7 +792,7 @@
                                 </div>
                                 <div class="speed-fine-tune">
                                     <span id="speed-micro-label">1.00×</span>
-                                    <input type="range" id="speed-micro-range" min="0.25" max="3" step="0.05" value="1">
+                                    <input type="range" id="speed-micro-range" min="0.25" max="3" step="0.05" value="1" aria-label="Fine-tune playback speed">
                                 </div>
                             </div>
                         </div>

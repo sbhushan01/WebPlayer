@@ -249,6 +249,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         }).catch(() => {});
     });
 
+    // UI 9: Reset retry counter on successful playback so future errors start fresh
+    player.addEventListener("playing", () => { _retryCount = 0; });
+
     let _retryCount = 0;
     const MAX_RETRIES = 5;
     const retryBtn = document.getElementById("error-retry");
@@ -708,6 +711,16 @@ document.addEventListener("DOMContentLoaded", async () => {
                                 populateQuality(levels);
                             }
                         });
+                        // UI 6: Update quality dropdown active indicator when HLS auto-switches
+                        currentHls.on(Hls.Events.LEVEL_SWITCHED, (e, data) => {
+                            qualityDropdown.querySelectorAll(".quality-option").forEach(btn => {
+                                const val = parseInt(btn.dataset.value);
+                                const isAuto = currentHls.autoLevelEnabled && val === -1;
+                                const isLevel = val === data.level;
+                                btn.classList.toggle("active", isAuto || isLevel);
+                                btn.setAttribute("aria-selected", (isAuto || isLevel) ? "true" : "false");
+                            });
+                        });
                         // One-shot recovery flags — prevent infinite retry loops.
                         // Flags are reset on `playing` so a later transient error
                         // can also be recovered once.
@@ -947,6 +960,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         skipUndoBtn.addEventListener("click", () => {
             if (_lastSkipStartTime !== null) {
                 clearTimeout(_skipBadgeTimer);
+                // Bug 9: Remove segment from skippedIds so it can re-skip if user seeks back
+                for (const seg of skipSegments) {
+                    const start = seg.segment?.[0] ?? seg.start;
+                    if (Math.abs(start - _lastSkipStartTime) < 0.5) {
+                        skippedIds.delete(seg.UUID || start);
+                        break;
+                    }
+                }
                 player.currentTime = _lastSkipStartTime;
                 _lastSkipStartTime = null;
                 skipBadge.classList.remove("showing");
@@ -981,7 +1002,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // ── Progress bar ──────────────────────────────────────────────────────────
     const formatTime = (sec) => {
-        if (!isFinite(sec)) return "0:00";
+        if (!isFinite(sec) || sec < 0) return "0:00";
         const h = Math.floor(sec / 3600);
         const m = Math.floor((sec % 3600) / 60);
         const s = Math.floor(sec % 60).toString().padStart(2, "0");
@@ -1426,6 +1447,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     syncViewportHeight();
     window.addEventListener("resize", syncViewportHeight, { passive: true });
     window.visualViewport?.addEventListener("resize", syncViewportHeight, { passive: true });
+    // Mobile 6: On some Android WebViews orientationchange fires before resize
+    window.addEventListener("orientationchange", () => {
+        setTimeout(syncViewportHeight, 150);
+    }, { passive: true });
 
     // Scroll indicator for mobile controls row (Bug #2 fix)
     const controlsRowEl = document.querySelector('.controls-row');
@@ -1448,9 +1473,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         // B3: guard against double-close racing the animationend listener
         if (!popoverEl.classList.contains("active") || popoverEl.classList.contains("closing")) return;
         popoverEl.classList.add("closing");
-        popoverEl.addEventListener("animationend", () => {
-            popoverEl.classList.remove("active", "closing");
-        }, { once: true });
+        // Bug 1: Use a timeout fallback to prevent hanging in "closing" state
+        // if prefers-reduced-motion is toggled mid-session or animation is skipped.
+        const cleanup = () => { popoverEl.classList.remove("active", "closing"); clearTimeout(fallback); };
+        const fallback = setTimeout(cleanup, 300);
+        popoverEl.addEventListener("animationend", cleanup, { once: true });
     };
 
     const closeAllPopovers = () => {
@@ -1767,6 +1794,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     gestureZone.style.userSelect     = "none";
     gestureZone.style.webkitUserSelect = "none";
 
+    // Mobile 7: Cache vibrate support to avoid try/catch overhead on every gesture
+    const _canVibrate = typeof navigator !== 'undefined' && 'vibrate' in navigator && typeof navigator.vibrate === 'function';
+
     // Bug 7: Compute safe-area-aware edge exclusion zone for swipe gestures
     const _safeAreaProbe = document.createElement('div');
     _safeAreaProbe.style.cssText = 'position:fixed;left:env(safe-area-inset-left,0px);right:env(safe-area-inset-right,0px);pointer-events:none;visibility:hidden;';
@@ -1807,7 +1837,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             setPlaybackRate(2.0); // BUG FIX: use setPlaybackRate to sync pills
             showFeedback("2× Speed");
             // M6: Haptic feedback on long-press speed boost
-            if (navigator.vibrate) try { navigator.vibrate(30); } catch (_) {}
+            if (_canVibrate) try { navigator.vibrate(30); } catch (_) {}
             setTimeout(() => {
                 if (isLongPressActive) container.classList.add("idle");
             }, 500);
@@ -1893,7 +1923,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             player.currentTime = Math.max(0, Math.min(player.duration || Infinity, player.currentTime + shift));
             showFeedback(`${shift > 0 ? "+" : ""}${shift}s`, shift > 0 ? "right" : "left");
             // M6: Haptic feedback on swipe seek
-            if (navigator.vibrate) try { navigator.vibrate(15); } catch (_) {}
+            if (_canVibrate) try { navigator.vibrate(15); } catch (_) {}
             return;
         }
 
@@ -1928,7 +1958,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     // Brief cooldown to prevent accidental triple-tap double-seek
                     setTimeout(() => { if (lastTapTime === now) lastTapTime = 0; }, 300);
                     // M6: Haptic feedback on double-tap seek
-                    if (navigator.vibrate) try { navigator.vibrate(15); } catch (_) {}
+                    if (_canVibrate) try { navigator.vibrate(15); } catch (_) {}
                 } else if (e.clientX > rect.left + rect.width * 0.70) {
                     player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 10);
                     showFeedback("+10s", "right");
@@ -1941,7 +1971,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     lastTapTime = now;
                     setTimeout(() => { if (lastTapTime === now) lastTapTime = 0; }, 300);
                     // M6: Haptic feedback on double-tap seek
-                    if (navigator.vibrate) try { navigator.vibrate(15); } catch (_) {}
+                    if (_canVibrate) try { navigator.vibrate(15); } catch (_) {}
                 } else {
                     // U8: Double tap center — play/pause for touch, fullscreen for mouse
                     if (currentBrightness !== 1.0) {
@@ -1957,7 +1987,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                         showFeedback(wasPaused ? "Playing" : "Paused");
                     }
                     // M6: Haptic feedback on double-tap
-                    if (navigator.vibrate) try { navigator.vibrate(20); } catch (_) {}
+                    if (_canVibrate) try { navigator.vibrate(20); } catch (_) {}
                     lastTapTime = 0;
                 }
             } else {
