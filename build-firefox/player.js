@@ -82,8 +82,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     ambilightCanvas.width = 16; ambilightCanvas.height = 16;
     const ambilightCtx = ambilightCanvas.getContext('2d', { willReadFrequently: true });
     const lBg = document.getElementById("loading-bg");
-    let _lBgSet = false; // Bug #7: flag to avoid repeated toDataURL() checks
-    let ambilightInterval = setInterval(() => {
+    let _lBgSet = false;
+
+    // B1: Extract to named function — avoids code duplication and prevents duplicate intervals
+    const _ambilightTick = () => {
         if (player.paused || !isFinite(player.duration) || player.videoWidth === 0) return;
         try {
             ambilightCtx.drawImage(player, 0, 0, 16, 16);
@@ -110,41 +112,14 @@ document.addEventListener("DOMContentLoaded", async () => {
                 _lBgSet = true;
             }
         } catch (_) {}
-    }, 2000);
+    };
+    let ambilightInterval = setInterval(_ambilightTick, 2000);
 
-    // Bug #3: Pause ambilight when tab is hidden to save CPU/GPU
+    // B1: Always clear the previous handle before re-creating to prevent CPU leak from duplicate intervals
     document.addEventListener("visibilitychange", () => {
-        if (document.hidden) {
-            clearInterval(ambilightInterval);
-        } else {
-            ambilightInterval = setInterval(() => {
-                if (player.paused || !isFinite(player.duration) || player.videoWidth === 0) return;
-                try {
-                    ambilightCtx.drawImage(player, 0, 0, 16, 16);
-                    const frame = ambilightCtx.getImageData(0, 0, 16, 16);
-                    let r = 0, g = 0, b = 0, count = 0;
-                    for (let i = 0; i < frame.data.length; i += 16) {
-                        r += frame.data[i]; g += frame.data[i + 1]; b += frame.data[i + 2]; count++;
-                    }
-                    if (count > 0) {
-                        r = Math.floor(r / count); g = Math.floor(g / count); b = Math.floor(b / count);
-                        const max = Math.max(r, g, b);
-                        if (max > 0) {
-                            const mult = 255 / max;
-                            r = Math.min(255, Math.floor(r * mult * 0.8));
-                            g = Math.min(255, Math.floor(g * mult * 0.8));
-                            b = Math.min(255, Math.floor(b * mult * 0.8));
-                        }
-                        document.documentElement.style.setProperty('--glow-color', `rgba(${r}, ${g}, ${b}, 0.5)`);
-                    }
-                    if (lBg && !_lBgSet) {
-                        lBg.style.backgroundImage = `url(${ambilightCanvas.toDataURL()})`;
-                        lBg.style.backgroundSize = 'cover';
-                        lBg.style.filter = 'blur(40px)';
-                        _lBgSet = true;
-                    }
-                } catch (_) {}
-            }, 2000);
+        clearInterval(ambilightInterval);
+        if (!document.hidden) {
+            ambilightInterval = setInterval(_ambilightTick, 2000);
         }
     });
 
@@ -274,8 +249,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         }).catch(() => {});
     });
 
+    // Bug 6: Declare _retryCount before the playing listener to avoid TDZ issues
     let _retryCount = 0;
     const MAX_RETRIES = 5;
+
+    // UI 9: Reset retry counter on successful playback so future errors start fresh
+    player.addEventListener("playing", () => { _retryCount = 0; });
+
     const retryBtn = document.getElementById("error-retry");
     retryBtn.addEventListener("click", () => {
         if (!videoSrc) { showError("No video source provided.", "Missing Source"); return; }
@@ -392,7 +372,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     const cdn = CDN_FALLBACKS[path];
                     if (cdn) {
                         console.warn(`[WebPlayer] Local ${path} failed, trying CDN fallback...`);
-                        try { showFeedback("Loading player engine\u2026"); } catch (_) {}
+                        try { bufferEl.classList.add("is-buffering"); } catch (_) {} // UX 4: Persistent loading indicator
                         const sf = document.createElement("script");
                         sf.src = cdn;
                         sf.onload  = resolve;
@@ -653,7 +633,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     async function attachSource(src) {
         destroyEngines();
+        player.removeAttribute("crossOrigin"); // B8: clear stale CORS attribute from any previous attempt
         bufferEl.classList.add("is-buffering");
+        const _bufText = document.getElementById("buffering-text"); // U6: show loading state
+        if (_bufText) { _bufText.textContent = "Loading stream\u2026"; _bufText.style.display = ""; }
         qualityContainer.style.display = "none";
         ccContainer.style.display = "none";
         audioContainer.style.display = "none";
@@ -700,7 +683,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                             if (d.levels && d.levels.length > 0) {
                                 const levels = [
                                     ...(d.levels.length > 1 ? [{ label: "Auto", value: -1 }] : []),
-                                    ...d.levels.map((l, i) => ({ label: `${l.height}p`, value: i }))
+                                    ...d.levels.map((l, i) => ({ label: l.height ? `${l.height}p` : (l.bitrate ? `${Math.round(l.bitrate / 1000)}kbps` : `Level ${i + 1}`), value: i })) // U7: fallback for missing height
                                 ];
                                 populateQuality(levels);
                             }
@@ -725,10 +708,20 @@ document.addEventListener("DOMContentLoaded", async () => {
                             if (lvls && lvls.length > 0) {
                                 const levels = [
                                     ...(lvls.length > 1 ? [{ label: "Auto", value: -1 }] : []),
-                                    ...lvls.map((l, i) => ({ label: `${l.height}p`, value: i }))
+                                    ...lvls.map((l, i) => ({ label: l.height ? `${l.height}p` : (l.bitrate ? `${Math.round(l.bitrate / 1000)}kbps` : `Level ${i + 1}`), value: i })) // U7
                                 ];
                                 populateQuality(levels);
                             }
+                        });
+                        // UI 6: Update quality dropdown active indicator when HLS auto-switches
+                        currentHls.on(Hls.Events.LEVEL_SWITCHED, (e, data) => {
+                            qualityDropdown.querySelectorAll(".quality-option").forEach(btn => {
+                                const val = parseInt(btn.dataset.value);
+                                const isAuto = currentHls.autoLevelEnabled && val === -1;
+                                const isLevel = val === data.level;
+                                btn.classList.toggle("active", isAuto || isLevel);
+                                btn.setAttribute("aria-selected", (isAuto || isLevel) ? "true" : "false");
+                            });
                         });
                         // One-shot recovery flags — prevent infinite retry loops.
                         // Flags are reset on `playing` so a later transient error
@@ -793,7 +786,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                         if (bitrates && bitrates.length > 0) {
                             const levels = [
                                 ...(bitrates.length > 1 ? [{ label: "Auto", value: -1 }] : []),
-                                ...bitrates.map((b, i) => ({ label: `${b.height}p`, value: i }))
+                                ...bitrates.map((b, i) => ({ label: b.height ? `${b.height}p` : (b.bitrate ? `${Math.round(b.bitrate / 1000)}kbps` : `Level ${i + 1}`), value: i })) // U7
                             ];
                             populateQuality(levels);
                         }
@@ -893,7 +886,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     let skipSegments = [];
-    fetchSegments().then(segs => { skipSegments = segs; });
+    fetchSegments().then(segs => {
+        skipSegments = segs;
+        // U5: render segment markers if duration is already known
+        if (segs.length && isFinite(player.duration) && player.duration > 0) renderSegmentMarkers();
+    });
     const skippedIds = new Set();
 
     // UI FIX: show specific segment category in badge
@@ -915,6 +912,22 @@ document.addEventListener("DOMContentLoaded", async () => {
         interaction:    "#BA68C8",
         music_offtopic: "#FFCA28",
         preview:        "#26A69A",
+    };
+
+    // U5: Draw SponsorBlock segment markers as coloured strips on the progress bar
+    const renderSegmentMarkers = () => {
+        progWrapper.querySelectorAll(".sb-segment-marker").forEach(m => m.remove());
+        if (!isFinite(player.duration) || player.duration === 0 || !skipSegments.length) return;
+        skipSegments.forEach(seg => {
+            const start = seg.segment?.[0] ?? seg.start;
+            const end   = seg.segment?.[1] ?? seg.end;
+            const color = SEGMENT_COLORS[seg.category] || "var(--md-sys-color-primary)";
+            const widthPct = Math.max(0.4, ((end - start) / player.duration) * 100);
+            const marker = document.createElement("div");
+            marker.className = "sb-segment-marker";
+            marker.style.cssText = `left:${(start / player.duration) * 100}%;width:${widthPct}%;background:${color};`;
+            progWrapper.insertBefore(marker, progThumb); // keep thumb above markers in z-order
+        });
     };
 
     let _skipBadgeTimer = null;
@@ -949,6 +962,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         skipUndoBtn.addEventListener("click", () => {
             if (_lastSkipStartTime !== null) {
                 clearTimeout(_skipBadgeTimer);
+                // Bug 9: Remove segment from skippedIds so it can re-skip if user seeks back
+                for (const seg of skipSegments) {
+                    const start = seg.segment?.[0] ?? seg.start;
+                    if (Math.abs(start - _lastSkipStartTime) < 0.5) {
+                        skippedIds.delete(seg.UUID || start);
+                        break;
+                    }
+                }
                 player.currentTime = _lastSkipStartTime;
                 _lastSkipStartTime = null;
                 skipBadge.classList.remove("showing");
@@ -983,7 +1004,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // ── Progress bar ──────────────────────────────────────────────────────────
     const formatTime = (sec) => {
-        if (!isFinite(sec)) return "0:00";
+        if (!isFinite(sec) || sec < 0) return "0:00";
         const h = Math.floor(sec / 3600);
         const m = Math.floor((sec % 3600) / 60);
         const s = Math.floor(sec % 60).toString().padStart(2, "0");
@@ -992,6 +1013,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     };
 
     let isDraggingProgress = false;
+    let _wasPlayingBeforeDrag = false;
 
     player.addEventListener("loadedmetadata", () => {
         const liveBadge = document.getElementById("wp-live-badge");
@@ -1002,6 +1024,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             timeDur.textContent = "";
             if (liveBadge) liveBadge.style.display = "inline-flex";
         }
+        renderSegmentMarkers(); // U5: re-render markers once duration is known
     });
     player.addEventListener("timeupdate", () => {
         if (isDraggingProgress) return;
@@ -1010,6 +1033,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             const pct = (player.currentTime / player.duration) * 100;
             progPlayed.style.width = `${pct}%`;
             progThumb.style.left   = `${pct}%`;
+            progWrapper.setAttribute("aria-valuenow", Math.round(pct)); // U2: keep ARIA value in sync
         }
     });
     player.addEventListener("progress", () => {
@@ -1054,6 +1078,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     };
 
     const capturePreviewFrame = (time) => {
+        // UX 3: Clear stale frame before capturing new one
+        seekCtx.clearRect(0, 0, 320, 180);
         const pv = getPreviewVideo();
         if (pv && _previewVideoReady) {
             // Use clone video — no flicker on main player
@@ -1158,8 +1184,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         e.stopPropagation();
         isDraggingProgress = true;
         
-        window.__wasPlayingBeforeDrag = !player.paused;
-        if (window.__wasPlayingBeforeDrag) safePause();
+        _wasPlayingBeforeDrag = !player.paused;
+        if (_wasPlayingBeforeDrag) safePause();
         
         progWrapper.classList.add("dragging");
         try { progWrapper.setPointerCapture(e.pointerId); } catch (_) {}
@@ -1173,7 +1199,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             
             if (isFinite(player.duration)) {
                 player.currentTime = pendingSeekPct * player.duration;
-                if (window.__wasPlayingBeforeDrag) {
+                if (_wasPlayingBeforeDrag) {
                     player.addEventListener("seeked", () => safePlay(), { once: true });
                 }
             }
@@ -1223,6 +1249,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         );
         speedMicroRange.value = rate;
         speedMicroLabel.textContent = `${rate.toFixed(2)}×`;
+        // U4: Show current speed in the toggle button tooltip so users can see it at a glance
+        speedToggleBtn.setAttribute("data-tooltip", `Speed: ${rate.toFixed(2)}×`);
     };
 
     // ── Play / Pause ──────────────────────────────────────────────────────────
@@ -1249,11 +1277,28 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // ── Buffering ─────────────────────────────────────────────────────────────
     // BUG FIX: also clear spinner on canplay and pause (prevents permanent spinner)
+    // U6: shared helper also clears the loading-state text
+    const _clearBufferUI = () => {
+        bufferEl.classList.remove("is-buffering");
+        const _bt = document.getElementById("buffering-text");
+        if (_bt) _bt.style.display = "none";
+    };
     player.addEventListener("waiting",  () => bufferEl.classList.add("is-buffering"));
-    player.addEventListener("playing",  () => bufferEl.classList.remove("is-buffering"));
-    player.addEventListener("canplay",  () => bufferEl.classList.remove("is-buffering"));
-    player.addEventListener("pause",    () => bufferEl.classList.remove("is-buffering"));
-    player.addEventListener("error",    () => bufferEl.classList.remove("is-buffering"));
+    player.addEventListener("playing",  _clearBufferUI);
+    player.addEventListener("canplay",  _clearBufferUI);
+    player.addEventListener("pause",    _clearBufferUI);
+    player.addEventListener("error",    _clearBufferUI);
+    // Mobile 1: Volume hint toast for hidden slider on narrow touch devices
+    player.addEventListener("playing", () => {
+        if (window.innerWidth <= 480 && matchMedia("(pointer: coarse)").matches) {
+            chrome.storage.local.get(["_wp_vol_hint_shown"], (res) => {
+                if (!res._wp_vol_hint_shown) {
+                    showFeedback("↕ Swipe up/down for volume", "center");
+                    chrome.storage.local.set({ _wp_vol_hint_shown: true });
+                }
+            });
+        }
+    });
 
     // ── Volume ────────────────────────────────────────────────────────────────
     const updateVolIcon = () => {
@@ -1269,10 +1314,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     };
 
+    const syncVolSliderStyle = () => {
+        const val = player.muted ? 0 : player.volume * 100;
+        volumeSlider.style.background = `linear-gradient(to right, var(--md-sys-color-primary) ${val}%, rgba(255,255,255,0.15) ${val}%)`;
+    };
+
     volumeSlider.addEventListener("input", (e) => {
         player.volume = parseFloat(e.target.value);
         player.muted  = player.volume === 0;
         updateVolIcon();
+        syncVolSliderStyle(); // UX 2
     });
     muteBtn.addEventListener("click", () => {
         if (player.volume === 0 && player.muted) {
@@ -1285,8 +1336,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
         volumeSlider.value = player.muted ? 0 : player.volume;
         updateVolIcon();
+        syncVolSliderStyle(); // UX 2
         muteBtn.setAttribute("aria-pressed", player.muted ? "true" : "false");
     });
+    player.addEventListener("volumechange", syncVolSliderStyle);
 
     // ── Speed controls ─────────────────────────────────────────────────────────
     speedPillsEl.querySelectorAll(".speed-pill").forEach(pill => {
@@ -1417,6 +1470,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     syncViewportHeight();
     window.addEventListener("resize", syncViewportHeight, { passive: true });
     window.visualViewport?.addEventListener("resize", syncViewportHeight, { passive: true });
+    // Mobile 6: On some Android WebViews orientationchange fires before resize
+    window.addEventListener("orientationchange", () => {
+        setTimeout(syncViewportHeight, 150);
+    }, { passive: true });
 
     // Scroll indicator for mobile controls row (Bug #2 fix)
     const controlsRowEl = document.querySelector('.controls-row');
@@ -1436,11 +1493,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     // ── Popovers ──────────────────────────────────────────────────────────────
     // U9: Animated popover close helper
     const closePopoverAnimated = (popoverEl) => {
-        if (!popoverEl.classList.contains("active")) return;
+        // B3: guard against double-close racing the animationend listener
+        if (!popoverEl.classList.contains("active") || popoverEl.classList.contains("closing")) return;
         popoverEl.classList.add("closing");
-        popoverEl.addEventListener("animationend", () => {
-            popoverEl.classList.remove("active", "closing");
-        }, { once: true });
+        // Bug 1: Use a timeout fallback to prevent hanging in "closing" state
+        // if prefers-reduced-motion is toggled mid-session or animation is skipped.
+        const cleanup = () => { popoverEl.classList.remove("active", "closing"); clearTimeout(fallback); };
+        const fallback = setTimeout(cleanup, 300);
+        popoverEl.addEventListener("animationend", cleanup, { once: true });
     };
 
     const closeAllPopovers = () => {
@@ -1564,7 +1624,20 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     });
 
+    // UX 6: Keyboard navigation (Escape) for remaining popovers
+    [speedPopover, eqPopover, enhancePopover, themePopover].forEach(popover => {
+        if (!popover) return;
+        popover.addEventListener("keydown", (e) => {
+            if (e.key === "Escape") {
+                e.preventDefault();
+                closeAllPopovers();
+            }
+            // ArrowLeft/Right natively adjust range inputs, Tab natively moves between focusable elements
+        });
+    });
+
     // ── Shortcuts side panel (#9) ─────────────────────────────────────────────
+    const shortcutsBackdrop = document.getElementById("shortcuts-backdrop"); // M5: modal backdrop
     let shortcutsLastFocusedEl = null;
     const isInAriaHiddenTree = (el) => {
         let node = el;
@@ -1582,6 +1655,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (shortcutsModal.classList.contains("active")) return;
         shortcutsLastFocusedEl = document.activeElement;
         shortcutsModal.classList.add("active");
+        shortcutsBackdrop?.classList.add("active"); // M5
         requestAnimationFrame(() => {
             (getShortcutsFocusableEls()[0] || shortcutsClose).focus();
         });
@@ -1589,6 +1663,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const closeShortcuts = () => {
         if (!shortcutsModal.classList.contains("active")) return;
         shortcutsModal.classList.remove("active");
+        shortcutsBackdrop?.classList.remove("active"); // M5
         if (shortcutsLastFocusedEl && shortcutsLastFocusedEl.isConnected) {
             shortcutsLastFocusedEl.focus();
         } else {
@@ -1602,6 +1677,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     shortcutsBtn.addEventListener("click", toggleShortcuts);
     shortcutsClose.addEventListener("click", closeShortcuts);
+    shortcutsBackdrop?.addEventListener("click", closeShortcuts); // M5: click backdrop to dismiss
     shortcutsModal.addEventListener("keydown", (e) => {
         if (!shortcutsModal.classList.contains("active")) return;
         if (e.key === "Escape") {
@@ -1722,6 +1798,14 @@ document.addEventListener("DOMContentLoaded", async () => {
                 setPlaybackRate(Math.min(3, Math.round((player.playbackRate + 0.25) * 100) / 100));
                 showFeedback(`${player.playbackRate.toFixed(2)}× Speed`);
                 break;
+            case "z":
+            case "Z":
+                // UX 8: SponsorBlock undo keyboard shortcut
+                const skipUndoBtn = document.getElementById("skip-undo-btn");
+                if (skipUndoBtn && skipUndoBtn.style.display !== "none") {
+                    skipUndoBtn.click();
+                }
+                break;
             case "Escape":
                 // Close any open modals/popovers or error box
                 if (errorBox.style.display === "flex") { errorBox.style.display = "none"; }
@@ -1753,6 +1837,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     gestureZone.style.userSelect     = "none";
     gestureZone.style.webkitUserSelect = "none";
 
+    // Mobile 7: Cache vibrate support to avoid try/catch overhead on every gesture
+    const _canVibrate = typeof navigator !== 'undefined' && 'vibrate' in navigator && typeof navigator.vibrate === 'function';
+
     // Bug 7: Compute safe-area-aware edge exclusion zone for swipe gestures
     const _safeAreaProbe = document.createElement('div');
     _safeAreaProbe.style.cssText = 'position:fixed;left:env(safe-area-inset-left,0px);right:env(safe-area-inset-right,0px);pointer-events:none;visibility:hidden;';
@@ -1761,7 +1848,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         const cs = getComputedStyle(_safeAreaProbe);
         const saLeft = parseInt(cs.left, 10) || 0;
         const saRight = parseInt(cs.right, 10) || 0;
-        return { left: Math.max(40, saLeft + 20), right: Math.max(40, saRight + 20) };
+        // Mobile 7: iOS Safari edge exclusion tuning (20px instead of 40px)
+        return { left: Math.max(20, saLeft + 10), right: Math.max(20, saRight + 10) };
     };
 
     let startX = 0, startY = 0, lastY = 0, swipeDir = null;
@@ -1793,7 +1881,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             setPlaybackRate(2.0); // BUG FIX: use setPlaybackRate to sync pills
             showFeedback("2× Speed");
             // M6: Haptic feedback on long-press speed boost
-            if (navigator.vibrate) try { navigator.vibrate(30); } catch (_) {}
+            if (_canVibrate) try { navigator.vibrate(30); } catch (_) {}
             setTimeout(() => {
                 if (isLongPressActive) container.classList.add("idle");
             }, 500);
@@ -1812,8 +1900,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         const diffX = e.clientX - startX;
         const diffY = e.clientY - startY;
         if (!swipeDir) {
-            if (Math.abs(diffX) > 30)      { swipeDir = "horizontal"; clearTimeout(longPressTimer); longPressTimer = null; }
-            else if (Math.abs(diffY) > 30) { swipeDir = "vertical";   clearTimeout(longPressTimer); longPressTimer = null; }
+            // M4: 40px threshold reduces accidental swipes during casual touches or pinch-zoom drift
+            if (Math.abs(diffX) > 40)      { swipeDir = "horizontal"; clearTimeout(longPressTimer); longPressTimer = null; }
+            else if (Math.abs(diffY) > 40) { swipeDir = "vertical";   clearTimeout(longPressTimer); longPressTimer = null; }
         }
         if (swipeDir === "vertical") {
             const rect   = gestureZone.getBoundingClientRect();
@@ -1878,7 +1967,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             player.currentTime = Math.max(0, Math.min(player.duration || Infinity, player.currentTime + shift));
             showFeedback(`${shift > 0 ? "+" : ""}${shift}s`, shift > 0 ? "right" : "left");
             // M6: Haptic feedback on swipe seek
-            if (navigator.vibrate) try { navigator.vibrate(15); } catch (_) {}
+            if (_canVibrate) try { navigator.vibrate(15); } catch (_) {}
             return;
         }
 
@@ -1913,7 +2002,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     // Brief cooldown to prevent accidental triple-tap double-seek
                     setTimeout(() => { if (lastTapTime === now) lastTapTime = 0; }, 300);
                     // M6: Haptic feedback on double-tap seek
-                    if (navigator.vibrate) try { navigator.vibrate(15); } catch (_) {}
+                    if (_canVibrate) try { navigator.vibrate(15); } catch (_) {}
                 } else if (e.clientX > rect.left + rect.width * 0.70) {
                     player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 10);
                     showFeedback("+10s", "right");
@@ -1926,7 +2015,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     lastTapTime = now;
                     setTimeout(() => { if (lastTapTime === now) lastTapTime = 0; }, 300);
                     // M6: Haptic feedback on double-tap seek
-                    if (navigator.vibrate) try { navigator.vibrate(15); } catch (_) {}
+                    if (_canVibrate) try { navigator.vibrate(15); } catch (_) {}
                 } else {
                     // U8: Double tap center — play/pause for touch, fullscreen for mouse
                     if (currentBrightness !== 1.0) {
@@ -1942,7 +2031,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                         showFeedback(wasPaused ? "Playing" : "Paused");
                     }
                     // M6: Haptic feedback on double-tap
-                    if (navigator.vibrate) try { navigator.vibrate(20); } catch (_) {}
+                    if (_canVibrate) try { navigator.vibrate(20); } catch (_) {}
                     lastTapTime = 0;
                 }
             } else {
@@ -2251,6 +2340,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     // U11: EQ Reset button — now also resets preset to Flat
     if (eqResetBtn) {
         eqResetBtn.addEventListener("click", () => {
+            if (!isAudioInitialized) { showFeedback("Play a video to activate the EQ"); return; } // B2: guard against silent no-op
             eqFilters.forEach(f => { f.gain.value = 0; });
             if (preampGain) { preampGain.gain.value = 1.0; }
             preampSlider.value = 1.0;

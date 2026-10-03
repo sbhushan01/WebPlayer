@@ -16,6 +16,8 @@ function cleanupOldVideoProgress() {
                 keysToRemove.push(key);
             } else if (val && typeof val === 'object' && typeof val.ts === 'number' && (now - val.ts > 30 * 24 * 60 * 60 * 1000)) { // B7: 30-day TTL
                 keysToRemove.push(key);
+            } else if (val && typeof val === 'object' && typeof val.ts !== 'number') {
+                keysToRemove.push(key); // Bug 5: corrupt entry without valid timestamp
             }
         }
         if (keysToRemove.length > 0) chrome.storage.local.remove(keysToRemove);
@@ -57,12 +59,6 @@ function enqueuePendingStreamSerialized(next) {
         .then(() => new Promise((resolve) => {
             enqueuePendingStream(next, resolve);
         }));
-    const currentWrite = pendingQueueWrite;
-    currentWrite.finally(() => {
-        if (pendingQueueWrite === currentWrite) {
-            pendingQueueWrite = Promise.resolve();
-        }
-    });
 }
 
 if (chrome?.runtime?.onInstalled) {
@@ -154,6 +150,11 @@ if (chrome?.alarms?.onAlarm) {
                 });
             }
         }
+        // Bug 2: Handle intercept-debounce alarms — remove tabId from the Set
+        if (alarm.name.startsWith("_wp_intercept_")) {
+            const tabId = parseInt(alarm.name.slice("_wp_intercept_".length), 10);
+            if (!isNaN(tabId)) recentlyInterceptedTabs.delete(tabId);
+        }
     });
 }
 
@@ -176,6 +177,7 @@ function domainFilter(rawUrl) {
         const u = new URL(rawUrl);
         return `${u.protocol}//${u.host}/*`;
     } catch (_) {
+        console.warn("[WebPlayer] domainFilter: Could not parse URL:", rawUrl);
         return rawUrl;
     }
 }
@@ -194,8 +196,8 @@ function setupDNRForTab(tabId, videoUrl, callback, refererUrl) {
     }
 
     const urlFilter = domainFilter(videoUrl);
-    const ruleId      = crypto.getRandomValues(new Uint32Array(1))[0] % 500000000 + 1;
-    const broadRuleId = ruleId + 500000000;
+    const ruleId      = (crypto.getRandomValues(new Uint32Array(1))[0] % 500000000) + 1;
+    const broadRuleId = ruleId + 500000001; // Bug 1: +1 avoids collision when ruleId is max
 
     const corsHeaders = [
         { header: "Access-Control-Allow-Origin",      operation: "set",    value: "*"                  },
@@ -296,16 +298,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             if (!request.url) {
                 if (typeof senderTabId === 'number') {
                     const filtered = pendingItems.filter(p => p.tabId !== senderTabId);
-                    chrome.storage.local.remove('_wp_pending_stream');
-                    if (filtered.length) {
-                        chrome.storage.local.set({ _wp_pending_streams: filtered });
-                    } else {
-                        chrome.storage.local.remove('_wp_pending_streams');
-                    }
+                    const p1 = chrome.storage.local.remove('_wp_pending_stream');
+                    const p2 = filtered.length ? chrome.storage.local.set({ _wp_pending_streams: filtered }) : chrome.storage.local.remove('_wp_pending_streams');
+                    Promise.all([p1, p2]).then(() => sendResponse({ ok: true }));
                 } else {
-                    chrome.storage.local.remove(['_wp_pending_stream', '_wp_pending_streams']);
+                    chrome.storage.local.remove(['_wp_pending_stream', '_wp_pending_streams']).then(() => sendResponse({ ok: true }));
                 }
-                sendResponse({ ok: true });
                 return;
             }
             const filtered = pendingItems.filter((p) => {
@@ -314,13 +312,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 const removeThisItem = sameUrl && sameTab;
                 return !removeThisItem;
             });
-            chrome.storage.local.remove('_wp_pending_stream');
-            if (filtered.length) {
-                chrome.storage.local.set({ _wp_pending_streams: filtered });
-            } else {
-                chrome.storage.local.remove('_wp_pending_streams');
-            }
-            sendResponse({ ok: true });
+            const p1 = chrome.storage.local.remove('_wp_pending_stream');
+            const p2 = filtered.length ? chrome.storage.local.set({ _wp_pending_streams: filtered }) : chrome.storage.local.remove('_wp_pending_streams');
+            Promise.all([p1, p2]).then(() => sendResponse({ ok: true }));
         });
         return true;
     }
@@ -405,6 +399,14 @@ const isPlayerRequest = (details) => {
     }
 };
 
+// Bug 2: Clean up stale recentlyInterceptedTabs entries when tabs close,
+// avoiding reliance on setTimeout which is unreliable in MV3 service workers.
+if (chrome?.tabs?.onRemoved) {
+    chrome.tabs.onRemoved.addListener((tabId) => {
+        recentlyInterceptedTabs.delete(tabId);
+    });
+}
+
 if (chrome?.webRequest?.onHeadersReceived) {
     chrome.webRequest.onHeadersReceived.addListener(
         (details) => {
@@ -416,7 +418,13 @@ if (chrome?.webRequest?.onHeadersReceived) {
                 if (recentlyInterceptedTabs.has(details.tabId)) return;
                 
                 recentlyInterceptedTabs.add(details.tabId);
-                setTimeout(() => recentlyInterceptedTabs.delete(details.tabId), 5000);
+                // Bug 2: Use chrome.alarms instead of setTimeout for service-worker-safe cleanup
+                try {
+                    chrome.alarms.create(`_wp_intercept_${details.tabId}`, { delayInMinutes: 5 / 60 });
+                } catch (_) {
+                    // Fallback: setTimeout is unreliable but better than nothing
+                    setTimeout(() => recentlyInterceptedTabs.delete(details.tabId), 5000);
+                }
 
                 // B2: Store pending stream queue in case SW dies before user confirms (serialized writes)
                 const embedUrl = details.documentUrl || details.initiator || "";

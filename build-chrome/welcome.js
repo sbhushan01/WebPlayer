@@ -75,7 +75,11 @@ if (animatedElements.length > 0 && 'IntersectionObserver' in window) {
         });
     }
 
+    // Respect prefers-reduced-motion
+    const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+
     function draw() {
+        if (document.hidden) return; // M7: stop loop when tab is in background
         ctx.clearRect(0, 0, w, h);
         for (const p of particles) {
             p.x += p.dx;
@@ -93,9 +97,11 @@ if (animatedElements.length > 0 && 'IntersectionObserver' in window) {
         requestAnimationFrame(draw);
     }
 
-    // Respect prefers-reduced-motion
-    const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
     if (!motionQuery.matches) {
         draw();
+        // M7: Resume the loop when the tab becomes visible again
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && !motionQuery.matches) draw();
+        });
     }
 })();
