@@ -85,7 +85,10 @@
 
                     // Don't show popup if overlay is already active on any video
                     if (document.querySelector('video[data-custom-player-active="true"]')) return;
+                    // UX 1: Remove any existing stream prompts to prevent stacking
+                    document.querySelectorAll('.wp-stream-prompt').forEach(p => p.remove());
                     const prompt = document.createElement("div");
+                    prompt.className = "wp-stream-prompt";
                     prompt.style.cssText = `
                         position: fixed; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); right: calc(20px + env(safe-area-inset-right, 0px)); z-index: 2147483647;
                         background: rgba(20, 20, 30, 0.9); backdrop-filter: blur(8px);
@@ -635,7 +638,10 @@
 
         const uiWrapper = document.createElement("div");
         uiWrapper.className = "webplayer-ui-wrapper";
-        const tempUiDoc = new DOMParser().parseFromString(`
+        // Bug 4: Use createContextualFragment instead of DOMParser for proper document context
+        const range = document.createRange();
+        range.selectNode(document.body || document.documentElement);
+        const fragment = range.createContextualFragment(`
             <div class="wp-progress-row">
                 <span id="wp-time-cur">0:00</span> / <span id="wp-time-dur">--:--</span>
                 <div class="wp-progress-wrapper" id="wp-progress-wrapper">
@@ -720,9 +726,8 @@
                 <button id="wp-rotate" title="Rotate" aria-label="Rotate"></button>
                 <button id="wp-exit" title="Exit WebPlayer" aria-label="Exit WebPlayer"></button>
             </div>
-        `, 'text/html');
-        while (tempUiDoc.head.firstChild) uiWrapper.appendChild(tempUiDoc.head.firstChild);
-        while (tempUiDoc.body.firstChild) uiWrapper.appendChild(tempUiDoc.body.firstChild);
+        `);
+        uiWrapper.appendChild(fragment);
 
         // U12: Add hidden SVG filter for Video Enhancer sharpening
         const svgContainer = document.createElement("div");
@@ -1401,6 +1406,9 @@
                     e.stopPropagation(); // Bug 6
                     video.volume = Math.min(1, video.volume + 0.05);
                     video.muted = false;
+                    // Bug 3: Explicitly sync slider to avoid desync on engines that don't fire volumechange
+                    if (volSlider) volSlider.value = video.volume;
+                    updateMuteIcon();
                     showFeedback(`Vol: ${Math.round(video.volume * 100)}%`);
                     showControls();
                     break;
@@ -1409,6 +1417,9 @@
                     e.stopPropagation(); // Bug 6
                     video.volume = Math.max(0, video.volume - 0.05);
                     if (video.volume < 0.001) video.muted = true;
+                    // Bug 3: Explicitly sync slider to avoid desync on engines that don't fire volumechange
+                    if (volSlider) volSlider.value = video.muted ? 0 : video.volume;
+                    updateMuteIcon();
                     showFeedback(`Vol: ${Math.round(video.volume * 100)}%`);
                     showControls();
                     break;
@@ -1516,6 +1527,18 @@
             const wasPaused = video.paused;
             wasPaused ? safePlay(video) : safePause(video);
         });
+        
+        // Mobile 1: Volume hint toast for hidden slider on narrow touch devices
+        on(video, "playing", () => {
+            if (window.innerWidth <= 480 && matchMedia("(pointer: coarse)").matches) {
+                chrome.storage.local.get(["_wp_vol_hint_shown"], (res) => {
+                    if (!res._wp_vol_hint_shown) {
+                        showFeedback("↕ Swipe up/down for volume", "center");
+                        chrome.storage.local.set({ _wp_vol_hint_shown: true });
+                    }
+                });
+            }
+        });
 
         on(uiWrapper.querySelector("#wp-skip-back"), "click", () => { video.currentTime = Math.max(0, video.currentTime - 10); showFeedback("−10s"); });
         on(uiWrapper.querySelector("#wp-skip-fwd"), "click",  () => { safeSeekForward(video, 10); showFeedback("+10s"); });
@@ -1524,15 +1547,31 @@
         const muteBtn = uiWrapper.querySelector("#wp-mute");
         const volSlider = uiWrapper.querySelector("#wp-volume");
         const updateMuteIcon = () => {
-            if (video.muted || video.volume === 0) setSVG(muteBtn, IC.volumeOff);
-            else if (video.volume < 0.5) setSVG(muteBtn, IC.volumeDown);
-            else setSVG(muteBtn, IC.volumeUp);
+            if (video.muted || video.volume === 0) {
+                setSVG(muteBtn, IC.volumeOff);
+                muteBtn.setAttribute("aria-label", "Unmute"); // UX 9: update aria-label for screen readers
+            } else if (video.volume < 0.5) {
+                setSVG(muteBtn, IC.volumeDown);
+                muteBtn.setAttribute("aria-label", "Mute");
+            } else {
+                setSVG(muteBtn, IC.volumeUp);
+                muteBtn.setAttribute("aria-label", "Mute");
+            }
         };
+
+        const syncVolSliderStyle = () => {
+            if (!volSlider) return;
+            const primaryColor = getComputedStyle(shadowHost).getPropertyValue('--wp-primary').trim() || '#A8C7FA';
+            const val = video.muted ? 0 : video.volume * 100;
+            volSlider.style.background = `linear-gradient(to right, ${primaryColor} ${val}%, rgba(255,255,255,0.15) ${val}%)`;
+        };
+
         if (volSlider) {
             on(volSlider, "input", () => {
                 video.volume = parseFloat(volSlider.value);
                 video.muted = video.volume === 0;
                 updateMuteIcon();
+                syncVolSliderStyle(); // UX 2
             });
         }
         if (muteBtn) {
@@ -1549,7 +1588,10 @@
         // Prevents jarring jump from 0 to real volume on unmute.
         on(video, "volumechange", () => {
             updateMuteIcon();
-            if (volSlider) volSlider.value = video.volume;
+            if (volSlider) {
+                volSlider.value = video.volume;
+                syncVolSliderStyle(); // UX 2
+            }
         });
 
         // U2: Error overlay
@@ -1672,7 +1714,12 @@
                         if (isHorizontal || rot % 180 !== 0) {
                             await screen.orientation?.lock?.('landscape');
                         }
-                    } catch (_) {}
+                    } catch (_) {
+                        // Mobile 2: Show a hint if lock fails
+                        if (window.innerWidth < window.innerHeight) {
+                            showFeedback("Rotate your device", "center");
+                        }
+                    }
                 }
             } catch (err) {
                 const msg = String(err?.message || "");
@@ -1727,7 +1774,8 @@
             const cs = getComputedStyle(_safeAreaProbe);
             const saLeft = parseInt(cs.left, 10) || 0;
             const saRight = parseInt(cs.right, 10) || 0;
-            return { left: Math.max(40, saLeft + 20), right: Math.max(40, saRight + 20) };
+            // Mobile 7: iOS Safari edge exclusion tuning (20px instead of 40px)
+            return { left: Math.max(20, saLeft + 10), right: Math.max(20, saRight + 10) };
         };
 
         let startX = 0, startY = 0, lastY = 0, swipeDir = null;
@@ -1918,12 +1966,17 @@
                             currentBrightness = 1.0;
                             updateEnhanceValContent("brightness", 1.0);
                             showFeedback("Brightness Reset");
-                        } else {
+                        } else if (e.pointerType === "mouse") {
                             // Preserve user activation for Firefox mobile fullscreen
                             const fsBtn = uiWrapper.querySelector("#wp-fs");
                             if (fsBtn) {
                                 fsBtn.click();
                             }
+                        } else {
+                            // UX 7: Touch: toggle play/pause (matches YouTube/Instagram pattern and player.js)
+                            const wasPaused = video.paused;
+                            wasPaused ? safePlay(video) : safePause(video);
+                            showFeedback(wasPaused ? "Playing" : "Paused");
                         }
                         lastTapTime = 0;
                     }

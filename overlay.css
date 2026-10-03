@@ -1,14 +1,14 @@
-.webplayer-active .ytp-chrome-top,
-.webplayer-active .ytp-chrome-bottom,
-.webplayer-active .ytp-progress-bar-container,
-.webplayer-active .ytp-gradient-bottom,
-.webplayer-active .ytp-gradient-top,
-.webplayer-active .ytp-iv-video-content,
-.webplayer-active ytm-custom-control,
-.webplayer-active ytm-player-overlay-container,
-.webplayer-active ytm-mobile-video-player-overlay,
-.webplayer-active .ytp-settings-menu,
-.webplayer-active .ytp-popup {
+body.webplayer-active:has(video[data-custom-player-active="true"]) .ytp-chrome-top,
+body.webplayer-active:has(video[data-custom-player-active="true"]) .ytp-chrome-bottom,
+body.webplayer-active:has(video[data-custom-player-active="true"]) .ytp-progress-bar-container,
+body.webplayer-active:has(video[data-custom-player-active="true"]) .ytp-gradient-bottom,
+body.webplayer-active:has(video[data-custom-player-active="true"]) .ytp-gradient-top,
+body.webplayer-active:has(video[data-custom-player-active="true"]) .ytp-iv-video-content,
+body.webplayer-active:has(video[data-custom-player-active="true"]) ytm-custom-control,
+body.webplayer-active:has(video[data-custom-player-active="true"]) ytm-player-overlay-container,
+body.webplayer-active:has(video[data-custom-player-active="true"]) ytm-mobile-video-player-overlay,
+body.webplayer-active:has(video[data-custom-player-active="true"]) .ytp-settings-menu,
+body.webplayer-active:has(video[data-custom-player-active="true"]) .ytp-popup {
     display: none !important;
     opacity: 0 !important;
     pointer-events: none !important;

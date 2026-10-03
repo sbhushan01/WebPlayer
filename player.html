@@ -2,7 +2,7 @@
 <html lang="en" data-theme="blue">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#1A1D24">
     <meta name="description" content="WebPlayer — feature-rich video player for HLS, DASH, and native streams.">
     <title>WebPlayer</title>
@@ -203,6 +203,11 @@
         }
         .progress-wrapper::before { content: ''; position: absolute; top: -24px; bottom: -24px; left: -8px; right: -8px; touch-action: none; }
         .progress-wrapper:hover { height: 6px; background: rgba(255,255,255,0.25); }
+        /* Mobile 4: Thicker progress bar on touch devices for easier tapping */
+        @media (pointer: coarse) {
+            .progress-wrapper { height: 8px; }
+            .progress-wrapper:hover { height: 10px; }
+        }
         .progress-buffered {
             position: absolute; left: 0; top: 0; bottom: 0; background: rgba(255,255,255,0.3);
             border-radius: 4px; width: 0%; pointer-events: none; transition: width 0.1s linear;
@@ -352,12 +357,8 @@
         .popover-card.active { display: flex; animation: slideUpScale 0.2s cubic-bezier(0.4, 0, 0.2, 1); pointer-events: auto; }
         .popover-card.closing { animation: slideDownScale 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards; pointer-events: none; }
         
-        /* Mobile drag handle for popovers */
+        /* Removed misleading drag handle (Mobile 5) */
         @media (max-width: 850px) {
-            .popover-card::before {
-                content: ''; display: block; width: 36px; height: 4px; border-radius: 2px;
-                background: rgba(255,255,255,0.2); margin: -4px auto 12px;
-            }
             .popover-card {
                 /* Add subtle bottom shadow to indicate scrollability */
                 box-shadow: inset 0 -20px 20px -20px rgba(0,0,0,0.5), 0 16px 32px rgba(0,0,0,0.4);
@@ -633,6 +634,12 @@
             border: 1px solid rgba(255,255,255,0.08); cursor: pointer; transition: all 0.25s ease;
             width: auto; height: auto;
         }
+
+        /* UX 10: Hide keyboard shortcuts section on touch devices */
+        @media (pointer: coarse) {
+            .shortcuts-grid { display: none; }
+            .shortcuts-hint:first-of-type { display: none; }
+        }
         .eq-preset-pill:hover { background: rgba(255,255,255,0.12); color: var(--md-sys-color-on-surface); transform: scale(1); }
         .eq-preset-pill.active {
             background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary);
@@ -645,10 +652,11 @@
         }
 
         /* M1: Extra-small screen adjustments (e.g., 320px wide phones) */
+        /* Mobile 3: Keep WCAG/Apple HIG minimum 44×44px touch targets */
         @media (max-width: 360px) {
-            button { width: 38px; height: 38px; }
+            button { width: 44px; height: 44px; }
             .material-symbols-rounded { font-size: 20px; }
-            .custom-controls { padding: 6px 8px; gap: 6px; border-radius: 16px; }
+            .custom-controls { padding: 6px 8px; gap: 4px; border-radius: 16px; overflow-x: auto; }
             .time-display { font-size: 0.7rem; }
         }
 

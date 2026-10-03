@@ -249,11 +249,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         }).catch(() => {});
     });
 
+    // Bug 6: Declare _retryCount before the playing listener to avoid TDZ issues
+    let _retryCount = 0;
+    const MAX_RETRIES = 5;
+
     // UI 9: Reset retry counter on successful playback so future errors start fresh
     player.addEventListener("playing", () => { _retryCount = 0; });
 
-    let _retryCount = 0;
-    const MAX_RETRIES = 5;
     const retryBtn = document.getElementById("error-retry");
     retryBtn.addEventListener("click", () => {
         if (!videoSrc) { showError("No video source provided.", "Missing Source"); return; }
@@ -370,7 +372,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     const cdn = CDN_FALLBACKS[path];
                     if (cdn) {
                         console.warn(`[WebPlayer] Local ${path} failed, trying CDN fallback...`);
-                        try { showFeedback("Loading player engine\u2026"); } catch (_) {}
+                        try { bufferEl.classList.add("is-buffering"); } catch (_) {} // UX 4: Persistent loading indicator
                         const sf = document.createElement("script");
                         sf.src = cdn;
                         sf.onload  = resolve;
@@ -1076,6 +1078,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     };
 
     const capturePreviewFrame = (time) => {
+        // UX 3: Clear stale frame before capturing new one
+        seekCtx.clearRect(0, 0, 320, 180);
         const pv = getPreviewVideo();
         if (pv && _previewVideoReady) {
             // Use clone video — no flicker on main player
@@ -1284,6 +1288,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     player.addEventListener("canplay",  _clearBufferUI);
     player.addEventListener("pause",    _clearBufferUI);
     player.addEventListener("error",    _clearBufferUI);
+    // Mobile 1: Volume hint toast for hidden slider on narrow touch devices
+    player.addEventListener("playing", () => {
+        if (window.innerWidth <= 480 && matchMedia("(pointer: coarse)").matches) {
+            chrome.storage.local.get(["_wp_vol_hint_shown"], (res) => {
+                if (!res._wp_vol_hint_shown) {
+                    showFeedback("↕ Swipe up/down for volume", "center");
+                    chrome.storage.local.set({ _wp_vol_hint_shown: true });
+                }
+            });
+        }
+    });
 
     // ── Volume ────────────────────────────────────────────────────────────────
     const updateVolIcon = () => {
@@ -1299,10 +1314,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     };
 
+    const syncVolSliderStyle = () => {
+        const val = player.muted ? 0 : player.volume * 100;
+        volumeSlider.style.background = `linear-gradient(to right, var(--md-sys-color-primary) ${val}%, rgba(255,255,255,0.15) ${val}%)`;
+    };
+
     volumeSlider.addEventListener("input", (e) => {
         player.volume = parseFloat(e.target.value);
         player.muted  = player.volume === 0;
         updateVolIcon();
+        syncVolSliderStyle(); // UX 2
     });
     muteBtn.addEventListener("click", () => {
         if (player.volume === 0 && player.muted) {
@@ -1315,8 +1336,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
         volumeSlider.value = player.muted ? 0 : player.volume;
         updateVolIcon();
+        syncVolSliderStyle(); // UX 2
         muteBtn.setAttribute("aria-pressed", player.muted ? "true" : "false");
     });
+    player.addEventListener("volumechange", syncVolSliderStyle);
 
     // ── Speed controls ─────────────────────────────────────────────────────────
     speedPillsEl.querySelectorAll(".speed-pill").forEach(pill => {
@@ -1601,6 +1624,18 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     });
 
+    // UX 6: Keyboard navigation (Escape) for remaining popovers
+    [speedPopover, eqPopover, enhancePopover, themePopover].forEach(popover => {
+        if (!popover) return;
+        popover.addEventListener("keydown", (e) => {
+            if (e.key === "Escape") {
+                e.preventDefault();
+                closeAllPopovers();
+            }
+            // ArrowLeft/Right natively adjust range inputs, Tab natively moves between focusable elements
+        });
+    });
+
     // ── Shortcuts side panel (#9) ─────────────────────────────────────────────
     const shortcutsBackdrop = document.getElementById("shortcuts-backdrop"); // M5: modal backdrop
     let shortcutsLastFocusedEl = null;
@@ -1763,6 +1798,14 @@ document.addEventListener("DOMContentLoaded", async () => {
                 setPlaybackRate(Math.min(3, Math.round((player.playbackRate + 0.25) * 100) / 100));
                 showFeedback(`${player.playbackRate.toFixed(2)}× Speed`);
                 break;
+            case "z":
+            case "Z":
+                // UX 8: SponsorBlock undo keyboard shortcut
+                const skipUndoBtn = document.getElementById("skip-undo-btn");
+                if (skipUndoBtn && skipUndoBtn.style.display !== "none") {
+                    skipUndoBtn.click();
+                }
+                break;
             case "Escape":
                 // Close any open modals/popovers or error box
                 if (errorBox.style.display === "flex") { errorBox.style.display = "none"; }
@@ -1805,7 +1848,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         const cs = getComputedStyle(_safeAreaProbe);
         const saLeft = parseInt(cs.left, 10) || 0;
         const saRight = parseInt(cs.right, 10) || 0;
-        return { left: Math.max(40, saLeft + 20), right: Math.max(40, saRight + 20) };
+        // Mobile 7: iOS Safari edge exclusion tuning (20px instead of 40px)
+        return { left: Math.max(20, saLeft + 10), right: Math.max(20, saRight + 10) };
     };
 
     let startX = 0, startY = 0, lastY = 0, swipeDir = null;
