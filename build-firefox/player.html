@@ -295,9 +295,9 @@
             transition: width 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s, margin-left 0.4s, background 0.4s, accent-color 0.4s;
         }
         .volume-container:hover .volume-slider, .volume-slider:focus-visible { width: 90px; opacity: 1; margin-left: 8px; }
-        /* Hide volume slider on mobile devices to save space */
+        /* M1: Hide only the slider on touch devices; keep mute button accessible */
         @media (hover: none), (pointer: coarse) {
-            .volume-container { display: none !important; }
+            .volume-slider { width: 0 !important; opacity: 0 !important; overflow: hidden; margin: 0 !important; }
         }
         input[type="range"]:focus-visible { outline: 2px solid var(--md-sys-color-primary); outline-offset: 4px; border-radius: 4px; }
 
@@ -401,6 +401,12 @@
             .popover-card.active {
                 transform: translateY(0) !important;
                 animation: slideUpBottom 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
+            }
+            /* M5: Bottom sheet drag handle indicator */
+            .popover-card.active::before {
+                content: ''; display: block; width: 36px; height: 4px;
+                background: rgba(255,255,255,0.3); border-radius: 2px;
+                margin: 0 auto 8px; flex-shrink: 0;
             }
             .popover-card.closing {
                 animation: slideDownBottom 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
@@ -597,10 +603,11 @@
             .popover-anchor, .quality-container { position: static; }
             /* Bug 3: Include theme-popover in detached rules and clamp width */
             /* M1: Also clamp speed-popover and enhance-popover height */
-            .quality-dropdown, .speed-popover, .theme-popover { right: 0; left: auto; bottom: calc(100% + 16px); max-height: min(55vh, 55dvh); overflow-y: auto; max-width: calc(100vw - 32px); }
-            #enhance-popover { max-height: min(60vh, 60dvh, calc(100dvh - 80px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))); overflow-y: auto; }
+            /* U5/M2: Include #eq-popover to prevent overflow on narrow viewports */
+            .quality-dropdown, .speed-popover, .theme-popover, #eq-popover { right: 0; left: auto; bottom: calc(100% + 16px); max-height: min(55vh, 55dvh); overflow-y: auto; max-width: calc(100vw - 32px); }
+            #enhance-popover { right: 0; left: auto; bottom: calc(100% + 16px); max-height: min(60vh, 60dvh, calc(100dvh - 80px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))); overflow-y: auto; max-width: calc(100vw - 32px); }
             /* M7: Larger seek preview on mobile */
-            #seek-preview-canvas { width: 150px; height: 84px; }
+            #seek-preview-canvas { width: 180px; height: 100px; }
             #seek-preview { bottom: calc(100% + 40px); }
         }
 
@@ -668,6 +675,9 @@
         /* U3: Larger EQ slider touch target on coarse-pointer (touch) devices */
         @media (pointer: coarse) {
             .eq-band input[type="range"] { width: 38px; }
+            /* M4: Wider thumb for WCAG/HIG minimum touch target */
+            .eq-band input[type="range"]::-webkit-slider-thumb { width: 24px; height: 24px; }
+            .eq-band input[type="range"]::-moz-range-thumb { width: 24px; height: 24px; border: none; }
         }
 
         /* M1: Extra-small screen adjustments (e.g., 320px wide phones) */
@@ -944,6 +954,8 @@
                 <kbd>R</kbd>         <span>Rotate video</span>
                 <kbd>, / .</kbd>      <span>Speed ±0.25×</span> <!-- U8: was '&lt;/&gt;' but code actually listens for ',' and '.' -->
                 <kbd>?</kbd>         <span>Show / hide this help</span>
+                <kbd>Z</kbd>         <span>Undo SponsorBlock skip</span>
+                <kbd>0</kbd>         <span>Reset speed to 1×</span>
             </div>
             <p class="shortcuts-hint">Double-tap left/right to seek ±10s on touch screens.</p>
             <!-- U7: Gesture reference for touch users -->

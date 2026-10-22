@@ -301,6 +301,12 @@
         } catch (e) {}
     }
 
+    function safeSeekBackward(video, seconds) {
+        try {
+            video.currentTime = Math.max(0, (video.currentTime || 0) - seconds);
+        } catch (e) {}
+    }
+
     // B1: Track play() promise per-video to prevent AbortError on rapid play/pause
     function safePlay(video) {
         try {
@@ -436,7 +442,7 @@
             button { background: rgba(255,255,255,0.0); border: none; color: #E3E3E3; cursor: pointer; padding: 8px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: all 0.2s ease; width: 44px; height: 44px; }
             button:hover { background: rgba(255,255,255,0.12); transform: scale(1.05); }
             @media (max-width: 600px) {
-                .webplayer-ui-wrapper { bottom: max(16px, calc(8px + env(safe-area-inset-bottom))); padding: 12px 16px; border-radius: 20px; gap: 10px; width: calc(100% - 20px); }
+                .webplayer-ui-wrapper { bottom: max(16px, calc(8px + env(safe-area-inset-bottom))); padding: 12px 16px; border-radius: 20px; gap: 10px; width: calc(100% - 20px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)); }
                 .wp-center-row { flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; gap: 8px; padding-bottom: 2px; scrollbar-width: none; scroll-snap-type: x proximity; }
                 .wp-center-row::-webkit-scrollbar { display: none; }
                 .wp-center-row > * { scroll-snap-align: center; }
@@ -640,7 +646,7 @@
         uiWrapper.className = "webplayer-ui-wrapper";
         // Bug 4: Use createContextualFragment instead of DOMParser for proper document context
         const range = document.createRange();
-        range.selectNode(document.body || document.documentElement);
+        range.selectNode(getRootContainer() || document.documentElement); // OB4: Safely handle missing body in iframes
         const fragment = range.createContextualFragment(`
             <div class="wp-progress-row">
                 <span id="wp-time-cur">0:00</span> / <span id="wp-time-dur">--:--</span>
@@ -730,16 +736,23 @@
         uiWrapper.appendChild(fragment);
 
         // U12: Add hidden SVG filter for Video Enhancer sharpening
-        const svgContainer = document.createElement("div");
-        const svgDoc = new DOMParser().parseFromString(`
-            <svg style="position: absolute; pointer-events: none; width: 0; height: 0;">
-                <filter id="wp-sharpen-content">
-                    <feConvolveMatrix id="wp-sharpen-matrix-content" order="3 3" preserveAlpha="true" kernelMatrix="0 0 0 0 1 0 0 0 0"/>
-                </filter>
-            </svg>
-        `, 'image/svg+xml');
-        svgContainer.appendChild(svgDoc.documentElement);
-        uiWrapper.appendChild(svgContainer.firstElementChild);
+        // B4: Append to main document (not shadow DOM) so CSS url(#...) resolves correctly on the video element
+        if (!document.getElementById("wp-sharpen-svg-content")) {
+            const svgNS = "http://www.w3.org/2000/svg";
+            const wpSvg = document.createElementNS(svgNS, "svg");
+            wpSvg.id = "wp-sharpen-svg-content";
+            wpSvg.style.cssText = "position:absolute;pointer-events:none;width:0;height:0;";
+            const wpFilter = document.createElementNS(svgNS, "filter");
+            wpFilter.id = "wp-sharpen-content";
+            const wpMatrix = document.createElementNS(svgNS, "feConvolveMatrix");
+            wpMatrix.id = "wp-sharpen-matrix-content";
+            wpMatrix.setAttribute("order", "3 3");
+            wpMatrix.setAttribute("preserveAlpha", "true");
+            wpMatrix.setAttribute("kernelMatrix", "0 0 0 0 1 0 0 0 0");
+            wpFilter.appendChild(wpMatrix);
+            wpSvg.appendChild(wpFilter);
+            getRootContainer()?.appendChild(wpSvg);
+        }
         setSVG(uiWrapper.querySelector("#wp-skip-back"), IC.skipBack);
         setSVG(uiWrapper.querySelector("#wp-play"), IC.play);
         setSVG(uiWrapper.querySelector("#wp-skip-fwd"), IC.skipFwd);
@@ -798,7 +811,7 @@
         shadow.appendChild(errorOverlay);
 
         // --- Video Enhancer Sync ---
-        const sharpenMatrixContent = shadow.querySelector("#wp-sharpen-matrix-content");
+        const sharpenMatrixContent = document.getElementById("wp-sharpen-matrix-content"); // B4: Query from main document
         let enhanceStateContent = { sharpen: 0, saturate: 1, contrast: 1, brightness: 1 };
         
         const applyContentEnhancements = (settings) => {
@@ -1067,8 +1080,7 @@
                 if (dropdown === speedPopover) {
                     if (e.key === "Escape") {
                         e.preventDefault();
-                        speedPopover.classList.remove("active");
-                        speedToggleBtn.setAttribute("aria-expanded", "false");
+                        closeOverlayPopover(speedPopover, speedToggleBtn);
                         speedToggleBtn.focus();
                         return;
                     }
@@ -1096,6 +1108,14 @@
                         e.preventDefault();
                         const activePill = speedPillsEl.querySelector(".speed-pill.active") || speedPills[speedPills.length - 1];
                         activePill?.focus();
+                    }
+                    return;
+                }
+                if (dropdown === enhancePopover) {
+                    if (e.key === "Escape") {
+                        e.preventDefault();
+                        closeOverlayPopover(enhancePopover, enhanceToggleBtn);
+                        enhanceToggleBtn?.focus();
                     }
                     return;
                 }
@@ -1150,15 +1170,13 @@
         on(video, "pause", showControls);
         on(video, "play", showControls);
 
-        on(gestureZone, "pointermove", showControls);
-        on(gestureZone, "pointerdown", showControls);
+        const onMouseMoveShowControls = (e) => {
+            if (e.pointerType === "mouse") showControls();
+        };
+        on(gestureZone, "pointermove", onMouseMoveShowControls);
+        on(video, "pointermove", onMouseMoveShowControls);
         on(uiWrapper, "pointermove", showControls);
         on(uiWrapper, "pointerdown", showControls);
-        // Fallback: shadowHost has pointer-events:none which can block pointermove
-        // from reaching the shadow DOM in some browsers, so also listen on the
-        // underlying video element (events pass through when the host is transparent).
-        on(video, "pointermove", showControls);
-        on(video, "pointerdown", showControls);
         showControls();
 
         // B5: Track and clear feedback timer to prevent collision
@@ -1270,7 +1288,7 @@
             _lastSkipStartTime = startTime;
             skipBadge.textContent = SEGMENT_LABELS[category] || "Segment Skipped";
             skipBadge.style.background = SEGMENT_COLORS[category] || "var(--wp-primary, #A8C7FA)";
-            skipBadge.style.color = category === "music_offtopic" ? "var(--md-sys-color-background, #1A1D24)" : "#062E6F";
+            skipBadge.style.color = category === "music_offtopic" ? "#1C1B1F" : "#062E6F"; // U3: Consistent dark text for all themes
             skipBadge.style.display = "block";
             requestAnimationFrame(() => skipBadge.classList.add("showing"));
             if (startTime !== null) {
@@ -1308,6 +1326,10 @@
 
         fetchSegments().then(segs => {
             skipSegments = segs;
+            // U1: Show brief feedback when SponsorBlock segments are found
+            if (segs.length) {
+                showFeedback(`SponsorBlock: ${segs.length} segment${segs.length > 1 ? 's' : ''}`);
+            }
             if (segs.length && isFinite(video.duration) && video.duration > 0) renderSegmentMarkers();
         });
         on(video, "loadedmetadata", renderSegmentMarkers);
@@ -1392,7 +1414,7 @@
                 case "ArrowLeft":
                     e.preventDefault();
                     e.stopPropagation(); // Bug 6
-                    video.currentTime = Math.max(0, video.currentTime - 10);
+                    safeSeekBackward(video, 10);
                     showFeedback("−10s");
                     break;
                 case "ArrowRight":
@@ -1424,12 +1446,38 @@
                     showControls();
                     break;
                 case "f": case "F":
+                    e.preventDefault();
                     e.stopPropagation(); // Bug 6
-                    uiWrapper.querySelector("#wp-fs").click();
+                    uiWrapper.querySelector("#wp-fs")?.click();
                     break;
                 case "r": case "R":
+                    e.preventDefault();
                     e.stopPropagation(); // Bug 6
-                    uiWrapper.querySelector("#wp-rotate").click();
+                    uiWrapper.querySelector("#wp-rotate")?.click();
+                    break;
+                // OB5: Missing keyboard shortcuts — parity with standalone player
+                case ",":
+                    e.preventDefault(); e.stopPropagation();
+                    setPlaybackRate(Math.max(0.25, parseFloat((video.playbackRate - 0.25).toFixed(2))));
+                    showFeedback(`Speed: ${video.playbackRate.toFixed(2)}×`);
+                    break;
+                case ".":
+                    e.preventDefault(); e.stopPropagation();
+                    setPlaybackRate(Math.min(3, parseFloat((video.playbackRate + 0.25).toFixed(2))));
+                    showFeedback(`Speed: ${video.playbackRate.toFixed(2)}×`);
+                    break;
+                case "0":
+                    e.preventDefault(); e.stopPropagation();
+                    setPlaybackRate(1);
+                    showFeedback("Speed: 1.00×");
+                    break;
+                case "p": case "P":
+                    e.preventDefault(); e.stopPropagation();
+                    uiWrapper.querySelector("#wp-pip")?.click();
+                    break;
+                case "z": case "Z":
+                    e.preventDefault(); e.stopPropagation();
+                    skipUndoBtn?.click();
                     break;
                 default:
                     return; // Don't stopPropagation for unbound keys
@@ -1454,7 +1502,14 @@
             if (cro) cro.disconnect();
             if (_safeAreaProbe) _safeAreaProbe.remove();
             shadowHost.remove();
+            video.style.filter = ""; // B4: Clear enhancer filter on exit
+            video.style.transform = ""; // OB11: Clear rotation transform on exit
+            video.style.transition = ""; // OB11: Clear rotation transition on exit
             delete video.dataset.customPlayerActive;
+            // B4: Clean up SVG filter if no other overlays are active
+            if (!document.querySelector('video[data-custom-player-active="true"]')) {
+                document.getElementById("wp-sharpen-svg-content")?.remove();
+            }
             video.controls = (video.dataset.originalControls === "true");
             if (video.__wpOverlayAbortController === overlayController) {
                 delete video.__wpOverlayAbortController;
@@ -1530,17 +1585,20 @@
         
         // Mobile 1: Volume hint toast for hidden slider on narrow touch devices
         on(video, "playing", () => {
+            if (!hasValidExtensionContext()) return; // OB1: Guard against invalidated extension context
             if (window.innerWidth <= 480 && matchMedia("(pointer: coarse)").matches) {
-                chrome.storage.local.get(["_wp_vol_hint_shown"], (res) => {
-                    if (!res._wp_vol_hint_shown) {
-                        showFeedback("↕ Swipe up/down for volume", "center");
-                        chrome.storage.local.set({ _wp_vol_hint_shown: true });
-                    }
-                });
+                try {
+                    chrome.storage.local.get(["_wp_vol_hint_shown"], (res) => {
+                        if (!res._wp_vol_hint_shown) {
+                            showFeedback("↕ Swipe up/down for volume", "center");
+                            try { chrome.storage.local.set({ _wp_vol_hint_shown: true }); } catch (_) {}
+                        }
+                    });
+                } catch (_) {}
             }
         });
 
-        on(uiWrapper.querySelector("#wp-skip-back"), "click", () => { video.currentTime = Math.max(0, video.currentTime - 10); showFeedback("−10s"); });
+        on(uiWrapper.querySelector("#wp-skip-back"), "click", () => { safeSeekBackward(video, 10); showFeedback("−10s"); });
         on(uiWrapper.querySelector("#wp-skip-fwd"), "click",  () => { safeSeekForward(video, 10); showFeedback("+10s"); });
 
         // U1: Volume slider + mute button
@@ -1677,9 +1735,23 @@
                 showFeedback("Error launching");
             }
         });
-        on(uiWrapper.querySelector("#wp-pip"), "click", async () => {
-            document.pictureInPictureElement ? await document.exitPictureInPicture() : await video.requestPictureInPicture();
-        });
+        const pipBtn = uiWrapper.querySelector("#wp-pip");
+        if (pipBtn) {
+            pipBtn.setAttribute("aria-pressed", "false");
+            on(pipBtn, "click", async () => {
+                try {
+                    document.pictureInPictureElement
+                        ? await document.exitPictureInPicture()
+                        : await video.requestPictureInPicture();
+                    pipBtn.setAttribute("aria-pressed", document.pictureInPictureElement ? "true" : "false");
+                } catch (err) {
+                    console.warn("PiP blocked", err);
+                    showFeedback("PiP Blocked");
+                }
+            });
+            on(video, "enterpictureinpicture", () => pipBtn.setAttribute("aria-pressed", "true"));
+            on(video, "leavepictureinpicture", () => pipBtn.setAttribute("aria-pressed", "false"));
+        }
         // B3: rot must be declared before the fullscreen handler that references it
         let rot = 0;
         on(uiWrapper.querySelector("#wp-fs"), "click", async () => {
@@ -1741,6 +1813,21 @@
             }
         });
 
+        const updateVideoTransform = () => {
+            if (rot % 180 !== 0) {
+                const w = video.offsetWidth || video.videoWidth || 1;
+                const h = video.offsetHeight || video.videoHeight || 1;
+                const scale = (w > 0 && h > 0) ? Math.min(w / h, h / w) : 1;
+                video.style.transform  = `rotate(${rot}deg) scale(${scale})`;
+            } else {
+                video.style.transform  = rot === 0 ? "" : `rotate(${rot}deg)`;
+            }
+            video.style.transition = "transform 0.3s";
+            const rBtn = uiWrapper.querySelector("#wp-rotate");
+            if (rBtn) rBtn.setAttribute("aria-pressed", rot !== 0 ? "true" : "false");
+            setTimeout(syncOverlay, 310);
+        };
+
         const updateTouchAction = () => {
             const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
             gestureZone.style.touchAction = isFS ? "none" : "pan-y pinch-zoom";
@@ -1748,9 +1835,19 @@
             if (!isFS) {
                 try { screen.orientation?.unlock?.(); } catch (_) {}
             }
+            if (rot % 180 !== 0) updateVideoTransform();
+            syncOverlay();
         };
         on(document, "fullscreenchange", updateTouchAction);
         on(document, "webkitfullscreenchange", updateTouchAction);
+        on(window, "resize", () => {
+            if (rot % 180 !== 0) updateVideoTransform();
+            syncOverlay();
+        });
+        on(window, "orientationchange", () => {
+            if (rot % 180 !== 0) updateVideoTransform();
+            syncOverlay();
+        });
 
         speedPillsEl.querySelectorAll(".speed-pill").forEach(pill => {
             on(pill, "click", () => setPlaybackRate(parseFloat(pill.dataset.speed)));
@@ -1760,12 +1857,14 @@
         });
         setPlaybackRate(video.playbackRate || 1);
 
-
-        on(uiWrapper.querySelector("#wp-rotate"), "click", () => {
-            rot = (rot + 90) % 360;
-            video.style.transform  = `rotate(${rot}deg)`;
-            video.style.transition = "transform 0.3s";
-        });
+        const rotateBtn = uiWrapper.querySelector("#wp-rotate");
+        if (rotateBtn) {
+            rotateBtn.setAttribute("aria-pressed", "false");
+            on(rotateBtn, "click", () => {
+                rot = (rot + 90) % 360;
+                updateVideoTransform();
+            });
+        }
 
         const _safeAreaProbe = document.createElement('div');
         _safeAreaProbe.style.cssText = 'position:fixed;left:env(safe-area-inset-left,0px);right:env(safe-area-inset-right,0px);pointer-events:none;visibility:hidden;';
@@ -1858,14 +1957,23 @@
                 lastY = e.clientY;
 
                 if (e.clientX > rect.left + rect.width / 2) {
-                    video.volume = Math.max(0, Math.min(1, video.volume - deltaY * 0.005));
+                    video.volume = Math.max(0, Math.min(1, Math.round((video.volume - deltaY * 0.005) * 100) / 100)); // B7: Round to avoid floating-point drift
                     video.muted = false;
+                    if (volSlider) volSlider.value = video.volume; // OB3: Sync slider DOM value
+                    updateMuteIcon(); // OB7: Update mute icon state
+                    syncVolSliderStyle(); // OB2: Keep slider gradient fill in sync
                     showFeedback(`Vol: ${Math.round(video.volume * 100)}%`, "right");
                 } else {
                     currentBrightness = Math.max(0.1, Math.min(2.5, currentBrightness - deltaY * 0.01));
                     updateEnhanceValContent("brightness", currentBrightness);
                     showFeedback(`Brightness: ${Math.round(currentBrightness * 100)}%`, "left");
                 }
+            }
+            // U6: Live seek distance preview during horizontal swipe
+            if (swipeDir === "horizontal") {
+                const seekAmt = Math.max(5, Math.min(60, Math.round(Math.abs(diffX) / 80) * 10));
+                const shift = diffX > 0 ? seekAmt : -seekAmt;
+                showFeedback(`${shift > 0 ? "+" : ""}${shift}s`, shift > 0 ? "right" : "left");
             }
         });
 
@@ -1910,7 +2018,12 @@
             if (swipeDir === "horizontal" && Math.abs(diffX) > 40) {
                 // Ignore swipes that started near screen edges (browser back/forward zone)
                 const edges = _getEdgeExclusion();
-                if (startX < edges.left || startX > window.innerWidth - edges.right) return;
+                if (startX < edges.left || startX > window.innerWidth - edges.right) {
+                    // OB6: Restore touchAction even when rejecting edge swipes
+                    const _isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
+                    gestureZone.style.touchAction = _isFS ? "none" : "pan-y pinch-zoom";
+                    return;
+                }
                 // Scale seek by swipe distance (10s per 80px, clamped 5–60s) — matches standalone
                 const seekAmt = Math.max(5, Math.min(60, Math.round(Math.abs(diffX) / 80) * 10));
                 if (diffX > 0) {
@@ -1918,7 +2031,7 @@
                     showFeedback(`+${seekAmt}s`, "right");
                     showSeekAnim("right", seekAmt);
                 } else {
-                    video.currentTime = Math.max(0, video.currentTime - seekAmt);
+                    safeSeekBackward(video, seekAmt);
                     showFeedback(`−${seekAmt}s`, "left");
                     showSeekAnim("left", seekAmt);
                 }
@@ -1940,11 +2053,11 @@
                     ripple.style.top    = `${e.clientY - rect.top  - half}px`;
                     ripple.style.width  = ripple.style.height = `${rippleSize}px`;
                     gestureZone.appendChild(ripple);
-                    setTimeout(() => ripple.remove(), 400);
+                    setTimeout(() => ripple.remove(), 500);
 
                     // BUG FIX: Double tap on sides targets seeking, double tap in middle toggles Play/Pause or Fullscreen
                     if (e.clientX < rect.left + rect.width * 0.30) {
-                        video.currentTime = Math.max(0, video.currentTime - 10);
+                        safeSeekBackward(video, 10);
                         showFeedback("−10s", "left");
                         showSeekAnim("left");
                         // M5: Haptic feedback on double-tap seek
@@ -1961,23 +2074,17 @@
                         lastTapTime = now;
                         setTimeout(() => { if (lastTapTime === now) lastTapTime = 0; }, 300);
                     } else {
-                        // Double tap center — brightness reset OR fullscreen (mutually exclusive)
-                        if (currentBrightness !== 1.0) {
-                            currentBrightness = 1.0;
-                            updateEnhanceValContent("brightness", 1.0);
-                            showFeedback("Brightness Reset");
-                        } else if (e.pointerType === "mouse") {
-                            // Preserve user activation for Firefox mobile fullscreen
+                        // U8: Double tap center — fullscreen for mouse, play/pause for touch
+                        if (e.pointerType === "mouse") {
                             const fsBtn = uiWrapper.querySelector("#wp-fs");
-                            if (fsBtn) {
-                                fsBtn.click();
-                            }
+                            if (fsBtn) fsBtn.click();
                         } else {
-                            // UX 7: Touch: toggle play/pause (matches YouTube/Instagram pattern and player.js)
                             const wasPaused = video.paused;
                             wasPaused ? safePlay(video) : safePause(video);
                             showFeedback(wasPaused ? "Playing" : "Paused");
                         }
+                        // OB10: Haptic feedback on center double-tap (parity with standalone)
+                        if (_canVibrate) try { navigator.vibrate(20); } catch (_) {}
                         lastTapTime = 0;
                     }
                 } else {

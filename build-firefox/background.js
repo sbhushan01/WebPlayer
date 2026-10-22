@@ -295,14 +295,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 sendResponse({ ok: true });
                 return;
             }
+            // B5: Use callback-based storage API instead of Promise.all for broader compatibility
+            const cleanupStorage = (filtered, cb) => {
+                chrome.storage.local.remove('_wp_pending_stream', () => {
+                    if (filtered.length) {
+                        chrome.storage.local.set({ _wp_pending_streams: filtered }, cb);
+                    } else {
+                        chrome.storage.local.remove('_wp_pending_streams', cb);
+                    }
+                });
+            };
             if (!request.url) {
                 if (typeof senderTabId === 'number') {
                     const filtered = pendingItems.filter(p => p.tabId !== senderTabId);
-                    const p1 = chrome.storage.local.remove('_wp_pending_stream');
-                    const p2 = filtered.length ? chrome.storage.local.set({ _wp_pending_streams: filtered }) : chrome.storage.local.remove('_wp_pending_streams');
-                    Promise.all([p1, p2]).then(() => sendResponse({ ok: true }));
+                    cleanupStorage(filtered, () => sendResponse({ ok: true }));
                 } else {
-                    chrome.storage.local.remove(['_wp_pending_stream', '_wp_pending_streams']).then(() => sendResponse({ ok: true }));
+                    chrome.storage.local.remove(['_wp_pending_stream', '_wp_pending_streams'], () => sendResponse({ ok: true }));
                 }
                 return;
             }
@@ -312,9 +320,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 const removeThisItem = sameUrl && sameTab;
                 return !removeThisItem;
             });
-            const p1 = chrome.storage.local.remove('_wp_pending_stream');
-            const p2 = filtered.length ? chrome.storage.local.set({ _wp_pending_streams: filtered }) : chrome.storage.local.remove('_wp_pending_streams');
-            Promise.all([p1, p2]).then(() => sendResponse({ ok: true }));
+            cleanupStorage(filtered, () => sendResponse({ ok: true }));
         });
         return true;
     }

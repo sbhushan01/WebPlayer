@@ -77,9 +77,11 @@ if (animatedElements.length > 0 && 'IntersectionObserver' in window) {
 
     // Respect prefers-reduced-motion
     const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    let animRunning = false; // B8: Prevent stacking concurrent rAF loops
 
     function draw() {
-        if (document.hidden) return; // M7: stop loop when tab is in background
+        if (document.hidden) { animRunning = false; return; }
+        animRunning = true;
         ctx.clearRect(0, 0, w, h);
         for (const p of particles) {
             p.x += p.dx;
@@ -101,7 +103,7 @@ if (animatedElements.length > 0 && 'IntersectionObserver' in window) {
         draw();
         // M7: Resume the loop when the tab becomes visible again
         document.addEventListener('visibilitychange', () => {
-            if (!document.hidden && !motionQuery.matches) draw();
+            if (!document.hidden && !motionQuery.matches && !animRunning) draw();
         });
     }
 })();

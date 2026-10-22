@@ -1439,11 +1439,24 @@ document.addEventListener("DOMContentLoaded", async () => {
     player.addEventListener("leavepictureinpicture", () => pipBtn.setAttribute("aria-pressed", "false"));
 
     // ── Rotate ────────────────────────────────────────────────────────────────
-    rotateBtn.addEventListener("click", () => {
-        rotationDeg = (rotationDeg + 90) % 360;
-        player.style.transform  = `rotate(${rotationDeg}deg)`;
+    const updatePlayerTransform = () => {
+        if (rotationDeg % 180 !== 0) {
+            const w = player.offsetWidth || player.videoWidth || 1;
+            const h = player.offsetHeight || player.videoHeight || 1;
+            const scale = (w > 0 && h > 0) ? Math.min(w / h, h / w) : 1;
+            player.style.transform  = `rotate(${rotationDeg}deg) scale(${scale})`;
+        } else {
+            player.style.transform  = rotationDeg === 0 ? "" : `rotate(${rotationDeg}deg)`;
+        }
         player.style.transition = "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)";
         rotateBtn.setAttribute("aria-pressed", rotationDeg !== 0 ? "true" : "false");
+    };
+    rotateBtn.addEventListener("click", () => {
+        rotationDeg = (rotationDeg + 90) % 360;
+        updatePlayerTransform();
+    });
+    window.addEventListener("resize", () => {
+        if (rotationDeg % 180 !== 0) updatePlayerTransform();
     });
 
     // ── Idle (auto-hide controls) ─────────────────────────────────────────────

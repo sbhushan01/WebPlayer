@@ -595,6 +595,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             document.documentElement.setAttribute("data-theme", t);
             themeBtns.forEach(b => b.classList.remove("active"));
             btn.classList.add("active");
+            // U4: Auto-close theme popover after selection
+            closePopoverAnimated(themePopover);
+            themeToggleBtn.setAttribute("aria-expanded", "false");
         });
     });
 
@@ -888,6 +891,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     let skipSegments = [];
     fetchSegments().then(segs => {
         skipSegments = segs;
+        // U1: Show brief feedback when SponsorBlock segments are found
+        if (segs.length) {
+            showFeedback(`SponsorBlock: ${segs.length} segment${segs.length > 1 ? 's' : ''}`);
+        }
         // U5: render segment markers if duration is already known
         if (segs.length && isFinite(player.duration) && player.duration > 0) renderSegmentMarkers();
     });
@@ -1290,13 +1297,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     player.addEventListener("error",    _clearBufferUI);
     // Mobile 1: Volume hint toast for hidden slider on narrow touch devices
     player.addEventListener("playing", () => {
+        if (!hasChromeStorage) return; // B2: Guard against non-extension contexts
         if (window.innerWidth <= 480 && matchMedia("(pointer: coarse)").matches) {
-            chrome.storage.local.get(["_wp_vol_hint_shown"], (res) => {
-                if (!res._wp_vol_hint_shown) {
-                    showFeedback("↕ Swipe up/down for volume", "center");
-                    chrome.storage.local.set({ _wp_vol_hint_shown: true });
-                }
-            });
+            try {
+                chrome.storage.local.get(["_wp_vol_hint_shown"], (res) => {
+                    if (!res._wp_vol_hint_shown) {
+                        showFeedback("↕ Swipe up/down for volume", "center");
+                        try { chrome.storage.local.set({ _wp_vol_hint_shown: true }); } catch (_) {}
+                    }
+                });
+            } catch (_) {}
         }
     });
 
@@ -1429,11 +1439,24 @@ document.addEventListener("DOMContentLoaded", async () => {
     player.addEventListener("leavepictureinpicture", () => pipBtn.setAttribute("aria-pressed", "false"));
 
     // ── Rotate ────────────────────────────────────────────────────────────────
-    rotateBtn.addEventListener("click", () => {
-        rotationDeg = (rotationDeg + 90) % 360;
-        player.style.transform  = `rotate(${rotationDeg}deg)`;
+    const updatePlayerTransform = () => {
+        if (rotationDeg % 180 !== 0) {
+            const w = player.offsetWidth || player.videoWidth || 1;
+            const h = player.offsetHeight || player.videoHeight || 1;
+            const scale = (w > 0 && h > 0) ? Math.min(w / h, h / w) : 1;
+            player.style.transform  = `rotate(${rotationDeg}deg) scale(${scale})`;
+        } else {
+            player.style.transform  = rotationDeg === 0 ? "" : `rotate(${rotationDeg}deg)`;
+        }
         player.style.transition = "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)";
         rotateBtn.setAttribute("aria-pressed", rotationDeg !== 0 ? "true" : "false");
+    };
+    rotateBtn.addEventListener("click", () => {
+        rotationDeg = (rotationDeg + 90) % 360;
+        updatePlayerTransform();
+    });
+    window.addEventListener("resize", () => {
+        if (rotationDeg % 180 !== 0) updatePlayerTransform();
     });
 
     // ── Idle (auto-hide controls) ─────────────────────────────────────────────
@@ -1472,7 +1495,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     window.visualViewport?.addEventListener("resize", syncViewportHeight, { passive: true });
     // Mobile 6: On some Android WebViews orientationchange fires before resize
     window.addEventListener("orientationchange", () => {
-        setTimeout(syncViewportHeight, 150);
+        setTimeout(syncViewportHeight, 300); // M6: Longer delay for older Android devices
     }, { passive: true });
 
     // Scroll indicator for mobile controls row (Bug #2 fix)
@@ -1914,12 +1937,19 @@ document.addEventListener("DOMContentLoaded", async () => {
                 player.muted       = false;
                 volumeSlider.value = player.volume;
                 updateVolIcon();
+                syncVolSliderStyle(); // B3: Keep slider gradient fill in sync during swipe
                 showFeedback(`Vol: ${Math.round(player.volume * 100)}%`, "right");
             } else {
                 currentBrightness = Math.max(0.1, Math.min(2.5, currentBrightness - deltaY * 0.01));
                 updateEnhanceVal("brightness", currentBrightness);
                 showFeedback(`Brightness: ${Math.round(currentBrightness * 100)}%`, "left");
             }
+        }
+        // U6: Live seek distance preview during horizontal swipe
+        if (swipeDir === "horizontal") {
+            const seekAmt = Math.max(5, Math.min(60, Math.round(Math.abs(diffX) / 80) * 10));
+            const shift = diffX > 0 ? seekAmt : -seekAmt;
+            showFeedback(`${shift > 0 ? "+" : ""}${shift}s`, shift > 0 ? "right" : "left");
         }
     });
 
@@ -2017,15 +2047,10 @@ document.addEventListener("DOMContentLoaded", async () => {
                     // M6: Haptic feedback on double-tap seek
                     if (_canVibrate) try { navigator.vibrate(15); } catch (_) {}
                 } else {
-                    // U8: Double tap center — play/pause for touch, fullscreen for mouse
-                    if (currentBrightness !== 1.0) {
-                        currentBrightness = 1.0;
-                        updateEnhanceVal("brightness", 1.0);
-                        showFeedback("Brightness Reset");
-                    } else if (e.pointerType === "mouse") {
+                    // U8: Double tap center — fullscreen for mouse, play/pause for touch
+                    if (e.pointerType === "mouse") {
                         toggleFS(e);
                     } else {
-                        // Touch: toggle play/pause (matches YouTube/Instagram pattern)
                         const wasPaused = player.paused;
                         wasPaused ? safePlay() : safePause();
                         showFeedback(wasPaused ? "Playing" : "Paused");
@@ -2143,12 +2168,15 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     };
 
+    // B6: Debounce enhancer storage writes during rapid slider dragging
+    let _enhanceSaveTimer = null;
     const updateEnhanceVal = (key, val) => {
         enhanceState[key] = parseFloat(val);
         enhanceState.preset = null;
         syncEnhanceUI();
         applyEnhancements();
-        saveEnhanceSettings();
+        clearTimeout(_enhanceSaveTimer);
+        _enhanceSaveTimer = setTimeout(saveEnhanceSettings, 600);
     };
 
     enhanceSharpen.addEventListener("input", e => updateEnhanceVal("sharpen", e.target.value));
@@ -2305,6 +2333,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                         div.className = "eq-band";
                         const divInput = document.createElement("input");
                         divInput.type = "range"; divInput.setAttribute("orient", "vertical"); divInput.min = "-12"; divInput.max = "12"; divInput.step = "0.5"; divInput.value = savedGain;
+                        divInput.setAttribute("aria-label", `EQ ${freq >= 1000 ? freq / 1000 + 'kHz' : freq + 'Hz'}`); // U7: Accessible label for screen readers
                         const divMark = document.createElement("div"); divMark.className = "eq-zero-mark";
                         const divGain = document.createElement("span");
                         divGain.style.cssText = "font-size:0.65rem;color:var(--md-sys-color-primary);font-weight:600;font-variant-numeric:tabular-nums;min-width:28px;text-align:center;";
