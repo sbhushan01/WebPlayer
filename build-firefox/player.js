@@ -872,6 +872,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // ── SponsorBlock ──────────────────────────────────────────────────────────
     window.__isSkipping = false;
+    let _skipTimeout = null;
 
     async function fetchSegments() {
         try {
@@ -969,6 +970,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         skipUndoBtn.addEventListener("click", () => {
             if (_lastSkipStartTime !== null) {
                 clearTimeout(_skipBadgeTimer);
+                clearTimeout(_skipTimeout);
+                window.__isSkipping = false;
                 // Bug 9: Remove segment from skippedIds so it can re-skip if user seeks back
                 for (const seg of skipSegments) {
                     const start = seg.segment?.[0] ?? seg.start;
@@ -1002,8 +1005,14 @@ document.addEventListener("DOMContentLoaded", async () => {
                 skippedIds.add(segId);
                 player.currentTime = end;
                 showSkipBadge(seg.category, start);
-                player.addEventListener("seeked", () => { window.__isSkipping = false; }, { once: true });
-                setTimeout(() => { window.__isSkipping = false; }, 1000);
+                clearTimeout(_skipTimeout);
+                const resetSkip = () => {
+                    window.__isSkipping = false;
+                    clearTimeout(_skipTimeout);
+                    _skipTimeout = null;
+                };
+                player.addEventListener("seeked", resetSkip, { once: true });
+                _skipTimeout = setTimeout(resetSkip, 1000);
                 break;
             }
         }

@@ -1246,6 +1246,7 @@
 
         // ── SponsorBlock ──────────────────────────────────────────────────────────
         let _isSkipping = false;
+        let _skipTimeout = null;
         async function fetchSegments() {
             try {
                 const match = /(?:v=|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/.exec(window.location.href);
@@ -1307,6 +1308,8 @@
         on(skipUndoBtn, "click", () => {
             if (_lastSkipStartTime !== null) {
                 clearTimeout(_skipBadgeTimer);
+                clearTimeout(_skipTimeout);
+                _isSkipping = false;
                 // Bug 9: Remove segment from skippedIds so it can re-skip if user seeks back
                 for (const seg of skipSegments) {
                     const start = seg.segment?.[0] ?? seg.start;
@@ -1346,8 +1349,14 @@
                     skippedIds.add(segId);
                     video.currentTime = end;
                     showSkipBadge(seg.category, start);
-                    on(video, "seeked", () => { _isSkipping = false; }, { once: true });
-                    setTimeout(() => { _isSkipping = false; }, 1000);
+                    clearTimeout(_skipTimeout);
+                    const resetSkip = () => {
+                        _isSkipping = false;
+                        clearTimeout(_skipTimeout);
+                        _skipTimeout = null;
+                    };
+                    on(video, "seeked", resetSkip, { once: true });
+                    _skipTimeout = setTimeout(resetSkip, 1000);
                     break;
                 }
             }
@@ -1498,6 +1507,8 @@
             clearTimeout(_overlayFeedbackTimer);
             clearTimeout(_enhanceStorageDebounce);
             clearTimeout(_skipBadgeTimer);
+            clearTimeout(_skipTimeout);
+            _isSkipping = false;
             ro.disconnect();
             if (cro) cro.disconnect();
             if (_safeAreaProbe) _safeAreaProbe.remove();
