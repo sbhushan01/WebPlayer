@@ -436,7 +436,7 @@
             button { background: rgba(255,255,255,0.0); border: none; color: #E3E3E3; cursor: pointer; padding: 8px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: all 0.2s ease; width: 44px; height: 44px; }
             button:hover { background: rgba(255,255,255,0.12); transform: scale(1.05); }
             @media (max-width: 600px) {
-                .webplayer-ui-wrapper { bottom: max(16px, calc(8px + env(safe-area-inset-bottom))); padding: 12px 16px; border-radius: 20px; gap: 10px; width: calc(100% - 20px); }
+                .webplayer-ui-wrapper { bottom: max(16px, calc(8px + env(safe-area-inset-bottom))); padding: 12px 16px; border-radius: 20px; gap: 10px; width: calc(100% - 20px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)); }
                 .wp-center-row { flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; gap: 8px; padding-bottom: 2px; scrollbar-width: none; scroll-snap-type: x proximity; }
                 .wp-center-row::-webkit-scrollbar { display: none; }
                 .wp-center-row > * { scroll-snap-align: center; }
@@ -730,16 +730,23 @@
         uiWrapper.appendChild(fragment);
 
         // U12: Add hidden SVG filter for Video Enhancer sharpening
-        const svgContainer = document.createElement("div");
-        const svgDoc = new DOMParser().parseFromString(`
-            <svg style="position: absolute; pointer-events: none; width: 0; height: 0;">
-                <filter id="wp-sharpen-content">
-                    <feConvolveMatrix id="wp-sharpen-matrix-content" order="3 3" preserveAlpha="true" kernelMatrix="0 0 0 0 1 0 0 0 0"/>
-                </filter>
-            </svg>
-        `, 'image/svg+xml');
-        svgContainer.appendChild(svgDoc.documentElement);
-        uiWrapper.appendChild(svgContainer.firstElementChild);
+        // B4: Append to main document (not shadow DOM) so CSS url(#...) resolves correctly on the video element
+        if (!document.getElementById("wp-sharpen-svg-content")) {
+            const svgNS = "http://www.w3.org/2000/svg";
+            const wpSvg = document.createElementNS(svgNS, "svg");
+            wpSvg.id = "wp-sharpen-svg-content";
+            wpSvg.style.cssText = "position:absolute;pointer-events:none;width:0;height:0;";
+            const wpFilter = document.createElementNS(svgNS, "filter");
+            wpFilter.id = "wp-sharpen-content";
+            const wpMatrix = document.createElementNS(svgNS, "feConvolveMatrix");
+            wpMatrix.id = "wp-sharpen-matrix-content";
+            wpMatrix.setAttribute("order", "3 3");
+            wpMatrix.setAttribute("preserveAlpha", "true");
+            wpMatrix.setAttribute("kernelMatrix", "0 0 0 0 1 0 0 0 0");
+            wpFilter.appendChild(wpMatrix);
+            wpSvg.appendChild(wpFilter);
+            getRootContainer()?.appendChild(wpSvg);
+        }
         setSVG(uiWrapper.querySelector("#wp-skip-back"), IC.skipBack);
         setSVG(uiWrapper.querySelector("#wp-play"), IC.play);
         setSVG(uiWrapper.querySelector("#wp-skip-fwd"), IC.skipFwd);
@@ -798,7 +805,7 @@
         shadow.appendChild(errorOverlay);
 
         // --- Video Enhancer Sync ---
-        const sharpenMatrixContent = shadow.querySelector("#wp-sharpen-matrix-content");
+        const sharpenMatrixContent = document.getElementById("wp-sharpen-matrix-content"); // B4: Query from main document
         let enhanceStateContent = { sharpen: 0, saturate: 1, contrast: 1, brightness: 1 };
         
         const applyContentEnhancements = (settings) => {
@@ -1270,7 +1277,7 @@
             _lastSkipStartTime = startTime;
             skipBadge.textContent = SEGMENT_LABELS[category] || "Segment Skipped";
             skipBadge.style.background = SEGMENT_COLORS[category] || "var(--wp-primary, #A8C7FA)";
-            skipBadge.style.color = category === "music_offtopic" ? "var(--md-sys-color-background, #1A1D24)" : "#062E6F";
+            skipBadge.style.color = category === "music_offtopic" ? "#1C1B1F" : "#062E6F"; // U3: Consistent dark text for all themes
             skipBadge.style.display = "block";
             requestAnimationFrame(() => skipBadge.classList.add("showing"));
             if (startTime !== null) {
@@ -1308,6 +1315,10 @@
 
         fetchSegments().then(segs => {
             skipSegments = segs;
+            // U1: Show brief feedback when SponsorBlock segments are found
+            if (segs.length) {
+                showFeedback(`SponsorBlock: ${segs.length} segment${segs.length > 1 ? 's' : ''}`);
+            }
             if (segs.length && isFinite(video.duration) && video.duration > 0) renderSegmentMarkers();
         });
         on(video, "loadedmetadata", renderSegmentMarkers);
@@ -1454,7 +1465,12 @@
             if (cro) cro.disconnect();
             if (_safeAreaProbe) _safeAreaProbe.remove();
             shadowHost.remove();
+            video.style.filter = ""; // B4: Clear enhancer filter on exit
             delete video.dataset.customPlayerActive;
+            // B4: Clean up SVG filter if no other overlays are active
+            if (!document.querySelector('video[data-custom-player-active="true"]')) {
+                document.getElementById("wp-sharpen-svg-content")?.remove();
+            }
             video.controls = (video.dataset.originalControls === "true");
             if (video.__wpOverlayAbortController === overlayController) {
                 delete video.__wpOverlayAbortController;
@@ -1858,7 +1874,7 @@
                 lastY = e.clientY;
 
                 if (e.clientX > rect.left + rect.width / 2) {
-                    video.volume = Math.max(0, Math.min(1, video.volume - deltaY * 0.005));
+                    video.volume = Math.max(0, Math.min(1, Math.round((video.volume - deltaY * 0.005) * 100) / 100)); // B7: Round to avoid floating-point drift
                     video.muted = false;
                     showFeedback(`Vol: ${Math.round(video.volume * 100)}%`, "right");
                 } else {
@@ -1866,6 +1882,12 @@
                     updateEnhanceValContent("brightness", currentBrightness);
                     showFeedback(`Brightness: ${Math.round(currentBrightness * 100)}%`, "left");
                 }
+            }
+            // U6: Live seek distance preview during horizontal swipe
+            if (swipeDir === "horizontal") {
+                const seekAmt = Math.max(5, Math.min(60, Math.round(Math.abs(diffX) / 80) * 10));
+                const shift = diffX > 0 ? seekAmt : -seekAmt;
+                showFeedback(`${shift > 0 ? "+" : ""}${shift}s`, shift > 0 ? "right" : "left");
             }
         });
 
@@ -1961,19 +1983,11 @@
                         lastTapTime = now;
                         setTimeout(() => { if (lastTapTime === now) lastTapTime = 0; }, 300);
                     } else {
-                        // Double tap center — brightness reset OR fullscreen (mutually exclusive)
-                        if (currentBrightness !== 1.0) {
-                            currentBrightness = 1.0;
-                            updateEnhanceValContent("brightness", 1.0);
-                            showFeedback("Brightness Reset");
-                        } else if (e.pointerType === "mouse") {
-                            // Preserve user activation for Firefox mobile fullscreen
+                        // U8: Double tap center — fullscreen for mouse, play/pause for touch
+                        if (e.pointerType === "mouse") {
                             const fsBtn = uiWrapper.querySelector("#wp-fs");
-                            if (fsBtn) {
-                                fsBtn.click();
-                            }
+                            if (fsBtn) fsBtn.click();
                         } else {
-                            // UX 7: Touch: toggle play/pause (matches YouTube/Instagram pattern and player.js)
                             const wasPaused = video.paused;
                             wasPaused ? safePlay(video) : safePause(video);
                             showFeedback(wasPaused ? "Playing" : "Paused");
