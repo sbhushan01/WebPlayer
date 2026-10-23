@@ -401,6 +401,7 @@
                 padding: 16px 24px; border-radius: 28px; display: flex; flex-direction: column; gap: 12px; opacity: 0;
                 transition: opacity 0.4s ease, transform 0.4s ease; pointer-events: none; border: 1px solid rgba(255,255,255,0.08);
                 width: calc(95% - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)); max-width: 800px; color: #E3E3E3; box-shadow: 0px 8px 16px 2px rgba(0,0,0,0.2);
+                z-index: 30;
             }
             @supports (backdrop-filter: blur(24px)) {
                 .webplayer-ui-wrapper {
@@ -510,6 +511,7 @@
                 position: absolute; inset: 0; pointer-events: auto;
                 touch-action: pan-y pinch-zoom; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
                 overflow: hidden;
+                z-index: 10;
             }
             .wp-ripple {
                 position: absolute; border-radius: 50%; background: #A8C7FA;
@@ -1011,7 +1013,14 @@
         // Bug 1: Use a coordinated cleanup + timeout fallback to prevent
         // hanging in "closing" state if prefers-reduced-motion changes mid-session.
         const closeOverlayPopover = (popoverEl, toggleBtn) => {
-            if (!popoverEl || !popoverEl.classList.contains("active") || popoverEl.classList.contains("closing")) return;
+            if (!popoverEl) return;
+            // If stuck in 'closing' state, force-complete the close immediately
+            if (popoverEl.classList.contains("closing")) {
+                popoverEl.classList.remove("active", "closing");
+                if (toggleBtn) toggleBtn.setAttribute("aria-expanded", "false");
+                return;
+            }
+            if (!popoverEl.classList.contains("active")) return;
             popoverEl.classList.add("closing");
             if (toggleBtn) toggleBtn.setAttribute("aria-expanded", "false");
             const cleanup = () => { popoverEl.classList.remove("active", "closing"); clearTimeout(fallback); };
@@ -1064,16 +1073,27 @@
             });
         }
         on(uiWrapper, "click", e => {
-            if (!e.target.closest("#wp-quality-container") && !e.target.closest("#wp-quality-btn")) {
+            // Don't close popovers when interacting with elements inside them
+            const path = e.composedPath ? e.composedPath() : [];
+            const isInsideQuality = e.target.closest("#wp-quality-container") || e.target.closest("#wp-quality-btn") || path.some(el => el.id === 'wp-quality-container' || el.id === 'wp-quality-btn');
+            const isInsideSpeed = e.target.closest("#wp-speed-popover") || e.target.closest("#wp-speed-toggle-btn") || path.some(el => el.id === 'wp-speed-popover' || el.id === 'wp-speed-toggle-btn');
+            const isInsideEnhance = e.target.closest("#wp-enhance-popover") || e.target.closest("#wp-enhance-toggle-btn") || path.some(el => el.id === 'wp-enhance-popover' || el.id === 'wp-enhance-toggle-btn');
+            if (!isInsideQuality) {
                 qDropdown.classList.remove("open");
                 qBtn.setAttribute("aria-expanded", "false");
             }
-            if (!e.target.closest("#wp-speed-popover") && !e.target.closest("#wp-speed-toggle-btn")) {
+            if (!isInsideSpeed) {
                 closeOverlayPopover(speedPopover, speedToggleBtn);
             }
-            if (enhancePopover && !e.target.closest("#wp-enhance-popover") && !e.target.closest("#wp-enhance-toggle-btn")) {
+            if (enhancePopover && !isInsideEnhance) {
                 closeOverlayPopover(enhancePopover, enhanceToggleBtn);
             }
+        });
+        // Stop clicks inside popovers from propagating to uiWrapper's click handler
+        [speedPopover, enhancePopover].filter(Boolean).forEach(popover => {
+            on(popover, "click", e => e.stopPropagation());
+            on(popover, "pointerdown", e => e.stopPropagation());
+            on(popover, "pointerup", e => e.stopPropagation());
         });
         [qDropdown, speedPopover, enhancePopover].filter(Boolean).forEach(dropdown => {
             on(dropdown, "keydown", (e) => {
@@ -1905,7 +1925,28 @@
 
         let wasControlsVisibleBeforeTap = false;
 
+        // Helper: check if a pointer event's target is inside the controls UI
+        const isEventOverControls = (e) => {
+            // Check composedPath for shadow DOM elements
+            const path = e.composedPath ? e.composedPath() : [];
+            for (const el of path) {
+                if (el === uiWrapper || el === feedbackOverlay || el === skipBadge || el === skipUndoBtn || el === errorOverlay) return true;
+                // Check for popover elements
+                if (el.classList && (el.classList.contains('popover-card') || el.classList.contains('quality-dropdown'))) return true;
+            }
+            return false;
+        };
+
+        // Helper: check if any popover or dropdown is currently open
+        const isAnyPopoverOpen = () => {
+            return qDropdown.classList.contains("open") ||
+                   speedPopover.classList.contains("active") ||
+                   (enhancePopover && enhancePopover.classList.contains("active"));
+        };
+
         on(gestureZone, "pointerdown", e => {
+            // Don't process gesture if the event is over the controls UI
+            if (isEventOverControls(e)) return;
             wasControlsVisibleBeforeTap = uiWrapper.classList.contains("wp-controls-visible");
             isPointerDown = true;
             try { gestureZone.setPointerCapture(e.pointerId); } catch (_) {}
@@ -1930,7 +1971,7 @@
         });
 
         on(gestureZone, "pointermove", e => {
-            if (!isPointerDown || isLongPressActive) return;
+            if (!isPointerDown || isLongPressActive || isEventOverControls(e)) return;
             // U6: Ignore gestures near screen edges (safe-area aware)
             const _edgeRect = gestureZone.getBoundingClientRect();
             const _yRatio = (e.clientY - _edgeRect.top) / _edgeRect.height;
@@ -2101,6 +2142,13 @@
                 } else {
                     lastTapTime = now;
                     tapTimeout = setTimeout(() => {
+                        // Don't process single-tap actions if a popover is open
+                        if (isAnyPopoverOpen()) {
+                            // Close all popovers on tap outside
+                            closeAllDropdownsExcept(null);
+                            lastTapTime = 0;
+                            return;
+                        }
                         if (e.pointerType === "mouse") {
                             const wasPaused = video.paused;
                             wasPaused ? safePlay(video) : safePause(video);
