@@ -780,18 +780,22 @@
         const gestureZone = document.createElement("div");
         gestureZone.className = "webplayer-gesture-zone";
 
+        // DOM structure: gestureZone is the root interaction layer.
+        // uiWrapper, feedbackOverlay, etc. are CHILDREN of gestureZone so that
+        // touch events on buttons bubble through gestureZone and we can check
+        // e.target to distinguish control taps from gesture taps.
+        gestureZone.appendChild(uiWrapper);
+        gestureZone.appendChild(feedbackOverlay);
         shadow.appendChild(gestureZone);
-        shadow.appendChild(uiWrapper);
-        shadow.appendChild(feedbackOverlay);
 
         // U9: Skip badge + undo button
         const skipBadge = document.createElement("div");
         skipBadge.className = "wp-skip-badge";
-        shadow.appendChild(skipBadge);
+        gestureZone.appendChild(skipBadge);
         const skipUndoBtn = document.createElement("button");
         skipUndoBtn.className = "wp-skip-undo";
         skipUndoBtn.textContent = "Undo";
-        shadow.appendChild(skipUndoBtn);
+        gestureZone.appendChild(skipUndoBtn);
 
         // U2: Error overlay (Bug 2: use createElement instead of innerHTML to avoid XSS risk)
         const errorOverlay = document.createElement("div");
@@ -810,7 +814,7 @@
         errorOverlay.appendChild(errTypeDiv);
         errorOverlay.appendChild(errMsgDiv);
         errorOverlay.appendChild(errRetryButton);
-        shadow.appendChild(errorOverlay);
+        gestureZone.appendChild(errorOverlay);
 
         // --- Video Enhancer Sync ---
         const sharpenMatrixContent = document.getElementById("wp-sharpen-matrix-content"); // B4: Query from main document
@@ -1811,16 +1815,17 @@
                         const vidReq = video.requestFullscreen || video.webkitRequestFullscreen;
                         await vidReq?.call(video);
                     }
-                    // Lock to landscape on mobile for horizontal videos
+                    // Lock to landscape on mobile
                     try {
-                        const isHorizontal = video.videoWidth >= video.videoHeight;
-                        if (isHorizontal || rot % 180 !== 0) {
-                            await screen.orientation?.lock?.('landscape');
-                        }
+                        await screen.orientation?.lock?.('landscape');
                     } catch (_) {
-                        // Mobile 2: Show a hint if lock fails
-                        if (window.innerWidth < window.innerHeight) {
-                            showFeedback("Rotate your device", "center");
+                        // Fallback: try landscape-primary
+                        try {
+                            await screen.orientation?.lock?.('landscape-primary');
+                        } catch (__) {
+                            if (window.innerWidth < window.innerHeight) {
+                                showFeedback("Rotate your device", "center");
+                            }
                         }
                     }
                 }
@@ -1835,11 +1840,10 @@
                     await vidReq?.call(video);
                     // Lock to landscape on fallback fullscreen too
                     try {
-                        const isHorizontal = video.videoWidth >= video.videoHeight;
-                        if (isHorizontal || rot % 180 !== 0) {
-                            await screen.orientation?.lock?.('landscape');
-                        }
-                    } catch (_) {}
+                        await screen.orientation?.lock?.('landscape');
+                    } catch (_) {
+                        try { await screen.orientation?.lock?.('landscape-primary'); } catch (__) {}
+                    }
                 } catch (_) { showFeedback("FS Blocked"); }
             }
         });
@@ -1925,18 +1929,6 @@
 
         let wasControlsVisibleBeforeTap = false;
 
-        // Helper: check if a pointer event's target is inside the controls UI
-        const isEventOverControls = (e) => {
-            // Check composedPath for shadow DOM elements
-            const path = e.composedPath ? e.composedPath() : [];
-            for (const el of path) {
-                if (el === uiWrapper || el === feedbackOverlay || el === skipBadge || el === skipUndoBtn || el === errorOverlay) return true;
-                // Check for popover elements
-                if (el.classList && (el.classList.contains('popover-card') || el.classList.contains('quality-dropdown'))) return true;
-            }
-            return false;
-        };
-
         // Helper: check if any popover or dropdown is currently open
         const isAnyPopoverOpen = () => {
             return qDropdown.classList.contains("open") ||
@@ -1945,8 +1937,11 @@
         };
 
         on(gestureZone, "pointerdown", e => {
-            // Don't process gesture if the event is over the controls UI
-            if (isEventOverControls(e)) return;
+            // Only process gestures when the touch is directly on the gestureZone background.
+            // Taps on buttons/controls will have e.target as the button (not gestureZone)
+            // because uiWrapper is now a child of gestureZone. The button's own click
+            // handler fires normally; the pointerdown just bubbles here harmlessly.
+            if (e.target !== gestureZone) return;
             wasControlsVisibleBeforeTap = uiWrapper.classList.contains("wp-controls-visible");
             isPointerDown = true;
             try { gestureZone.setPointerCapture(e.pointerId); } catch (_) {}
@@ -1971,7 +1966,7 @@
         });
 
         on(gestureZone, "pointermove", e => {
-            if (!isPointerDown || isLongPressActive || isEventOverControls(e)) return;
+            if (!isPointerDown || isLongPressActive) return;
             // U6: Ignore gestures near screen edges (safe-area aware)
             const _edgeRect = gestureZone.getBoundingClientRect();
             const _yRatio = (e.clientY - _edgeRect.top) / _edgeRect.height;
@@ -2109,10 +2104,16 @@
 
                     // BUG FIX: Double tap on sides targets seeking, double tap in middle toggles Play/Pause or Fullscreen
                     if (e.clientX < rect.left + rect.width * 0.30) {
-                        safeSeekBackward(video, 10);
-                        showFeedback("−10s", "left");
-                        showSeekAnim("left");
-                        // M5: Haptic feedback on double-tap seek
+                        // Double-tap left: reset brightness if modified, otherwise seek -10s
+                        if (currentBrightness !== 1.0) {
+                            currentBrightness = 1.0;
+                            updateEnhanceValContent("brightness", currentBrightness);
+                            showFeedback("Brightness Reset", "left");
+                        } else {
+                            safeSeekBackward(video, 10);
+                            showFeedback("−10s", "left");
+                            showSeekAnim("left");
+                        }
                         if (_canVibrate) try { navigator.vibrate(15); } catch (_) {}
                         lastTapTime = now;
                         // Brief cooldown to prevent accidental triple-tap double-seek
@@ -2126,16 +2127,9 @@
                         lastTapTime = now;
                         setTimeout(() => { if (lastTapTime === now) lastTapTime = 0; }, 300);
                     } else {
-                        // U8: Double tap center — fullscreen for mouse, play/pause for touch
-                        if (e.pointerType === "mouse") {
-                            const fsBtn = uiWrapper.querySelector("#wp-fs");
-                            if (fsBtn) fsBtn.click();
-                        } else {
-                            const wasPaused = video.paused;
-                            wasPaused ? safePlay(video) : safePause(video);
-                            showFeedback(wasPaused ? "Playing" : "Paused");
-                        }
-                        // OB10: Haptic feedback on center double-tap (parity with standalone)
+                        // Double tap center toggles fullscreen for both mouse and touch
+                        const fsBtn = uiWrapper.querySelector("#wp-fs");
+                        if (fsBtn) fsBtn.click();
                         if (_canVibrate) try { navigator.vibrate(20); } catch (_) {}
                         lastTapTime = 0;
                     }
