@@ -129,6 +129,9 @@
             font-family: 'Inter', system-ui, sans-serif;
             overflow: hidden;
             transition: background 0.4s ease;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
         }
 
         /* ── Video container ─────────────────────────────────────────────────── */
@@ -284,7 +287,18 @@
             z-index: 100;
         }
 
-        [data-tooltip]:hover::after,
+        @media (hover: hover) and (pointer: fine) {
+            [data-tooltip]:hover::after {
+                opacity: 1;
+                transform: translateX(-50%) scale(1);
+            }
+            #fs-btn[data-tooltip]:hover::after,
+            #pip-btn[data-tooltip]:hover::after,
+            #rotate-btn[data-tooltip]:hover::after {
+                transform: translateX(0) scale(1);
+            }
+        }
+
         [data-tooltip]:focus-visible::after {
             opacity: 1;
             transform: translateX(-50%) scale(1);
@@ -299,9 +313,6 @@
             transform: translateX(0) scale(0.9);
         }
 
-        #fs-btn[data-tooltip]:hover::after,
-        #pip-btn[data-tooltip]:hover::after,
-        #rotate-btn[data-tooltip]:hover::after,
         #fs-btn[data-tooltip]:focus-visible::after,
         #pip-btn[data-tooltip]:focus-visible::after,
         #rotate-btn[data-tooltip]:focus-visible::after {
@@ -542,9 +553,11 @@
             flex-shrink: 0;
         }
 
-        button:hover {
-            background-color: rgba(255, 255, 255, 0.12);
-            transform: scale(1.05);
+        @media (hover: hover) and (pointer: fine) {
+            button:hover {
+                background-color: rgba(255, 255, 255, 0.12);
+                transform: scale(1.05);
+            }
         }
 
         button:active {
@@ -1097,7 +1110,7 @@
         .badges-container {
             position: absolute;
             top: calc(32px + env(safe-area-inset-top, 0px));
-            right: 32px;
+            right: calc(32px + env(safe-area-inset-right, 0px));
             z-index: 20;
             display: flex;
             flex-direction: column;
@@ -1710,6 +1723,9 @@
         @media (pointer: coarse) {
             .eq-band input[type="range"] {
                 width: 38px;
+            }
+            .quality-option {
+                min-height: 44px;
             }
 
             /* M4: Wider thumb for WCAG/HIG minimum touch target */

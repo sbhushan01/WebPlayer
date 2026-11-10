@@ -160,6 +160,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         navigator.mediaSession.setActionHandler("pause",        () => safePause());
         navigator.mediaSession.setActionHandler("seekbackward", (e) => { if (!isFinite(player.duration)) return; player.currentTime = Math.max(0, player.currentTime - (e.seekOffset || 10)); });
         navigator.mediaSession.setActionHandler("seekforward",  (e) => { if (!isFinite(player.duration)) return; player.currentTime = Math.min(player.duration, player.currentTime + (e.seekOffset || 10)); });
+        try {
+            navigator.mediaSession.setActionHandler("seekto", (details) => {
+                if (details.seekTime !== undefined && isFinite(player.duration)) {
+                    player.currentTime = Math.max(0, Math.min(player.duration, details.seekTime));
+                }
+            });
+        } catch (_) {}
     }
 
     // ── URL params ────────────────────────────────────────────────────────────
@@ -335,7 +342,10 @@ document.addEventListener("DOMContentLoaded", async () => {
             lastSave = now;
         }
     });
-    player.addEventListener("ended", () => { if (hasChromeStorage) try { chrome.storage.local.remove([cleanUrl]); } catch (_) {} });
+    player.addEventListener("ended", () => {
+        if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "none";
+        if (hasChromeStorage) try { chrome.storage.local.remove([cleanUrl]); } catch (_) {}
+    });
 
     // ── Stream engines ────────────────────────────────────────────────────────
     // EQ state is declared early because destroyEngines() can run before first playback.
@@ -1317,6 +1327,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     };
     playBtn.addEventListener("click", togglePlay);
     player.addEventListener("play", () => {
+        if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "playing";
         if (currentHls && typeof currentHls.startLoad === "function") {
             try { currentHls.startLoad(); } catch (_) {}
         }
@@ -1327,6 +1338,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         playBtn.setAttribute("aria-label", "Pause");
     });
     player.addEventListener("pause", () => {
+        if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused";
         playIcon.textContent = "play_arrow";
         playBtn.setAttribute("aria-label", "Play");
     });
@@ -1473,24 +1485,42 @@ document.addEventListener("DOMContentLoaded", async () => {
     };
     fsBtn.addEventListener("click", (e) => toggleFS(e));
     const onFSChange = () => {
-        const isFS = document.fullscreenElement || document.webkitFullscreenElement;
+        const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement || player.webkitDisplayingFullscreen);
+        if (!isFS) {
+            try { screen.orientation?.unlock?.(); } catch (_) {}
+        }
         fsIcon.textContent = isFS ? "fullscreen_exit" : "fullscreen";
         fsBtn.setAttribute("aria-pressed", isFS ? "true" : "false");
     };
     document.addEventListener("fullscreenchange",       onFSChange);
     document.addEventListener("webkitfullscreenchange", onFSChange);
+    player.addEventListener("webkitbeginfullscreen",    onFSChange);
+    player.addEventListener("webkitendfullscreen",      onFSChange);
 
     // ── PiP ───────────────────────────────────────────────────────────────────
     pipBtn.addEventListener("click", async () => {
         try {
-            document.pictureInPictureElement
-                ? await document.exitPictureInPicture()
-                : await player.requestPictureInPicture();
-            pipBtn.setAttribute("aria-pressed", document.pictureInPictureElement ? "true" : "false");
+            if (player.webkitSupportsPresentationMode && typeof player.webkitSetPresentationMode === "function") {
+                const isPip = player.webkitPresentationMode === "picture-in-picture";
+                player.webkitSetPresentationMode(isPip ? "inline" : "picture-in-picture");
+                pipBtn.setAttribute("aria-pressed", isPip ? "false" : "true");
+            } else if (document.pictureInPictureElement) {
+                await document.exitPictureInPicture();
+                pipBtn.setAttribute("aria-pressed", "false");
+            } else if (player.requestPictureInPicture) {
+                await player.requestPictureInPicture();
+                pipBtn.setAttribute("aria-pressed", "true");
+            } else {
+                showFeedback("PiP unavailable");
+            }
         } catch (err) { console.warn("PiP blocked", err); showFeedback("PiP Blocked"); }
     });
     player.addEventListener("enterpictureinpicture", () => pipBtn.setAttribute("aria-pressed", "true"));
     player.addEventListener("leavepictureinpicture", () => pipBtn.setAttribute("aria-pressed", "false"));
+    player.addEventListener("webkitpresentationmodechanged", () => {
+        const isPip = player.webkitPresentationMode === "picture-in-picture";
+        pipBtn.setAttribute("aria-pressed", isPip ? "true" : "false");
+    });
 
     // ── Rotate ────────────────────────────────────────────────────────────────
     const updatePlayerTransform = () => {
@@ -2083,15 +2113,22 @@ document.addEventListener("DOMContentLoaded", async () => {
                 gestureZone.appendChild(ripple);
                 setTimeout(() => ripple.remove(), 400);
 
-                // BUG FIX: Double tap on sides targets seeking, double tap in middle toggles Play/Pause or Fullscreen
+                // BUG FIX: Double tap on sides targets seeking (or brightness reset on left), double tap in middle toggles Fullscreen
                 if (e.clientX < rect.left + rect.width * 0.30) {
-                    player.currentTime = Math.max(0, player.currentTime - 10);
-                    showFeedback("−10s", "left");
-                    const animEl = document.getElementById("seek-anim-left");
-                    if (animEl) {
-                        animEl.classList.remove("play-left");
-                        void animEl.offsetWidth; // trigger reflow
-                        animEl.classList.add("play-left");
+                    // Mobile M-S1: Double-tap left resets brightness if modified, otherwise seeks -10s
+                    if (currentBrightness !== 1.0) {
+                        currentBrightness = 1.0;
+                        updateEnhanceVal("brightness", currentBrightness);
+                        showFeedback("Brightness Reset", "left");
+                    } else {
+                        player.currentTime = Math.max(0, player.currentTime - 10);
+                        showFeedback("−10s", "left");
+                        const animEl = document.getElementById("seek-anim-left");
+                        if (animEl) {
+                            animEl.classList.remove("play-left");
+                            void animEl.offsetWidth; // trigger reflow
+                            animEl.classList.add("play-left");
+                        }
                     }
                     lastTapTime = now;
                     // Brief cooldown to prevent accidental triple-tap double-seek
@@ -2112,14 +2149,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                     // M6: Haptic feedback on double-tap seek
                     if (_canVibrate) try { navigator.vibrate(15); } catch (_) {}
                 } else {
-                    // U8: Double tap center — fullscreen for mouse, play/pause for touch
-                    if (e.pointerType === "mouse") {
-                        toggleFS(e);
-                    } else {
-                        const wasPaused = player.paused;
-                        wasPaused ? safePlay() : safePause();
-                        showFeedback(wasPaused ? "Playing" : "Paused");
-                    }
+                    // Mobile M-S1: Double tap center toggles fullscreen for both mouse and touch
+                    toggleFS(e);
                     // M6: Haptic feedback on double-tap
                     if (_canVibrate) try { navigator.vibrate(20); } catch (_) {}
                     lastTapTime = 0;
@@ -2458,6 +2489,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     player.addEventListener("play", () => {
-        if (!isAudioInitialized) initAudioContext();
+        if (!isAudioInitialized) {
+            initAudioContext();
+        } else if (window.audioContext?.state === "suspended") {
+            window.audioContext.resume().catch(() => {});
+        }
     });
 });

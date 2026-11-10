@@ -349,6 +349,9 @@
         video.dataset.customPlayerActive = "true";
         video.dataset.originalControls   = video.controls;
         video.controls = false;
+        // Mobile M-O3: Ensure inline playback on iOS Safari to prevent system player takeover
+        if (!video.hasAttribute("playsinline")) video.setAttribute("playsinline", "");
+        if (!video.hasAttribute("webkit-playsinline")) video.setAttribute("webkit-playsinline", "");
 
         const root = getRootContainer();
         if (root) root.classList.add("webplayer-active");
@@ -401,7 +404,7 @@
                 padding: 16px 24px; border-radius: 28px; display: flex; flex-direction: column; gap: 12px; opacity: 0;
                 transition: opacity 0.4s ease, transform 0.4s ease; pointer-events: none; border: 1px solid rgba(255,255,255,0.08);
                 width: calc(95% - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)); max-width: 800px; color: #E3E3E3; box-shadow: 0px 8px 16px 2px rgba(0,0,0,0.2);
-                z-index: 30;
+                z-index: 30; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
             }
             @supports (backdrop-filter: blur(24px)) {
                 .webplayer-ui-wrapper {
@@ -441,7 +444,14 @@
             input[type=range]:active::-moz-range-thumb { transform: scale(1.3); }
             .wp-center-row { display: flex; justify-content: center; align-items: center; gap: 16px; margin-top: 4px; flex-wrap: nowrap; }
             button { background: rgba(255,255,255,0.0); border: none; color: #E3E3E3; cursor: pointer; padding: 8px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: all 0.2s ease; width: 44px; height: 44px; }
-            button:hover { background: rgba(255,255,255,0.12); transform: scale(1.05); }
+            @media (hover: hover) and (pointer: fine) {
+                button:hover { background: rgba(255,255,255,0.12); transform: scale(1.05); }
+            }
+            @media (pointer: coarse) {
+                #wp-progress { height: 8px; }
+                #wp-progress::-webkit-slider-thumb { width: 22px; height: 22px; }
+                #wp-progress::-moz-range-thumb { width: 22px; height: 22px; }
+            }
             @media (max-width: 600px) {
                 .webplayer-ui-wrapper { bottom: max(16px, calc(8px + env(safe-area-inset-bottom))); padding: 12px 16px; border-radius: 20px; gap: 10px; width: calc(100% - 20px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)); }
                 .wp-center-row { flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; gap: 8px; padding-bottom: 2px; scrollbar-width: none; scroll-snap-type: x proximity; }
@@ -525,6 +535,7 @@
                 background: rgba(26, 29, 36, 0.95); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
                 border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 8px; flex-direction: column; gap: 4px; 
                 z-index: 50; box-shadow: 0px 8px 16px 2px rgba(0,0,0,0.2); min-width: 140px; display: none; 
+                max-height: calc(60vh - env(safe-area-inset-top, 0px)); overflow-y: auto;
             }
             .quality-dropdown.open { display: flex; animation: wp-slideUp 0.2s cubic-bezier(0.4,0,0.2,1); }
             @keyframes wp-slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -557,14 +568,16 @@
                 }
             }
             [data-tooltip] { position: relative; }
-            [data-tooltip]:hover::after {
-                content: attr(data-tooltip);
-                position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
-                background: rgba(26, 29, 36, 0.92); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-                padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 500; color: #E3E3E3;
-                white-space: nowrap; pointer-events: none; z-index: 100;
-                border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-                animation: wp-tooltipIn 0.15s ease-out;
+            @media (hover: hover) and (pointer: fine) {
+                [data-tooltip]:hover::after {
+                    content: attr(data-tooltip);
+                    position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+                    background: rgba(26, 29, 36, 0.92); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+                    padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 500; color: #E3E3E3;
+                    white-space: nowrap; pointer-events: none; z-index: 100;
+                    border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                    animation: wp-tooltipIn 0.15s ease-out;
+                }
             }
             @keyframes wp-tooltipIn { from { opacity: 0; transform: translateX(-50%) translateY(4px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
             .popover-card.closing { animation: wp-slideDown 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards; pointer-events: none; }
@@ -1775,10 +1788,20 @@
             pipBtn.setAttribute("aria-pressed", "false");
             on(pipBtn, "click", async () => {
                 try {
-                    document.pictureInPictureElement
-                        ? await document.exitPictureInPicture()
-                        : await video.requestPictureInPicture();
-                    pipBtn.setAttribute("aria-pressed", document.pictureInPictureElement ? "true" : "false");
+                    // Mobile M-O4: Support Safari/iOS webkitSetPresentationMode
+                    if (video.webkitSupportsPresentationMode && typeof video.webkitSetPresentationMode === "function") {
+                        const isPip = video.webkitPresentationMode === "picture-in-picture";
+                        video.webkitSetPresentationMode(isPip ? "inline" : "picture-in-picture");
+                        pipBtn.setAttribute("aria-pressed", isPip ? "false" : "true");
+                    } else if (document.pictureInPictureElement) {
+                        await document.exitPictureInPicture();
+                        pipBtn.setAttribute("aria-pressed", "false");
+                    } else if (video.requestPictureInPicture) {
+                        await video.requestPictureInPicture();
+                        pipBtn.setAttribute("aria-pressed", "true");
+                    } else {
+                        showFeedback("PiP unavailable");
+                    }
                 } catch (err) {
                     console.warn("PiP blocked", err);
                     showFeedback("PiP Blocked");
@@ -1786,6 +1809,10 @@
             });
             on(video, "enterpictureinpicture", () => pipBtn.setAttribute("aria-pressed", "true"));
             on(video, "leavepictureinpicture", () => pipBtn.setAttribute("aria-pressed", "false"));
+            on(video, "webkitpresentationmodechanged", () => {
+                const isPip = video.webkitPresentationMode === "picture-in-picture";
+                pipBtn.setAttribute("aria-pressed", isPip ? "true" : "false");
+            });
         }
         // B3: rot must be declared before the fullscreen handler that references it
         let rot = 0;
@@ -1809,7 +1836,12 @@
                         showFeedback("FS Blocked");
                         return;
                     }
-                    if (req && container) {
+                    // Mobile M-O2: iPhone Safari only supports video.webkitEnterFullscreen
+                    const isIPhone = /iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+                    if (isIPhone && typeof video.webkitEnterFullscreen === "function") {
+                        video.webkitEnterFullscreen();
+                        return;
+                    } else if (req && container) {
                         await req.call(container);
                     } else {
                         const vidReq = video.requestFullscreen || video.webkitRequestFullscreen;
@@ -1875,6 +1907,8 @@
         };
         on(document, "fullscreenchange", updateTouchAction);
         on(document, "webkitfullscreenchange", updateTouchAction);
+        on(video, "webkitbeginfullscreen", updateTouchAction);
+        on(video, "webkitendfullscreen", updateTouchAction);
         on(window, "resize", () => {
             if (rot % 180 !== 0) updateVideoTransform();
             syncOverlay();
@@ -1936,12 +1970,21 @@
                    (enhancePopover && enhancePopover.classList.contains("active"));
         };
 
+        // Mobile M-O5: iOS volume is read-only
+        const _isVolumeReadOnly = (() => {
+            try { const v = video.volume; video.volume = 0.999; const ro = (video.volume === v); video.volume = v; return ro; } catch (_) { return true; }
+        })();
+
+        let _activePointerId = null;
         on(gestureZone, "pointerdown", e => {
             // Only process gestures when the touch is directly on the gestureZone background.
             // Taps on buttons/controls will have e.target as the button (not gestureZone)
             // because uiWrapper is now a child of gestureZone. The button's own click
             // handler fires normally; the pointerdown just bubbles here harmlessly.
             if (e.target !== gestureZone) return;
+            // Mobile M-O1: Multi-touch guard: ignore secondary pointers to prevent state corruption
+            if (_activePointerId !== null) return;
+            _activePointerId = e.pointerId;
             wasControlsVisibleBeforeTap = uiWrapper.classList.contains("wp-controls-visible");
             isPointerDown = true;
             try { gestureZone.setPointerCapture(e.pointerId); } catch (_) {}
@@ -1966,7 +2009,7 @@
         });
 
         on(gestureZone, "pointermove", e => {
-            if (!isPointerDown || isLongPressActive) return;
+            if (!isPointerDown || isLongPressActive || e.pointerId !== _activePointerId) return;
             // U6: Ignore gestures near screen edges (safe-area aware)
             const _edgeRect = gestureZone.getBoundingClientRect();
             const _yRatio = (e.clientY - _edgeRect.top) / _edgeRect.height;
@@ -2004,6 +2047,11 @@
                 lastY = e.clientY;
 
                 if (e.clientX > rect.left + rect.width / 2) {
+                    if (_isVolumeReadOnly) {
+                        showFeedback("Vol: Use device buttons", "right");
+                        swipeDir = "vertical-blocked";
+                        return;
+                    }
                     video.volume = Math.max(0, Math.min(1, Math.round((video.volume - deltaY * 0.005) * 100) / 100)); // B7: Round to avoid floating-point drift
                     video.muted = false;
                     if (volSlider) volSlider.value = video.volume; // OB3: Sync slider DOM value
@@ -2025,7 +2073,8 @@
         });
 
         const handleGestureEnd = e => {
-            if (!isPointerDown) return;
+            if (!isPointerDown || e.pointerId !== _activePointerId) return;
+            _activePointerId = null;
             isPointerDown = false;
             // Restore touch-action for page scrolling after horizontal swipe lock
             const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
