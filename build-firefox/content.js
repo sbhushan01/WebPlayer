@@ -119,6 +119,12 @@
                     const launchBtn = document.createElement("button");
                     launchBtn.className = "wp-prompt-launch";
                     launchBtn.style.cssText = "background: #4A9EFF; border: none; padding: 6px 12px; border-radius: 6px; color: white; cursor: pointer; font-size: 12px; font-weight: bold; transition: 0.2s;";
+                    if (window.matchMedia?.("(pointer: coarse)")?.matches) {
+                        [ignoreBtn, launchBtn].forEach(btn => {
+                            btn.style.minWidth = "44px";
+                            btn.style.minHeight = "44px";
+                        });
+                    }
                     launchBtn.textContent = "Launch Player";
                     btnGroup.appendChild(ignoreBtn);
                     btnGroup.appendChild(launchBtn);
@@ -349,6 +355,9 @@
         video.dataset.customPlayerActive = "true";
         video.dataset.originalControls   = video.controls;
         video.controls = false;
+        // Mobile M-O3: Ensure inline playback on iOS Safari to prevent system player takeover
+        if (!video.hasAttribute("playsinline")) video.setAttribute("playsinline", "");
+        if (!video.hasAttribute("webkit-playsinline")) video.setAttribute("webkit-playsinline", "");
 
         const root = getRootContainer();
         if (root) root.classList.add("webplayer-active");
@@ -385,7 +394,11 @@
             shadowHost.style.height = `${vr.height / sy}px`;
         };
         syncOverlay();
-        const ro = new ResizeObserver(syncOverlay);
+        let updateTouchAction = () => {};
+        const ro = new ResizeObserver(() => {
+            syncOverlay();
+            updateTouchAction();
+        });
         ro.observe(video);
         ro.observe(video.parentElement);
 
@@ -401,6 +414,7 @@
                 padding: 16px 24px; border-radius: 28px; display: flex; flex-direction: column; gap: 12px; opacity: 0;
                 transition: opacity 0.4s ease, transform 0.4s ease; pointer-events: none; border: 1px solid rgba(255,255,255,0.08);
                 width: calc(95% - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)); max-width: 800px; color: #E3E3E3; box-shadow: 0px 8px 16px 2px rgba(0,0,0,0.2);
+                z-index: 30; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
             }
             @supports (backdrop-filter: blur(24px)) {
                 .webplayer-ui-wrapper {
@@ -440,7 +454,18 @@
             input[type=range]:active::-moz-range-thumb { transform: scale(1.3); }
             .wp-center-row { display: flex; justify-content: center; align-items: center; gap: 16px; margin-top: 4px; flex-wrap: nowrap; }
             button { background: rgba(255,255,255,0.0); border: none; color: #E3E3E3; cursor: pointer; padding: 8px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: all 0.2s ease; width: 44px; height: 44px; }
-            button:hover { background: rgba(255,255,255,0.12); transform: scale(1.05); }
+            @media (hover: hover) and (pointer: fine) {
+                button:hover { background: rgba(255,255,255,0.12); transform: scale(1.05); }
+            }
+            @media (pointer: coarse) {
+                #wp-progress { height: 8px; }
+                #wp-progress::-webkit-slider-thumb { width: 22px; height: 22px; }
+                #wp-progress::-moz-range-thumb { width: 22px; height: 22px; }
+                .speed-pill, .eq-preset-pill { min-width: 44px; min-height: 44px; }
+                .quality-option, .popover-close, #wp-enhance-reset-btn,
+                .wp-skip-undo, .wp-error-retry { min-height: 44px; }
+                .popover-close { min-width: 44px; }
+            }
             @media (max-width: 600px) {
                 .webplayer-ui-wrapper { bottom: max(16px, calc(8px + env(safe-area-inset-bottom))); padding: 12px 16px; border-radius: 20px; gap: 10px; width: calc(100% - 20px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)); }
                 .wp-center-row { flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; gap: 8px; padding-bottom: 2px; scrollbar-width: none; scroll-snap-type: x proximity; }
@@ -457,7 +482,7 @@
                 .quality-dropdown, .speed-popover, .enhance-popover { right: 0; left: auto; bottom: calc(100% + 16px); max-height: min(55vh, 55dvh); overflow-y: auto; max-width: calc(100vw - 32px); }
             }
             @media (max-width: 350px) {
-                button { width: 38px; height: 38px; padding: 6px; }
+                button { width: 44px; height: 44px; padding: 8px; }
                 .material-symbols-rounded { font-size: 20px; }
                 .webplayer-ui-wrapper { padding: 10px 12px; }
             }
@@ -510,6 +535,7 @@
                 position: absolute; inset: 0; pointer-events: auto;
                 touch-action: pan-y pinch-zoom; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
                 overflow: hidden;
+                z-index: 10;
             }
             .wp-ripple {
                 position: absolute; border-radius: 50%; background: #A8C7FA;
@@ -523,6 +549,7 @@
                 background: rgba(26, 29, 36, 0.95); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
                 border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 8px; flex-direction: column; gap: 4px; 
                 z-index: 50; box-shadow: 0px 8px 16px 2px rgba(0,0,0,0.2); min-width: 140px; display: none; 
+                max-height: calc(60vh - env(safe-area-inset-top, 0px)); overflow-y: auto;
             }
             .quality-dropdown.open { display: flex; animation: wp-slideUp 0.2s cubic-bezier(0.4,0,0.2,1); }
             @keyframes wp-slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -555,14 +582,16 @@
                 }
             }
             [data-tooltip] { position: relative; }
-            [data-tooltip]:hover::after {
-                content: attr(data-tooltip);
-                position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
-                background: rgba(26, 29, 36, 0.92); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-                padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 500; color: #E3E3E3;
-                white-space: nowrap; pointer-events: none; z-index: 100;
-                border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-                animation: wp-tooltipIn 0.15s ease-out;
+            @media (hover: hover) and (pointer: fine) {
+                [data-tooltip]:hover::after {
+                    content: attr(data-tooltip);
+                    position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+                    background: rgba(26, 29, 36, 0.92); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+                    padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 500; color: #E3E3E3;
+                    white-space: nowrap; pointer-events: none; z-index: 100;
+                    border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                    animation: wp-tooltipIn 0.15s ease-out;
+                }
             }
             @keyframes wp-tooltipIn { from { opacity: 0; transform: translateX(-50%) translateY(4px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
             .popover-card.closing { animation: wp-slideDown 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards; pointer-events: none; }
@@ -778,18 +807,22 @@
         const gestureZone = document.createElement("div");
         gestureZone.className = "webplayer-gesture-zone";
 
+        // DOM structure: gestureZone is the root interaction layer.
+        // uiWrapper, feedbackOverlay, etc. are CHILDREN of gestureZone so that
+        // touch events on buttons bubble through gestureZone and we can check
+        // e.target to distinguish control taps from gesture taps.
+        gestureZone.appendChild(uiWrapper);
+        gestureZone.appendChild(feedbackOverlay);
         shadow.appendChild(gestureZone);
-        shadow.appendChild(uiWrapper);
-        shadow.appendChild(feedbackOverlay);
 
         // U9: Skip badge + undo button
         const skipBadge = document.createElement("div");
         skipBadge.className = "wp-skip-badge";
-        shadow.appendChild(skipBadge);
+        gestureZone.appendChild(skipBadge);
         const skipUndoBtn = document.createElement("button");
         skipUndoBtn.className = "wp-skip-undo";
         skipUndoBtn.textContent = "Undo";
-        shadow.appendChild(skipUndoBtn);
+        gestureZone.appendChild(skipUndoBtn);
 
         // U2: Error overlay (Bug 2: use createElement instead of innerHTML to avoid XSS risk)
         const errorOverlay = document.createElement("div");
@@ -808,7 +841,7 @@
         errorOverlay.appendChild(errTypeDiv);
         errorOverlay.appendChild(errMsgDiv);
         errorOverlay.appendChild(errRetryButton);
-        shadow.appendChild(errorOverlay);
+        gestureZone.appendChild(errorOverlay);
 
         // --- Video Enhancer Sync ---
         const sharpenMatrixContent = document.getElementById("wp-sharpen-matrix-content"); // B4: Query from main document
@@ -1011,7 +1044,14 @@
         // Bug 1: Use a coordinated cleanup + timeout fallback to prevent
         // hanging in "closing" state if prefers-reduced-motion changes mid-session.
         const closeOverlayPopover = (popoverEl, toggleBtn) => {
-            if (!popoverEl || !popoverEl.classList.contains("active") || popoverEl.classList.contains("closing")) return;
+            if (!popoverEl) return;
+            // If stuck in 'closing' state, force-complete the close immediately
+            if (popoverEl.classList.contains("closing")) {
+                popoverEl.classList.remove("active", "closing");
+                if (toggleBtn) toggleBtn.setAttribute("aria-expanded", "false");
+                return;
+            }
+            if (!popoverEl.classList.contains("active")) return;
             popoverEl.classList.add("closing");
             if (toggleBtn) toggleBtn.setAttribute("aria-expanded", "false");
             const cleanup = () => { popoverEl.classList.remove("active", "closing"); clearTimeout(fallback); };
@@ -1064,16 +1104,27 @@
             });
         }
         on(uiWrapper, "click", e => {
-            if (!e.target.closest("#wp-quality-container") && !e.target.closest("#wp-quality-btn")) {
+            // Don't close popovers when interacting with elements inside them
+            const path = e.composedPath ? e.composedPath() : [];
+            const isInsideQuality = e.target.closest("#wp-quality-container") || e.target.closest("#wp-quality-btn") || path.some(el => el.id === 'wp-quality-container' || el.id === 'wp-quality-btn');
+            const isInsideSpeed = e.target.closest("#wp-speed-popover") || e.target.closest("#wp-speed-toggle-btn") || path.some(el => el.id === 'wp-speed-popover' || el.id === 'wp-speed-toggle-btn');
+            const isInsideEnhance = e.target.closest("#wp-enhance-popover") || e.target.closest("#wp-enhance-toggle-btn") || path.some(el => el.id === 'wp-enhance-popover' || el.id === 'wp-enhance-toggle-btn');
+            if (!isInsideQuality) {
                 qDropdown.classList.remove("open");
                 qBtn.setAttribute("aria-expanded", "false");
             }
-            if (!e.target.closest("#wp-speed-popover") && !e.target.closest("#wp-speed-toggle-btn")) {
+            if (!isInsideSpeed) {
                 closeOverlayPopover(speedPopover, speedToggleBtn);
             }
-            if (enhancePopover && !e.target.closest("#wp-enhance-popover") && !e.target.closest("#wp-enhance-toggle-btn")) {
+            if (enhancePopover && !isInsideEnhance) {
                 closeOverlayPopover(enhancePopover, enhanceToggleBtn);
             }
+        });
+        // Stop clicks inside popovers from propagating to uiWrapper's click handler
+        [speedPopover, enhancePopover].filter(Boolean).forEach(popover => {
+            on(popover, "click", e => e.stopPropagation());
+            on(popover, "pointerdown", e => e.stopPropagation());
+            on(popover, "pointerup", e => e.stopPropagation());
         });
         [qDropdown, speedPopover, enhancePopover].filter(Boolean).forEach(dropdown => {
             on(dropdown, "keydown", (e) => {
@@ -1181,14 +1232,34 @@
 
         // B5: Track and clear feedback timer to prevent collision
         let _overlayFeedbackTimer;
-        const showFeedback = (text, position) => {
+        const showFeedback = (text, position, duration = 800) => {
             feedbackOverlay.innerText = text;
             feedbackOverlay.classList.remove("feedback-left", "feedback-right");
             if (position === "left")  feedbackOverlay.classList.add("feedback-left");
             if (position === "right") feedbackOverlay.classList.add("feedback-right");
             feedbackOverlay.style.opacity = "1";
             clearTimeout(_overlayFeedbackTimer);
-            _overlayFeedbackTimer = setTimeout(() => feedbackOverlay.style.opacity = "0", 800);
+            _overlayFeedbackTimer = setTimeout(() => feedbackOverlay.style.opacity = "0", duration);
+        };
+
+        const requestLandscapeLock = async () => {
+            const orientation = screen.orientation;
+            if (typeof orientation?.lock !== "function") return false;
+
+            for (const requestedOrientation of ["landscape", "landscape-primary"]) {
+                try {
+                    await orientation.lock(requestedOrientation);
+                    return true;
+                } catch (_) {}
+            }
+            return false;
+        };
+        const requestLandscapeLockOrPrompt = async () => {
+            const locked = await requestLandscapeLock();
+            if (!locked && matchMedia("(pointer: coarse)").matches && window.innerHeight > window.innerWidth) {
+                showFeedback("Rotate your device to landscape", "center", 2500);
+            }
+            return locked;
         };
 
         // U5: Seek animations for overlay mode
@@ -1751,10 +1822,20 @@
             pipBtn.setAttribute("aria-pressed", "false");
             on(pipBtn, "click", async () => {
                 try {
-                    document.pictureInPictureElement
-                        ? await document.exitPictureInPicture()
-                        : await video.requestPictureInPicture();
-                    pipBtn.setAttribute("aria-pressed", document.pictureInPictureElement ? "true" : "false");
+                    // Mobile M-O4: Support Safari/iOS webkitSetPresentationMode
+                    if (video.webkitSupportsPresentationMode && typeof video.webkitSetPresentationMode === "function") {
+                        const isPip = video.webkitPresentationMode === "picture-in-picture";
+                        video.webkitSetPresentationMode(isPip ? "inline" : "picture-in-picture");
+                        pipBtn.setAttribute("aria-pressed", isPip ? "false" : "true");
+                    } else if (document.pictureInPictureElement) {
+                        await document.exitPictureInPicture();
+                        pipBtn.setAttribute("aria-pressed", "false");
+                    } else if (video.requestPictureInPicture) {
+                        await video.requestPictureInPicture();
+                        pipBtn.setAttribute("aria-pressed", "true");
+                    } else {
+                        showFeedback("PiP unavailable");
+                    }
                 } catch (err) {
                     console.warn("PiP blocked", err);
                     showFeedback("PiP Blocked");
@@ -1762,13 +1843,25 @@
             });
             on(video, "enterpictureinpicture", () => pipBtn.setAttribute("aria-pressed", "true"));
             on(video, "leavepictureinpicture", () => pipBtn.setAttribute("aria-pressed", "false"));
+            on(video, "webkitpresentationmodechanged", () => {
+                const isPip = video.webkitPresentationMode === "picture-in-picture";
+                pipBtn.setAttribute("aria-pressed", isPip ? "true" : "false");
+            });
         }
         // B3: rot must be declared before the fullscreen handler that references it
         let rot = 0;
+        let lockLandscapeOnNextFullscreen = false;
         on(uiWrapper.querySelector("#wp-fs"), "click", async () => {
             const ytFsBtn = document.querySelector(".ytp-fullscreen-button");
             if (ytFsBtn) {
+                const isAlreadyFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement || video.webkitDisplayingFullscreen);
+                if (!isAlreadyFullscreen) lockLandscapeOnNextFullscreen = true;
                 ytFsBtn.click();
+                setTimeout(() => {
+                    if (lockLandscapeOnNextFullscreen && !(document.fullscreenElement || document.webkitFullscreenElement || video.webkitDisplayingFullscreen)) {
+                        lockLandscapeOnNextFullscreen = false;
+                    }
+                }, 1500);
                 return;
             }
             
@@ -1785,24 +1878,19 @@
                         showFeedback("FS Blocked");
                         return;
                     }
-                    if (req && container) {
+                    // Mobile M-O2: iPhone Safari only supports video.webkitEnterFullscreen
+                    const isIPhone = /iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+                    if (isIPhone && typeof video.webkitEnterFullscreen === "function") {
+                        video.webkitEnterFullscreen();
+                        return;
+                    } else if (req && container) {
                         await req.call(container);
                     } else {
                         const vidReq = video.requestFullscreen || video.webkitRequestFullscreen;
                         await vidReq?.call(video);
                     }
-                    // Lock to landscape on mobile for horizontal videos
-                    try {
-                        const isHorizontal = video.videoWidth >= video.videoHeight;
-                        if (isHorizontal || rot % 180 !== 0) {
-                            await screen.orientation?.lock?.('landscape');
-                        }
-                    } catch (_) {
-                        // Mobile 2: Show a hint if lock fails
-                        if (window.innerWidth < window.innerHeight) {
-                            showFeedback("Rotate your device", "center");
-                        }
-                    }
+                    // Lock to landscape on mobile
+                    await requestLandscapeLockOrPrompt();
                 }
             } catch (err) {
                 const msg = String(err?.message || "");
@@ -1814,12 +1902,7 @@
                     const vidReq = video.requestFullscreen || video.webkitRequestFullscreen;
                     await vidReq?.call(video);
                     // Lock to landscape on fallback fullscreen too
-                    try {
-                        const isHorizontal = video.videoWidth >= video.videoHeight;
-                        if (isHorizontal || rot % 180 !== 0) {
-                            await screen.orientation?.lock?.('landscape');
-                        }
-                    } catch (_) {}
+                    await requestLandscapeLockOrPrompt();
                 } catch (_) { showFeedback("FS Blocked"); }
             }
         });
@@ -1839,9 +1922,16 @@
             setTimeout(syncOverlay, 310);
         };
 
-        const updateTouchAction = () => {
-            const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
-            gestureZone.style.touchAction = isFS ? "none" : "pan-y pinch-zoom";
+        updateTouchAction = () => {
+            const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement || video.webkitDisplayingFullscreen);
+            const viewportH = window.visualViewport?.height || window.innerHeight;
+            const videoH = video.getBoundingClientRect().height;
+            const captureVerticalGestures = isFS || videoH >= viewportH * 0.70;
+            gestureZone.style.touchAction = captureVerticalGestures ? "pinch-zoom" : "pan-y pinch-zoom";
+            if (isFS && lockLandscapeOnNextFullscreen) {
+                lockLandscapeOnNextFullscreen = false;
+                void requestLandscapeLockOrPrompt();
+            }
             // M9: Unlock orientation when exiting fullscreen via any path (e.g., system back gesture)
             if (!isFS) {
                 try { screen.orientation?.unlock?.(); } catch (_) {}
@@ -1851,14 +1941,20 @@
         };
         on(document, "fullscreenchange", updateTouchAction);
         on(document, "webkitfullscreenchange", updateTouchAction);
+        on(video, "webkitbeginfullscreen", updateTouchAction);
+        on(video, "webkitendfullscreen", updateTouchAction);
         on(window, "resize", () => {
             if (rot % 180 !== 0) updateVideoTransform();
             syncOverlay();
+            updateTouchAction();
         });
         on(window, "orientationchange", () => {
             if (rot % 180 !== 0) updateVideoTransform();
             syncOverlay();
+            updateTouchAction();
         });
+        on(window.visualViewport, "resize", updateTouchAction, { passive: true });
+        updateTouchAction();
 
         speedPillsEl.querySelectorAll(".speed-pill").forEach(pill => {
             on(pill, "click", () => setPlaybackRate(parseFloat(pill.dataset.speed)));
@@ -1905,7 +2001,28 @@
 
         let wasControlsVisibleBeforeTap = false;
 
+        // Helper: check if any popover or dropdown is currently open
+        const isAnyPopoverOpen = () => {
+            return qDropdown.classList.contains("open") ||
+                   speedPopover.classList.contains("active") ||
+                   (enhancePopover && enhancePopover.classList.contains("active"));
+        };
+
+        // Mobile M-O5: iOS volume is read-only
+        const _isVolumeReadOnly = (() => {
+            try { const v = video.volume; video.volume = 0.999; const ro = (video.volume === v); video.volume = v; return ro; } catch (_) { return true; }
+        })();
+
+        let _activePointerId = null;
         on(gestureZone, "pointerdown", e => {
+            // Only process gestures when the touch is directly on the gestureZone background.
+            // Taps on buttons/controls will have e.target as the button (not gestureZone)
+            // because uiWrapper is now a child of gestureZone. The button's own click
+            // handler fires normally; the pointerdown just bubbles here harmlessly.
+            if (e.target !== gestureZone) return;
+            // Mobile M-O1: Multi-touch guard: ignore secondary pointers to prevent state corruption
+            if (_activePointerId !== null) return;
+            _activePointerId = e.pointerId;
             wasControlsVisibleBeforeTap = uiWrapper.classList.contains("wp-controls-visible");
             isPointerDown = true;
             try { gestureZone.setPointerCapture(e.pointerId); } catch (_) {}
@@ -1930,7 +2047,7 @@
         });
 
         on(gestureZone, "pointermove", e => {
-            if (!isPointerDown || isLongPressActive) return;
+            if (!isPointerDown || isLongPressActive || e.pointerId !== _activePointerId) return;
             // U6: Ignore gestures near screen edges (safe-area aware)
             const _edgeRect = gestureZone.getBoundingClientRect();
             const _yRatio = (e.clientY - _edgeRect.top) / _edgeRect.height;
@@ -1942,7 +2059,7 @@
             const diffY = e.clientY - startY;
 
             if (!swipeDir) {
-                if (Math.abs(diffX) > 40)      { swipeDir = "horizontal"; gestureZone.style.touchAction = "none"; }
+                if (Math.abs(diffX) > 40)      { swipeDir = "horizontal"; }
                 else if (Math.abs(diffY) > 40) { swipeDir = "vertical"; }
                 if (swipeDir) {
                     clearTimeout(longPressTimer);
@@ -1968,6 +2085,11 @@
                 lastY = e.clientY;
 
                 if (e.clientX > rect.left + rect.width / 2) {
+                    if (_isVolumeReadOnly) {
+                        showFeedback("Vol: Use device buttons", "right");
+                        swipeDir = "vertical-blocked";
+                        return;
+                    }
                     video.volume = Math.max(0, Math.min(1, Math.round((video.volume - deltaY * 0.005) * 100) / 100)); // B7: Round to avoid floating-point drift
                     video.muted = false;
                     if (volSlider) volSlider.value = video.volume; // OB3: Sync slider DOM value
@@ -1989,11 +2111,11 @@
         });
 
         const handleGestureEnd = e => {
-            if (!isPointerDown) return;
+            if (!isPointerDown || e.pointerId !== _activePointerId) return;
+            _activePointerId = null;
             isPointerDown = false;
-            // Restore touch-action for page scrolling after horizontal swipe lock
-            const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
-            gestureZone.style.touchAction = isFS ? "none" : "pan-y pinch-zoom";
+            // Restore page scrolling or gesture capture based on current video size.
+            updateTouchAction();
             // Bug 5: Clear longPressTimer FIRST to prevent race with pointercancel
             clearTimeout(longPressTimer);
             longPressTimer = null;
@@ -2031,8 +2153,7 @@
                 const edges = _getEdgeExclusion();
                 if (startX < edges.left || startX > window.innerWidth - edges.right) {
                     // OB6: Restore touchAction even when rejecting edge swipes
-                    const _isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
-                    gestureZone.style.touchAction = _isFS ? "none" : "pan-y pinch-zoom";
+                    updateTouchAction();
                     return;
                 }
                 // Scale seek by swipe distance (10s per 80px, clamped 5–60s) — matches standalone
@@ -2068,10 +2189,16 @@
 
                     // BUG FIX: Double tap on sides targets seeking, double tap in middle toggles Play/Pause or Fullscreen
                     if (e.clientX < rect.left + rect.width * 0.30) {
-                        safeSeekBackward(video, 10);
-                        showFeedback("−10s", "left");
-                        showSeekAnim("left");
-                        // M5: Haptic feedback on double-tap seek
+                        // Double-tap left: reset brightness if modified, otherwise seek -10s
+                        if (currentBrightness !== 1.0) {
+                            currentBrightness = 1.0;
+                            updateEnhanceValContent("brightness", currentBrightness);
+                            showFeedback("Brightness Reset", "left");
+                        } else {
+                            safeSeekBackward(video, 10);
+                            showFeedback("−10s", "left");
+                            showSeekAnim("left");
+                        }
                         if (_canVibrate) try { navigator.vibrate(15); } catch (_) {}
                         lastTapTime = now;
                         // Brief cooldown to prevent accidental triple-tap double-seek
@@ -2085,22 +2212,22 @@
                         lastTapTime = now;
                         setTimeout(() => { if (lastTapTime === now) lastTapTime = 0; }, 300);
                     } else {
-                        // U8: Double tap center — fullscreen for mouse, play/pause for touch
-                        if (e.pointerType === "mouse") {
-                            const fsBtn = uiWrapper.querySelector("#wp-fs");
-                            if (fsBtn) fsBtn.click();
-                        } else {
-                            const wasPaused = video.paused;
-                            wasPaused ? safePlay(video) : safePause(video);
-                            showFeedback(wasPaused ? "Playing" : "Paused");
-                        }
-                        // OB10: Haptic feedback on center double-tap (parity with standalone)
+                        // Double tap center toggles fullscreen for both mouse and touch
+                        const fsBtn = uiWrapper.querySelector("#wp-fs");
+                        if (fsBtn) fsBtn.click();
                         if (_canVibrate) try { navigator.vibrate(20); } catch (_) {}
                         lastTapTime = 0;
                     }
                 } else {
                     lastTapTime = now;
                     tapTimeout = setTimeout(() => {
+                        // Don't process single-tap actions if a popover is open
+                        if (isAnyPopoverOpen()) {
+                            // Close all popovers on tap outside
+                            closeAllDropdownsExcept(null);
+                            lastTapTime = 0;
+                            return;
+                        }
                         if (e.pointerType === "mouse") {
                             const wasPaused = video.paused;
                             wasPaused ? safePlay(video) : safePause(video);

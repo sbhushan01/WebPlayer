@@ -46,6 +46,30 @@ document.addEventListener("DOMContentLoaded", async () => {
     const themeCloseBtn   = document.getElementById("theme-close-btn");
     const themeBtns       = document.querySelectorAll(".theme-btn");
 
+    // Fixed mobile sheets must escape the transformed and horizontally scrolling controls
+    // while remaining inside the fullscreen subtree.
+    const mobileSheetMedia = window.matchMedia("(max-width: 500px)");
+    const mobileSheetHomes = new Map([speedPopover, themePopover].map(popover => [popover, {
+        parent: popover.parentNode,
+        nextSibling: popover.nextSibling
+    }]));
+    const syncMobileSheetPortal = () => {
+        for (const [popover, home] of mobileSheetHomes) {
+            if (mobileSheetMedia.matches && popover.parentNode !== container) {
+                container.appendChild(popover);
+            } else if (!mobileSheetMedia.matches && popover.parentNode === container) {
+                const nextSibling = home.nextSibling?.parentNode === home.parent ? home.nextSibling : null;
+                home.parent.insertBefore(popover, nextSibling);
+            }
+        }
+    };
+    syncMobileSheetPortal();
+    if (mobileSheetMedia.addEventListener) {
+        mobileSheetMedia.addEventListener("change", syncMobileSheetPortal);
+    } else {
+        mobileSheetMedia.addListener(syncMobileSheetPortal);
+    }
+
     const eqToggleBtn     = document.getElementById("eq-toggle-btn");
     const eqPopover       = document.getElementById("eq-popover");
     const eqCloseBtn      = document.getElementById("eq-close-btn");
@@ -1444,6 +1468,23 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // ── Fullscreen ────────────────────────────────────────────────────────────
     let rotationDeg = 0;
+    const requestLandscapeLock = async () => {
+        const orientation = screen.orientation;
+        if (typeof orientation?.lock !== "function") return false;
+
+        for (const requestedOrientation of ["landscape", "landscape-primary"]) {
+            try {
+                await orientation.lock(requestedOrientation);
+                return true;
+            } catch (_) {}
+        }
+        return false;
+    };
+    const promptManualLandscape = () => {
+        if (matchMedia("(pointer: coarse)").matches && window.innerHeight > window.innerWidth) {
+            showFeedback("Rotate your device to landscape", undefined, 2500);
+        }
+    };
     const toggleFS = async (triggerEvent) => {
         try {
             if (document.fullscreenElement || document.webkitFullscreenElement) {
@@ -1468,11 +1509,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     await req.call(container);
                 }
                 // Lock to landscape on mobile
-                try {
-                    await screen.orientation?.lock?.('landscape');
-                } catch (_) {
-                    try { await screen.orientation?.lock?.('landscape-primary'); } catch (__) {}
-                }
+                if (!await requestLandscapeLock()) promptManualLandscape();
             }
         } catch (err) {
             const msg = String(err?.message || "");
@@ -1809,14 +1846,14 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // ── Feedback overlay (#4: directional positioning) ─────────────────────────
     let feedbackTimer;
-    const showFeedback = (text, position) => {
+    const showFeedback = (text, position, duration = 800) => {
         feedbackOverlay.textContent = text;
         feedbackOverlay.classList.remove("feedback-left", "feedback-right");
         if (position === "left")  feedbackOverlay.classList.add("feedback-left");
         if (position === "right") feedbackOverlay.classList.add("feedback-right");
         feedbackOverlay.style.opacity = 1;
         clearTimeout(feedbackTimer);
-        feedbackTimer = setTimeout(() => feedbackOverlay.style.opacity = 0, 800);
+        feedbackTimer = setTimeout(() => feedbackOverlay.style.opacity = 0, duration);
     };
 
     const isTextEntryTarget = (target) => {

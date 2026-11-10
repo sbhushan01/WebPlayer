@@ -3,8 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport"
-        content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#1A1D24">
     <meta name="description" content="WebPlayer — feature-rich video player for HLS, DASH, and native streams.">
     <title>WebPlayer</title>
@@ -146,7 +145,8 @@
             align-items: center;
             justify-content: center;
             overflow: hidden;
-            touch-action: none;
+            touch-action: auto;
+            touch-action: pinch-zoom;
         }
 
         .wp-svg-filters {
@@ -169,7 +169,8 @@
             inset: 0;
             z-index: 10;
             cursor: default;
-            touch-action: none;
+            touch-action: auto;
+            touch-action: pinch-zoom;
             user-select: none;
             -webkit-user-select: none;
             -webkit-touch-callout: none;
@@ -1721,6 +1722,17 @@
 
         /* U3: Larger EQ slider touch target on coarse-pointer (touch) devices */
         @media (pointer: coarse) {
+            .speed-pill,
+            .eq-preset-pill,
+            .quality-option,
+            #skip-undo-btn,
+            #error-retry,
+            #eq-reset-btn,
+            #enhance-reset-btn {
+                min-width: 44px;
+                min-height: 44px;
+            }
+
             .eq-band input[type="range"] {
                 width: 38px;
             }

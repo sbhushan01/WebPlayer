@@ -119,6 +119,12 @@
                     const launchBtn = document.createElement("button");
                     launchBtn.className = "wp-prompt-launch";
                     launchBtn.style.cssText = "background: #4A9EFF; border: none; padding: 6px 12px; border-radius: 6px; color: white; cursor: pointer; font-size: 12px; font-weight: bold; transition: 0.2s;";
+                    if (window.matchMedia?.("(pointer: coarse)")?.matches) {
+                        [ignoreBtn, launchBtn].forEach(btn => {
+                            btn.style.minWidth = "44px";
+                            btn.style.minHeight = "44px";
+                        });
+                    }
                     launchBtn.textContent = "Launch Player";
                     btnGroup.appendChild(ignoreBtn);
                     btnGroup.appendChild(launchBtn);
@@ -388,7 +394,11 @@
             shadowHost.style.height = `${vr.height / sy}px`;
         };
         syncOverlay();
-        const ro = new ResizeObserver(syncOverlay);
+        let updateTouchAction = () => {};
+        const ro = new ResizeObserver(() => {
+            syncOverlay();
+            updateTouchAction();
+        });
         ro.observe(video);
         ro.observe(video.parentElement);
 
@@ -451,6 +461,10 @@
                 #wp-progress { height: 8px; }
                 #wp-progress::-webkit-slider-thumb { width: 22px; height: 22px; }
                 #wp-progress::-moz-range-thumb { width: 22px; height: 22px; }
+                .speed-pill, .eq-preset-pill { min-width: 44px; min-height: 44px; }
+                .quality-option, .popover-close, #wp-enhance-reset-btn,
+                .wp-skip-undo, .wp-error-retry { min-height: 44px; }
+                .popover-close { min-width: 44px; }
             }
             @media (max-width: 600px) {
                 .webplayer-ui-wrapper { bottom: max(16px, calc(8px + env(safe-area-inset-bottom))); padding: 12px 16px; border-radius: 20px; gap: 10px; width: calc(100% - 20px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)); }
@@ -468,7 +482,7 @@
                 .quality-dropdown, .speed-popover, .enhance-popover { right: 0; left: auto; bottom: calc(100% + 16px); max-height: min(55vh, 55dvh); overflow-y: auto; max-width: calc(100vw - 32px); }
             }
             @media (max-width: 350px) {
-                button { width: 38px; height: 38px; padding: 6px; }
+                button { width: 44px; height: 44px; padding: 8px; }
                 .material-symbols-rounded { font-size: 20px; }
                 .webplayer-ui-wrapper { padding: 10px 12px; }
             }
@@ -1218,14 +1232,34 @@
 
         // B5: Track and clear feedback timer to prevent collision
         let _overlayFeedbackTimer;
-        const showFeedback = (text, position) => {
+        const showFeedback = (text, position, duration = 800) => {
             feedbackOverlay.innerText = text;
             feedbackOverlay.classList.remove("feedback-left", "feedback-right");
             if (position === "left")  feedbackOverlay.classList.add("feedback-left");
             if (position === "right") feedbackOverlay.classList.add("feedback-right");
             feedbackOverlay.style.opacity = "1";
             clearTimeout(_overlayFeedbackTimer);
-            _overlayFeedbackTimer = setTimeout(() => feedbackOverlay.style.opacity = "0", 800);
+            _overlayFeedbackTimer = setTimeout(() => feedbackOverlay.style.opacity = "0", duration);
+        };
+
+        const requestLandscapeLock = async () => {
+            const orientation = screen.orientation;
+            if (typeof orientation?.lock !== "function") return false;
+
+            for (const requestedOrientation of ["landscape", "landscape-primary"]) {
+                try {
+                    await orientation.lock(requestedOrientation);
+                    return true;
+                } catch (_) {}
+            }
+            return false;
+        };
+        const requestLandscapeLockOrPrompt = async () => {
+            const locked = await requestLandscapeLock();
+            if (!locked && matchMedia("(pointer: coarse)").matches && window.innerHeight > window.innerWidth) {
+                showFeedback("Rotate your device to landscape", "center", 2500);
+            }
+            return locked;
         };
 
         // U5: Seek animations for overlay mode
@@ -1816,10 +1850,18 @@
         }
         // B3: rot must be declared before the fullscreen handler that references it
         let rot = 0;
+        let lockLandscapeOnNextFullscreen = false;
         on(uiWrapper.querySelector("#wp-fs"), "click", async () => {
             const ytFsBtn = document.querySelector(".ytp-fullscreen-button");
             if (ytFsBtn) {
+                const isAlreadyFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement || video.webkitDisplayingFullscreen);
+                if (!isAlreadyFullscreen) lockLandscapeOnNextFullscreen = true;
                 ytFsBtn.click();
+                setTimeout(() => {
+                    if (lockLandscapeOnNextFullscreen && !(document.fullscreenElement || document.webkitFullscreenElement || video.webkitDisplayingFullscreen)) {
+                        lockLandscapeOnNextFullscreen = false;
+                    }
+                }, 1500);
                 return;
             }
             
@@ -1848,18 +1890,7 @@
                         await vidReq?.call(video);
                     }
                     // Lock to landscape on mobile
-                    try {
-                        await screen.orientation?.lock?.('landscape');
-                    } catch (_) {
-                        // Fallback: try landscape-primary
-                        try {
-                            await screen.orientation?.lock?.('landscape-primary');
-                        } catch (__) {
-                            if (window.innerWidth < window.innerHeight) {
-                                showFeedback("Rotate your device", "center");
-                            }
-                        }
-                    }
+                    await requestLandscapeLockOrPrompt();
                 }
             } catch (err) {
                 const msg = String(err?.message || "");
@@ -1871,11 +1902,7 @@
                     const vidReq = video.requestFullscreen || video.webkitRequestFullscreen;
                     await vidReq?.call(video);
                     // Lock to landscape on fallback fullscreen too
-                    try {
-                        await screen.orientation?.lock?.('landscape');
-                    } catch (_) {
-                        try { await screen.orientation?.lock?.('landscape-primary'); } catch (__) {}
-                    }
+                    await requestLandscapeLockOrPrompt();
                 } catch (_) { showFeedback("FS Blocked"); }
             }
         });
@@ -1895,9 +1922,16 @@
             setTimeout(syncOverlay, 310);
         };
 
-        const updateTouchAction = () => {
-            const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
-            gestureZone.style.touchAction = isFS ? "none" : "pan-y pinch-zoom";
+        updateTouchAction = () => {
+            const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement || video.webkitDisplayingFullscreen);
+            const viewportH = window.visualViewport?.height || window.innerHeight;
+            const videoH = video.getBoundingClientRect().height;
+            const captureVerticalGestures = isFS || videoH >= viewportH * 0.70;
+            gestureZone.style.touchAction = captureVerticalGestures ? "pinch-zoom" : "pan-y pinch-zoom";
+            if (isFS && lockLandscapeOnNextFullscreen) {
+                lockLandscapeOnNextFullscreen = false;
+                void requestLandscapeLockOrPrompt();
+            }
             // M9: Unlock orientation when exiting fullscreen via any path (e.g., system back gesture)
             if (!isFS) {
                 try { screen.orientation?.unlock?.(); } catch (_) {}
@@ -1912,11 +1946,15 @@
         on(window, "resize", () => {
             if (rot % 180 !== 0) updateVideoTransform();
             syncOverlay();
+            updateTouchAction();
         });
         on(window, "orientationchange", () => {
             if (rot % 180 !== 0) updateVideoTransform();
             syncOverlay();
+            updateTouchAction();
         });
+        on(window.visualViewport, "resize", updateTouchAction, { passive: true });
+        updateTouchAction();
 
         speedPillsEl.querySelectorAll(".speed-pill").forEach(pill => {
             on(pill, "click", () => setPlaybackRate(parseFloat(pill.dataset.speed)));
@@ -2021,7 +2059,7 @@
             const diffY = e.clientY - startY;
 
             if (!swipeDir) {
-                if (Math.abs(diffX) > 40)      { swipeDir = "horizontal"; gestureZone.style.touchAction = "none"; }
+                if (Math.abs(diffX) > 40)      { swipeDir = "horizontal"; }
                 else if (Math.abs(diffY) > 40) { swipeDir = "vertical"; }
                 if (swipeDir) {
                     clearTimeout(longPressTimer);
@@ -2076,9 +2114,8 @@
             if (!isPointerDown || e.pointerId !== _activePointerId) return;
             _activePointerId = null;
             isPointerDown = false;
-            // Restore touch-action for page scrolling after horizontal swipe lock
-            const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
-            gestureZone.style.touchAction = isFS ? "none" : "pan-y pinch-zoom";
+            // Restore page scrolling or gesture capture based on current video size.
+            updateTouchAction();
             // Bug 5: Clear longPressTimer FIRST to prevent race with pointercancel
             clearTimeout(longPressTimer);
             longPressTimer = null;
@@ -2116,8 +2153,7 @@
                 const edges = _getEdgeExclusion();
                 if (startX < edges.left || startX > window.innerWidth - edges.right) {
                     // OB6: Restore touchAction even when rejecting edge swipes
-                    const _isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
-                    gestureZone.style.touchAction = _isFS ? "none" : "pan-y pinch-zoom";
+                    updateTouchAction();
                     return;
                 }
                 // Scale seek by swipe distance (10s per 80px, clamped 5–60s) — matches standalone
