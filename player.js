@@ -134,7 +134,12 @@ document.addEventListener("DOMContentLoaded", async () => {
             const p = player.play();
             _playPromise = p;
             if (p && typeof p.catch === "function") {
-                p.catch(() => {}).finally(() => { if (_playPromise === p) _playPromise = null; });
+                p.catch((err) => {
+                    // Show feedback when autoplay is blocked (iOS, user gesture required)
+                    if (err?.name === "NotAllowedError" && player.paused) {
+                        showFeedback("Tap to Play");
+                    }
+                }).finally(() => { if (_playPromise === p) _playPromise = null; });
             }
         } catch (err) { _playPromise = null; }
     };
@@ -144,12 +149,17 @@ document.addEventListener("DOMContentLoaded", async () => {
         player.pause();
     };
 
+    // iOS volume detection: volume is read-only on iOS
+    const _isVolumeReadOnly = (() => {
+        try { const v = player.volume; player.volume = 0.999; const ro = (player.volume === v); player.volume = v; return ro; } catch (_) { return true; }
+    })();
+
     // ── Media Session ─────────────────────────────────────────────────────────
     if ("mediaSession" in navigator) {
         navigator.mediaSession.setActionHandler("play",         () => safePlay());
         navigator.mediaSession.setActionHandler("pause",        () => safePause());
-        navigator.mediaSession.setActionHandler("seekbackward", (e) => { player.currentTime = Math.max(0, player.currentTime - (e.seekOffset || 10)); });
-        navigator.mediaSession.setActionHandler("seekforward",  (e) => { player.currentTime = Math.min(player.duration || Infinity, player.currentTime + (e.seekOffset || 10)); });
+        navigator.mediaSession.setActionHandler("seekbackward", (e) => { if (!isFinite(player.duration)) return; player.currentTime = Math.max(0, player.currentTime - (e.seekOffset || 10)); });
+        navigator.mediaSession.setActionHandler("seekforward",  (e) => { if (!isFinite(player.duration)) return; player.currentTime = Math.min(player.duration, player.currentTime + (e.seekOffset || 10)); });
     }
 
     // ── URL params ────────────────────────────────────────────────────────────
@@ -340,6 +350,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     function destroyEngines() {
         if (currentHls)  { currentHls.destroy();  currentHls  = null; }
         if (currentDash) { currentDash.reset();   currentDash = null; }
+        // Clean up preview video to prevent stale frames after retry
+        if (_previewVideo) {
+            _previewVideo.src = "";
+            _previewVideo.remove();
+            _previewVideo = null;
+            _previewVideoReady = false;
+        }
     }
     window.addEventListener("beforeunload", () => {
         clearInterval(ambilightInterval);
@@ -661,7 +678,9 @@ document.addEventListener("DOMContentLoaded", async () => {
                     player.crossOrigin = "anonymous";
                     player.src = src;
                     // Explicitly trigger play for native HLS
-                    player.addEventListener("loadedmetadata", () => safePlay(), { once: true });
+                    const _nativeHlsMetaHandler = () => safePlay();
+                    player.removeEventListener("loadedmetadata", _nativeHlsMetaHandler);
+                    player.addEventListener("loadedmetadata", _nativeHlsMetaHandler, { once: true });
                 } else {
                     await loadScript("libs/hls.min.js");
                     if (window.Hls && Hls.isSupported()) {
@@ -706,9 +725,11 @@ document.addEventListener("DOMContentLoaded", async () => {
                                 populateAudio(tracks, currentHls.audioTrack);
                             }
                         });
+                        let _lastHlsLevelCount = -1;
                         currentHls.on(Hls.Events.LEVEL_SWITCHING, () => {
                             const lvls = currentHls.levels;
-                            if (lvls && lvls.length > 0) {
+                            if (lvls && lvls.length > 0 && lvls.length !== _lastHlsLevelCount) {
+                                _lastHlsLevelCount = lvls.length;
                                 const levels = [
                                     ...(lvls.length > 1 ? [{ label: "Auto", value: -1 }] : []),
                                     ...lvls.map((l, i) => ({ label: l.height ? `${l.height}p` : (l.bitrate ? `${Math.round(l.bitrate / 1000)}kbps` : `Level ${i + 1}`), value: i })) // U7
@@ -720,10 +741,15 @@ document.addEventListener("DOMContentLoaded", async () => {
                         currentHls.on(Hls.Events.LEVEL_SWITCHED, (e, data) => {
                             qualityDropdown.querySelectorAll(".quality-option").forEach(btn => {
                                 const val = parseInt(btn.dataset.value);
-                                const isAuto = currentHls.autoLevelEnabled && val === -1;
-                                const isLevel = val === data.level;
-                                btn.classList.toggle("active", isAuto || isLevel);
-                                btn.setAttribute("aria-selected", (isAuto || isLevel) ? "true" : "false");
+                                let isActive;
+                                if (currentHls.autoLevelEnabled) {
+                                    // When auto is enabled, only highlight "Auto"
+                                    isActive = val === -1;
+                                } else {
+                                    isActive = val === data.level;
+                                }
+                                btn.classList.toggle("active", isActive);
+                                btn.setAttribute("aria-selected", isActive ? "true" : "false");
                             });
                         });
                         // One-shot recovery flags — prevent infinite retry loops.
@@ -731,10 +757,12 @@ document.addEventListener("DOMContentLoaded", async () => {
                         // can also be recovered once.
                         let _hlsMediaRecovered = false;
                         let _hlsNetworkRecovered = false;
-                        player.addEventListener("playing", () => {
+                        const _hlsPlayingReset = () => {
                             _hlsMediaRecovered = false;
                             _hlsNetworkRecovered = false;
-                        });
+                        };
+                        player.removeEventListener("playing", _hlsPlayingReset);
+                        player.addEventListener("playing", _hlsPlayingReset);
                         currentHls.on(Hls.Events.ERROR, (e, d) => {
                             if (d.fatal) {
                                 const typeMap = {
@@ -890,6 +918,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     let skipSegments = [];
+    // Clear skippedIds when user seeks back so segments can re-skip
+    player.addEventListener("seeking", () => {
+        const t = player.currentTime;
+        for (const seg of skipSegments) {
+            const start = seg.segment?.[0] ?? seg.start;
+            const segId = seg.UUID || start;
+            if (t < start && skippedIds.has(segId)) {
+                skippedIds.delete(segId);
+            }
+        }
+    });
     fetchSegments().then(segs => {
         skipSegments = segs;
         // U1: Show brief feedback when SponsorBlock segments are found
@@ -1256,10 +1295,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     muteBtn.setAttribute("aria-pressed", player.muted ? "true" : "false");
     rotateBtn.setAttribute("aria-pressed", "false");
     pipBtn.setAttribute("aria-pressed", "false");
+    playBtn.setAttribute("aria-label", "Play");
     fsBtn.setAttribute("aria-pressed", "false");
 
     const setPlaybackRate = (rate) => {
-        player.playbackRate = rate;
+        try { player.playbackRate = rate; } catch (_) { player.playbackRate = Math.min(2, Math.max(0.5, rate)); }
         speedPillsEl.querySelectorAll(".speed-pill").forEach(p =>
             p.classList.toggle("active", parseFloat(p.dataset.speed) === rate)
         );
@@ -1405,17 +1445,22 @@ document.addEventListener("DOMContentLoaded", async () => {
                     showFeedback("Fullscreen blocked");
                     return;
                 }
-                const req = container.requestFullscreen || container.webkitRequestFullscreen;
-                const fsEnabled = (document.fullscreenEnabled !== false) || !!document.webkitFullscreenEnabled;
-                if (!req || !fsEnabled) { showFeedback("Fullscreen unavailable"); return; }
-                await req.call(container);
-                // U5: Lock to landscape natively on mobile for horizontal videos
+                // iPhone Safari only supports video.webkitEnterFullscreen, not container fullscreen
+                const isIPhone = /iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+                if (isIPhone && player.webkitEnterFullscreen) {
+                    player.webkitEnterFullscreen();
+                } else {
+                    const req = container.requestFullscreen || container.webkitRequestFullscreen;
+                    const fsEnabled = (document.fullscreenEnabled !== false) || !!document.webkitFullscreenEnabled;
+                    if (!req || !fsEnabled) { showFeedback("Fullscreen unavailable"); return; }
+                    await req.call(container);
+                }
+                // Lock to landscape on mobile
                 try {
-                    const isHorizontal = player.videoWidth >= player.videoHeight;
-                    if (isHorizontal || rotationDeg % 180 !== 0) {
-                        await screen.orientation?.lock?.('landscape');
-                    }
-                } catch (_) {}
+                    await screen.orientation?.lock?.('landscape');
+                } catch (_) {
+                    try { await screen.orientation?.lock?.('landscape-primary'); } catch (__) {}
+                }
             }
         } catch (err) {
             const msg = String(err?.message || "");
@@ -1775,7 +1820,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                 break;
             case "ArrowRight":
                 e.preventDefault();
-                player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 10);
+                if (!isFinite(player.duration)) break;
+                player.currentTime = Math.min(player.duration, player.currentTime + 10);
                 showFeedback("+10s", "right");
                 break;
             case "ArrowUp":
@@ -1833,7 +1879,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             case "z":
             case "Z":
                 // UX 8: SponsorBlock undo keyboard shortcut
-                const skipUndoBtn = document.getElementById("skip-undo-btn");
                 if (skipUndoBtn && skipUndoBtn.style.display !== "none") {
                     skipUndoBtn.click();
                 }
@@ -1897,7 +1942,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     // from selecting text or triggering unintended zoom.
     gestureZone.addEventListener("dblclick", (e) => e.preventDefault());
 
+    let _activePointerId = null;
     gestureZone.addEventListener("pointerdown", (e) => {
+        // Multi-touch guard: ignore secondary pointers to prevent pinch-zoom corruption
+        if (_activePointerId !== null) return;
+        _activePointerId = e.pointerId;
         window.__wasIdleBeforeTap = container.classList.contains("idle");
         isPointerDown = true;
         try { gestureZone.setPointerCapture(e.pointerId); } catch (_) {}
@@ -1921,7 +1970,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     gestureZone.addEventListener("pointermove", (e) => {
-        if (!isPointerDown || isLongPressActive) return;
+        if (!isPointerDown || isLongPressActive || e.pointerId !== _activePointerId) return;
         // U6: Ignore gestures near screen edges (safe-area aware)
         const _edgeRect = gestureZone.getBoundingClientRect();
         const _yRatio = (e.clientY - _edgeRect.top) / _edgeRect.height;
@@ -1941,6 +1990,11 @@ document.addEventListener("DOMContentLoaded", async () => {
             const deltaY = e.clientY - lastY;
             lastY = e.clientY;
             if (e.clientX > rect.left + rect.width / 2) {
+                if (_isVolumeReadOnly) {
+                    showFeedback("Vol: Use device buttons", "right");
+                    swipeDir = "vertical-blocked";
+                    return;
+                }
                 // B7: Round volume to avoid floating-point drift
                 player.volume      = Math.max(0, Math.min(1, Math.round((player.volume - deltaY * 0.005) * 100) / 100));
                 player.muted       = false;
@@ -1963,7 +2017,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     const handleGestureEnd = (e) => {
-        if (!isPointerDown) return;
+        if (!isPointerDown || e.pointerId !== _activePointerId) return;
+        _activePointerId = null;
         isPointerDown = false;
         // Bug 5: Clear longPressTimer FIRST to prevent race with pointercancel
         clearTimeout(longPressTimer);
@@ -2003,7 +2058,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             // M5: Scale seek amount by swipe distance (10s per 80px, clamped 5–60s)
             const seekAmt = Math.max(5, Math.min(60, Math.round(Math.abs(diffX) / 80) * 10));
             const shift = diffX > 0 ? seekAmt : -seekAmt;
-            player.currentTime = Math.max(0, Math.min(player.duration || Infinity, player.currentTime + shift));
+            if (!isFinite(player.duration)) return;
+            player.currentTime = Math.max(0, Math.min(player.duration, player.currentTime + shift));
             showFeedback(`${shift > 0 ? "+" : ""}${shift}s`, shift > 0 ? "right" : "left");
             // M6: Haptic feedback on swipe seek
             if (_canVibrate) try { navigator.vibrate(15); } catch (_) {}
@@ -2043,7 +2099,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     // M6: Haptic feedback on double-tap seek
                     if (_canVibrate) try { navigator.vibrate(15); } catch (_) {}
                 } else if (e.clientX > rect.left + rect.width * 0.70) {
-                    player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 10);
+                    if (isFinite(player.duration)) player.currentTime = Math.min(player.duration, player.currentTime + 10);
                     showFeedback("+10s", "right");
                     const animEl = document.getElementById("seek-anim-right");
                     if (animEl) {
@@ -2090,8 +2146,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     };
 
-    gestureZone.addEventListener("pointerup", handleGestureEnd);
-    gestureZone.addEventListener("pointercancel", handleGestureEnd);
+    gestureZone.addEventListener("pointerup", handleGestureEnd, { passive: true });
+    gestureZone.addEventListener("pointercancel", handleGestureEnd, { passive: true });
 
 
     // ── Video Enhancer ─────────────────────────────────────────────────────────
@@ -2266,9 +2322,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         gains.forEach((g, i) => {
             if (eqFilters[i]) eqFilters[i].gain.value = g;
         });
-        // Sync slider UI
+        // Sync slider UI and gain labels
         const sliders = eqBandsContainer.querySelectorAll('input[type="range"]');
-        sliders.forEach((s, i) => { s.value = gains[i] ?? 0; });
+        sliders.forEach((s, i) => {
+            const val = gains[i] ?? 0;
+            s.value = val;
+            const label = s.parentElement?.querySelector("span:last-child");
+            if (label) label.textContent = val > 0 ? `+${val} dB` : ` dB`;
+        });
         updatePresetHighlight(name);
         saveEqSettings();
     };
@@ -2296,7 +2357,10 @@ document.addEventListener("DOMContentLoaded", async () => {
                 window.audioContext.resume().catch(err => console.warn("[WebPlayer] AudioContext resume failed:", err));
             }
 
-            mediaElementSource = window.audioContext.createMediaElementSource(player);
+            // Reuse existing MediaElementSource if already created (can only be created once per element)
+            if (!mediaElementSource || !mediaElementSource.mediaElement) {
+                mediaElementSource = window.audioContext.createMediaElementSource(player);
+            }
             preampGain          = window.audioContext.createGain();
 
             const frequencies = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
@@ -2369,7 +2433,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             console.warn("[WebPlayer] Equalizer could not be initialized:", err?.name || err, err?.message || "");
             if (window.audioContext?.state !== "closed") window.audioContext?.close();
             window.audioContext = null;
-            mediaElementSource = null;
+            // Don't null mediaElementSource — it can't be recreated per element
             preampGain = null;
             eqFilters.length = 0;
         }
@@ -2383,7 +2447,11 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (preampGain) { preampGain.gain.value = 1.0; }
             preampSlider.value = 1.0;
             preampLabel.textContent = "1.0";
-            eqBandsContainer.querySelectorAll('input[type="range"]').forEach(s => { s.value = 0; });
+            eqBandsContainer.querySelectorAll('input[type="range"]').forEach(s => {
+                s.value = 0;
+                const label = s.parentElement?.querySelector("span:last-child");
+                if (label) label.textContent = "0 dB";
+            });
             updatePresetHighlight("Flat");
             saveEqSettings();
         });
